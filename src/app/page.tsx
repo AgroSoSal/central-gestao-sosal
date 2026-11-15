@@ -82,45 +82,45 @@ export default function Home() {
               <CardHeader>
                 <CardTitle className="text-lg">Sobre a plataforma</CardTitle>
                 <CardDescription>
-                  Monólito modular preparado para integração futura com o ERP SISCOM,
-                  com camada anti-corrupção entre o domínio e o ERP.
+                  Consulte os pedidos de compra do SISCOM importados para o Supabase.
+                  A consulta permite filtrar por filial, fornecedor, pedido, produto e período.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
                 <ul className="text-sm text-muted-foreground space-y-2">
-                  <li>Next.js + TypeScript strict</li>
-                  <li>Tailwind CSS + shadcn/ui</li>
-                  <li>Supabase PostgreSQL + Auth</li>
-                  <li>Arquitetura modular por domínio</li>
+                  <li>Histórico de pedidos de compra</li>
+                  <li>Filtros por filial e período</li>
+                  <li>Acesso com login e autorização de Master</li>
+                  <li>Data da última importação na tela de Compras</li>
                 </ul>
               </CardContent>
             </Card>
 
             <Card className="flex flex-col h-full">
               <CardHeader>
-                <CardTitle className="text-lg">Estado da fundação</CardTitle>
+                <CardTitle className="text-lg">Recursos de Compras</CardTitle>
                 <CardDescription>
-                  Layout, navegação, design system e contratos de integração prontos.
-                  Regras de negócio aguardam documentação formal.
+                  Consulta de pedidos integrada ao Supabase, com dados das extrações SISCOM.
+                  Os demais módulos continuam em planejamento.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
                 <ul className="text-sm text-muted-foreground space-y-2">
                   <li className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-green-500" aria-hidden="true" />
-                    Estrutura de pastas modular
+                    Consulta de pedidos no Supabase
                   </li>
                   <li className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-green-500" aria-hidden="true" />
-                    Design system empresarial
+                    Filtros e paginação de pedidos
                   </li>
                   <li className="flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-green-500" aria-hidden="true" />
-                    Supabase Auth preparado
+                    Login com Supabase Auth
                   </li>
                   <li className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" />
-                    Contratos SISCOM (sem comunicação ativa)
+                    <span className="h-2 w-2 rounded-full bg-green-500" aria-hidden="true" />
+                    Dados SISCOM importados via RPA
                   </li>
                 </ul>
               </CardContent>

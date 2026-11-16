@@ -65,7 +65,7 @@ export type ConsolidatedPurchaseForecast = {
 
 const MAX_PAGE_SIZE = 100
 const MAX_PAGES = 1000 // limite efetivo da RPC protegida
-const MAX_CONCURRENT = 3 // a conciliação faz junções de NFs e deve preservar o banco
+const MAX_CONCURRENT = 1 // a RPC de conciliação é custosa: três lotes simultâneos excederam statement_timeout (57014)
 const MAX_TERMS_ISSUES = 30
 const MAX_CLASSIFICATION_ISSUES = 30
 const asCents = (value: number) => Math.round(value * 100)

@@ -163,4 +163,21 @@ describe("consolidação integral de compras", () => {
       loadClassifications: async () => [],
     }, "2026-11-16")).rejects.toThrow(/classificação incompleta/i)
   })
+
+  it("não sobrecarrega a conciliação do banco com várias páginas SQL simultâneas", async () => {
+    const all = Array.from({ length: 301 }, (_, index) => makeItem(index + 1))
+    let active = 0
+    await expect(consolidatePurchaseForecast({
+      loadPage: async (page, size) => {
+        active += 1
+        if (active > 1) throw new Error("Conciliações SQL simultâneas excederam a capacidade do banco")
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        active -= 1
+        return { rows: all.slice((page - 1) * size, page * size), total: all.length }
+      },
+      loadDecisions: async () => [],
+      loadFollowUps: async () => [],
+      loadClassifications: async (keys) => keys.map((key) => ({ ...key, grupo_subgrupo: "1.MERCADORIA", origem: "cadastro" as const })),
+    }, "2026-11-16")).resolves.toMatchObject({ totalItems: 301, processedItems: 301 })
+  })
 })

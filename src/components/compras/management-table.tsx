@@ -99,7 +99,7 @@ export function ManagementTable({ rows }: { rows: ManagementTableRow[] }) {
       <Dialog.Root open={Boolean(selected)} onOpenChange={(open) => { if (!open) setSelectedId(null) }}>
         {selected && <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-[100] bg-[#010711]/80 backdrop-blur-[3px] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
-          <Dialog.Content className="fixed inset-y-0 right-0 z-[110] flex h-[100dvh] w-full max-w-[620px] flex-col overflow-hidden border-l border-cyan-300/20 bg-[#091524] text-slate-100 shadow-[-25px_0_65px_-20px_rgba(0,0,0,.9)] outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right">
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-[110] flex max-h-[92dvh] w-[calc(100vw-2rem)] max-w-[760px] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-3xl border border-cyan-300/20 bg-[#091524] text-slate-100 shadow-[0_34px_100px_-30px_rgba(0,0,0,.95)] outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95">
             <div className="flex shrink-0 items-start justify-between gap-4 border-b border-cyan-300/15 bg-gradient-to-br from-[#112a40] via-[#0d2034] to-[#091524] px-5 py-5 sm:px-7">
               <div className="min-w-0">
                 <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.17em] text-cyan-300"><PackageOpen size={15} /> Gestão de compras</p>
@@ -108,7 +108,7 @@ export function ManagementTable({ rows }: { rows: ManagementTableRow[] }) {
               </div>
               <Dialog.Close aria-label="Fechar painel" className="shrink-0 rounded-xl border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:border-cyan-400/30 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-cyan-300"><X size={18} /></Dialog.Close>
             </div>
-            <div className="flex-1 space-y-5 overflow-y-auto px-5 py-6 sm:px-7">
+            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-6 sm:px-7">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Produto</p>
                 <p className="mt-1 text-sm font-semibold text-white">{selected.item.descricao ?? "—"}</p>

@@ -31,11 +31,13 @@ describe("gestão tabular de pedidos", () => {
     expect(screen.getByRole("table")).toHaveTextContent("Retido")
   })
 
-  it("abre a gestão imediatamente em painel lateral e fecha sem rolar a tabela", () => {
+  it("abre a gestão em janela centralizada e fecha sem rolar a tabela", () => {
     render(<ManagementTable rows={[{ item: sample("1", "Sal mineral"), record: null }]} />)
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("row", { name: /Sal mineral/ }))
     const dialog = screen.getByRole("dialog", { name: /Gerenciar pedido #1/ })
+    expect(dialog).toHaveClass("left-1/2", "top-1/2", "-translate-x-1/2", "-translate-y-1/2")
+    expect(dialog).not.toHaveClass("right-0", "inset-y-0")
     expect(within(dialog).getByText("6 unidades pendentes")).toBeInTheDocument()
     expect(within(dialog).getByLabelText("Decisão do item")).toBeVisible()
     expect(within(dialog).getByRole("button", { name: "Salvar decisão" })).toBeVisible()

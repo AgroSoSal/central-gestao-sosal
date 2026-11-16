@@ -24,12 +24,12 @@ export function ShellLayout({ children, className }: ShellLayoutProps) {
 
       <main
         className={cn(
-          "flex flex-col h-full min-w-0 overflow-hidden lg:ml-64",
+          "erp-workspace flex flex-col h-full min-w-0 overflow-hidden lg:ml-64",
           className,
         )}
       >
         <Header mobileOpen={mobileOpen} onToggleMobile={onToggleMobile} />
-        <div className="flex-1 overflow-y-auto p-4 lg:p-8">
+        <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-9 lg:py-8">
           {children}
         </div>
       </main>

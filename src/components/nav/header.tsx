@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Bell, User } from "lucide-react"
+import { Bell, User, Command } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MODULES, isModuleAvailable } from "@/domains/shared/modules"
 import { Button } from "@/components/ui/button"
@@ -19,7 +19,7 @@ export function Header({ mobileOpen, onToggleMobile }: HeaderProps) {
   const pathname = usePathname()
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-4 border-b border-background bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4">
+    <header className="sticky top-0 z-10 flex h-[72px] shrink-0 items-center justify-between gap-4 border-b border-[#21324b] bg-[#0a1220]/90 px-4 backdrop-blur-xl sm:px-6 lg:px-9">
       <div className="flex items-center gap-2">
         <button
           onClick={onToggleMobile}
@@ -36,6 +36,7 @@ export function Header({ mobileOpen, onToggleMobile }: HeaderProps) {
             <MenuIcon className="h-5 w-5" aria-hidden="true" />
           )}
         </button>
+        <div className="mr-5 hidden items-center gap-2 border-r border-slate-700/50 pr-5 text-xs font-semibold text-slate-400 xl:flex"><Command size={15} className="text-cyan-400" /> Workspace</div>
         <nav className="hidden md:flex items-center gap-1 text-sm font-medium">
           {MODULES.filter((m) => ["compras", "estoque", "financeiro", "comercial"].includes(m.id)).map((m) => {
             const available = isModuleAvailable(m)
@@ -44,7 +45,7 @@ export function Header({ mobileOpen, onToggleMobile }: HeaderProps) {
               return (
                 <span
                   key={m.id}
-                  className="flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium opacity-50 pointer-events-none cursor-not-allowed"
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-slate-500 opacity-60 pointer-events-none cursor-not-allowed"
                 >
                   {m.label}
                 </span>
@@ -55,8 +56,8 @@ export function Header({ mobileOpen, onToggleMobile }: HeaderProps) {
                 key={m.id}
                 href={m.path}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  isActive ? "bg-accent text-accent-foreground" : "text-foreground hover:bg-accent",
+                  "flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors",
+                  isActive ? "bg-cyan-400/10 text-cyan-300" : "text-slate-400 hover:bg-slate-800 hover:text-slate-200",
                 )}
                 aria-current={isActive ? "page" : undefined}
               >
@@ -68,9 +69,10 @@ export function Header({ mobileOpen, onToggleMobile }: HeaderProps) {
       </div>
 
         <div className="flex items-center gap-2">
+          <span className="hidden items-center gap-2 rounded-full border border-[#25435a] bg-cyan-400/5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.12em] text-cyan-300 sm:inline-flex"><span className="h-1.5 w-1.5 rounded-full bg-cyan-400" /> ERP Web</span>
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="relative">
+              <Button variant="outline" size="icon" className="relative border-[#2a3c54] bg-[#132036] text-slate-300 hover:bg-[#1a3049]">
                 <span className="sr-only">Notificações</span>
                 <Bell className="h-5 w-5" aria-label="Notificações" />
               </Button>
@@ -93,7 +95,7 @@ export function Header({ mobileOpen, onToggleMobile }: HeaderProps) {
             </SheetContent>
           </Sheet>
 
-          <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-md bg-secondary text-secondary-foreground">
+          <div className="hidden lg:flex items-center gap-2 rounded-lg border border-[#2b3f59] bg-[#152239] px-3 py-2 text-slate-300">
             <User className="h-4 w-4" aria-hidden="true" />
             <span className="text-xs font-medium">Usuário</span>
           </div>

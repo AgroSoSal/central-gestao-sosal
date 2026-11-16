@@ -7,9 +7,10 @@ import {
 } from "lucide-react"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { ComprasLogin, ComprasSair } from "@/components/compras/compras-auth"
-import { BranchFilterSelect } from "@/components/compras/branch-filter-select"
+import { BranchFilterSelect, getBranchDisplayName } from "@/components/compras/branch-filter-select"
 import { AnimatedMetricValue } from "@/components/compras/animated-metric-value"
 import { FilterSubmitButton } from "@/components/compras/filter-submit-button"
+import { PurchaseStatus } from "@/components/compras/purchase-status"
 import { LoadingState } from "@/components/shared/mascot-loader"
 
 type SearchParams = Record<string, string | string[] | undefined>
@@ -30,10 +31,15 @@ type PurchaseItem = {
   quantidade: number | string | null
   custo_unitario: number | string | null
   valor_total: number | string | null
+  quantidade_recebida: number | string | null
+  quantidade_pendente: number | string | null
+  valor_pendente: number | string | null
+  situacao_recebimento: string | null
   total_itens: number | string
   total_pedidos: number | string
   soma_total: number | string
   ultima_importacao: string | null
+  ultima_entrada: string | null
 }
 
 const shops = ["CAMPO GRANDE", "SO SAL", "RIO VERDE", "COXIM", "PEDRO GOMES", "ANASTACIO"] as const
@@ -128,14 +134,42 @@ async function ComprasContent({ searchParams }: Props) {
   const filters = { busca, loja, inicio, fim }
 
   // A função PostgreSQL exige JWT válido e profile Master ativo, devolvendo apenas leitura.
-  const { data, error } = await supabase.rpc("fn_listar_pedidos_compra", {
+  // A nova RPC devolve a conciliação calculada em contexto completo, nunca
+  // somente pelas 25 linhas da página (o que duplicaria entradas de NFs).
+  const codigosGenericos = (process.env.SOSAL_COMPRAS_CODIGOS_GENERICOS ?? "")
+    .split(",")
+    .map((code) => code.trim())
+    .filter(Boolean)
+  const { data: dataConciliada, error: erroConciliacao } = await supabase.rpc("fn_listar_pedidos_compra_conciliados", {
     p_busca: busca || null,
     p_loja: loja || null,
     p_inicio: inicio || null,
     p_fim: fim || null,
     p_pagina: pagina,
     p_tamanho: tamanho,
+    p_codigos_genericos: codigosGenericos,
   })
+
+  // Se a consulta de NFs falhar por indisponibilidade, a listagem antiga
+  // continua acessível, mas NUNCA apresenta quantidades recebidas presumidas.
+  let data = dataConciliada
+  let error = erroConciliacao
+  let conciliacaoDisponivel = !erroConciliacao
+  if (erroConciliacao && erroConciliacao.code !== "42501") {
+    const anterior = await supabase.rpc("fn_listar_pedidos_compra", {
+      p_busca: busca || null,
+      p_loja: loja || null,
+      p_inicio: inicio || null,
+      p_fim: fim || null,
+      p_pagina: pagina,
+      p_tamanho: tamanho,
+    })
+    if (!anterior.error) {
+      data = anterior.data
+      error = null
+      conciliacaoDisponivel = false
+    }
+  }
 
   if (error) {
     return (
@@ -147,7 +181,7 @@ async function ComprasContent({ searchParams }: Props) {
           <p className="mt-2 text-sm leading-6">
             {error.code === "42501"
               ? "Sua conta está autenticada, mas não tem autorização de Master ativo no módulo Compras."
-              : "A consulta de leitura está indisponível. Nenhum dado foi exibido. Peça ao administrador para verificar a configuração do Supabase."}
+              : "A consulta de pedidos e recebimentos está indisponível. Nenhum saldo foi presumido. Peça ao administrador para verificar a função de conciliação no Supabase."}
           </p>
         </div>
       </div>
@@ -164,6 +198,11 @@ async function ComprasContent({ searchParams }: Props) {
 
   return (
     <div className="mx-auto max-w-[1520px] space-y-6 pb-12 text-slate-100">
+      {!conciliacaoDisponivel && (
+        <div role="alert" className="rounded-2xl border border-amber-500/30 bg-amber-950/30 px-5 py-4 text-sm text-amber-100">
+          A conferência com as NFs está temporariamente indisponível. Os pedidos continuam visíveis, mas os saldos recebidos e pendentes não foram calculados.
+        </div>
+      )}
       <header className="erp-reveal flex flex-wrap items-center justify-between gap-3">
         <nav className="text-[11px] font-bold uppercase tracking-[.19em] text-slate-500" aria-label="Localização">
           <Link href="/" className="transition-colors hover:text-cyan-300">Central de Gestão</Link>
@@ -196,6 +235,8 @@ async function ComprasContent({ searchParams }: Props) {
               <span className="inline-flex items-center gap-2"><Activity size={14} className="text-cyan-300" /> Histórico consolidado</span>
               <span className="h-3 w-px bg-slate-700" />
               <span className="inline-flex items-center gap-2"><ShieldCheck size={14} className="text-emerald-400" /> Consulta protegida</span>
+              <span className="h-3 w-px bg-slate-700" />
+              <span className="inline-flex items-center gap-2"><CalendarDays size={14} className="text-cyan-300" /> NFs atualizadas até {dateBR(summary?.ultima_entrada ?? null)}</span>
             </div>
           </div>
           <div className="rounded-2xl border border-white/10 bg-[#0b1e30]/80 px-5 py-4 shadow-[inset_0_1px_rgba(255,255,255,.07)] backdrop-blur-md">
@@ -218,7 +259,7 @@ async function ComprasContent({ searchParams }: Props) {
             <div>
               <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.18em] text-cyan-400"><SlidersHorizontal size={13} /> Centro de consulta</p>
               <h2 className="text-xl font-semibold tracking-tight text-white">Consulta de pedidos</h2>
-              <p className="mt-1.5 text-sm text-slate-400">Pesquise e confira os itens e valores importados.</p>
+              <p className="mt-1.5 text-sm text-slate-400">Confira pedidos, entradas de NFs, quantidades e valores ainda pendentes.</p>
             </div>
             <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-[11px] font-semibold text-cyan-200"><ShieldCheck size={14} /> Somente leitura</span>
           </div>
@@ -249,7 +290,7 @@ async function ComprasContent({ searchParams }: Props) {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="erp-table w-full min-w-[1050px] text-left text-[13px]">
+          <table className="erp-table w-full min-w-[1670px] text-left text-[13px]">
             <thead className="bg-[#121e30] text-[10px] uppercase tracking-[.12em] text-slate-400">
               <tr className="border-b border-[#26354c]">
                 <th className="px-5 py-4 font-semibold">Pedido</th>
@@ -257,8 +298,12 @@ async function ComprasContent({ searchParams }: Props) {
                 <th className="px-5 py-4 font-semibold">Filial</th>
                 <th className="px-5 py-4 font-semibold">Fornecedor</th>
                 <th className="px-5 py-4 font-semibold">Produto</th>
-                <th className="px-5 py-4 text-right font-semibold">Qtde.</th>
-                <th className="px-5 py-4 text-right font-semibold">Valor</th>
+                <th className="px-5 py-4 text-right font-semibold">Pedida</th>
+                <th className="px-5 py-4 text-right font-semibold">Recebida</th>
+                <th className="px-5 py-4 text-right font-semibold">Pendente</th>
+                <th className="px-5 py-4 text-right font-semibold">Valor pedido</th>
+                <th className="px-5 py-4 text-right font-semibold">Valor pendente</th>
+                <th className="px-5 py-4 font-semibold">Situação</th>
                 <th className="px-5 py-4 font-semibold">Detalhes</th>
               </tr>
             </thead>
@@ -267,11 +312,15 @@ async function ComprasContent({ searchParams }: Props) {
                 <tr key={String(item.importacao_id) + "-" + String(item.linha_excel) + "-" + String(index)} className="align-top text-slate-200">
                   <td className="whitespace-nowrap px-5 py-4 font-bold text-cyan-300">#{item.pedido}</td>
                   <td className="whitespace-nowrap px-5 py-4 text-slate-400">{dateBR(item.data_pedido)}</td>
-                  <td className="whitespace-nowrap px-5 py-4"><span className="rounded-lg border border-slate-600/30 bg-slate-700/30 px-2.5 py-1 text-[10px] font-bold tracking-wide text-slate-200">{item.loja ?? "—"}</span></td>
+                  <td className="whitespace-nowrap px-5 py-4"><span className="rounded-lg border border-slate-600/30 bg-slate-700/30 px-2.5 py-1 text-[10px] font-bold tracking-wide text-slate-200">{item.loja ? getBranchDisplayName(item.loja) : "—"}</span></td>
                   <td className="max-w-56 px-5 py-4"><p className="max-w-56 truncate font-medium text-slate-100" title={item.fornecedor_nome ?? ""}>{item.fornecedor_nome || "Não informado"}</p><p className="mt-1 text-xs text-slate-500">Cód. {item.fornecedor_codigo ?? "—"}</p></td>
                   <td className="max-w-64 px-5 py-4"><p className="max-w-64 truncate" title={item.descricao ?? ""}>{item.descricao || "Não informado"}</p><p className="mt-1 text-xs text-slate-500">SKU {item.produto_codigo ?? "—"}</p></td>
                   <td className="whitespace-nowrap px-5 py-4 text-right font-medium tabular-nums">{amount.format(num(item.quantidade))}</td>
+                  <td className="whitespace-nowrap px-5 py-4 text-right font-medium tabular-nums text-cyan-200">{item.quantidade_recebida == null ? "—" : amount.format(num(item.quantidade_recebida))}</td>
+                  <td className="whitespace-nowrap px-5 py-4 text-right font-medium tabular-nums text-amber-200">{item.quantidade_pendente == null ? "—" : amount.format(num(item.quantidade_pendente))}</td>
                   <td className="whitespace-nowrap px-5 py-4 text-right font-semibold tabular-nums text-white">{brl.format(num(item.valor_total))}</td>
+                  <td className="whitespace-nowrap px-5 py-4 text-right font-semibold tabular-nums text-amber-200">{item.valor_pendente == null ? "—" : brl.format(num(item.valor_pendente))}</td>
+                  <td className="px-5 py-4"><PurchaseStatus status={item.situacao_recebimento} /></td>
                   <td className="px-5 py-4">
                     <details className="group/details">
                       <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md text-xs font-semibold text-cyan-300 transition-colors hover:text-cyan-100 focus-visible:outline-2 focus-visible:outline-cyan-300">Ver detalhes <ArrowUpRight size={13} className="transition-transform group-open/details:rotate-45" /></summary>
@@ -288,7 +337,7 @@ async function ComprasContent({ searchParams }: Props) {
               ))}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-5 py-16 text-center">
+                  <td colSpan={12} className="px-5 py-16 text-center">
                     <Search className="mx-auto mb-3 text-cyan-400/40" size={28} />
                     <p className="font-semibold text-slate-100">Nenhum item encontrado</p>
                     <p className="mt-1 text-sm text-slate-400">Tente alterar os filtros ou o período.</p>
@@ -312,11 +361,11 @@ async function ComprasContent({ searchParams }: Props) {
       <section className="erp-reveal grid gap-4 lg:grid-cols-2" style={{ "--reveal-delay": "500ms" } as React.CSSProperties}>
         <div className="erp-surface flex items-start gap-3 rounded-2xl p-5 text-sm">
           <CalendarDays size={20} className="mt-0.5 shrink-0 text-cyan-400" />
-          <div><h3 className="font-semibold text-slate-100">Origem e atualização</h3><p className="mt-1 leading-6 text-slate-400">Dados históricos provenientes das extrações SISCOM. A data da última importação é informada pelo banco, sem cópias no navegador.</p></div>
+          <div><h3 className="font-semibold text-slate-100">Origem e atualização</h3><p className="mt-1 leading-6 text-slate-400">Pedidos das extrações RPA e entradas de NFs do SISCOM. O saldo recebido considera as entradas até {dateBR(summary?.ultima_entrada ?? null)}; dados posteriores ainda não carregados não entram no cálculo.</p></div>
         </div>
         <div className="erp-surface flex items-start gap-3 rounded-2xl p-5 text-sm">
           <AlertCircle size={20} className="mt-0.5 shrink-0 text-amber-400" />
-          <div><h3 className="font-semibold text-slate-100">Consulta, não aprovação</h3><p className="mt-1 leading-6 text-slate-400">Valores nominais não são saldos pendentes. Recebimentos, aprovações, parcelas e OTB exigem conciliação e regras específicas antes de serem liberados.</p></div>
+          <div><h3 className="font-semibold text-slate-100">Consulta, não aprovação</h3><p className="mt-1 leading-6 text-slate-400">Os recebimentos e saldos são calculados automaticamente. Aprovações, parcelas e OTB continuam módulos futuros e não são alterados por esta consulta.</p></div>
         </div>
       </section>
     </div>

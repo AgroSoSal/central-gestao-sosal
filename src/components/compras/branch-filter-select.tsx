@@ -13,6 +13,11 @@ type Props = {
   selectedBranch: string
 }
 
+/** Alias visual informado pela operação: código SO SAL = Bandeirantes. */
+export function getBranchDisplayName(branch: string): string {
+  return branch === "SO SAL" ? "BANDEIRANTES" : branch
+}
+
 /** A seleção Radix mantém o valor no GET do formulário sem usar o menu nativo claro. */
 export function BranchFilterSelect({ branches, selectedBranch }: Props) {
   return (
@@ -30,7 +35,7 @@ export function BranchFilterSelect({ branches, selectedBranch }: Props) {
         </SelectItem>
         {branches.map((branch) => (
           <SelectItem key={branch} value={branch} className="rounded-lg py-2.5 focus:bg-cyan-400/15 focus:text-cyan-100">
-            {branch}
+            {getBranchDisplayName(branch)}
           </SelectItem>
         ))}
       </SelectContent>

@@ -22,3 +22,15 @@ Aprovação do escopo pelo responsável do projeto em 16/11/2026: a planilha esp
 - A função de consulta é auditável em `docs/compras/fn_listar_pedidos_compra_conciliados.sql`; a execução requer `authenticated` **e** perfil Master ativo; `anon` e `PUBLIC` não têm EXECUTE.
 - A lista de códigos genéricos é configurável em `SOSAL_COMPRAS_CODIGOS_GENERICOS` (lista de códigos separada por vírgula), sem copiar os códigos de exemplo da planilha.
 - Em nenhuma situação deve ser exibida quantidade recebida igual a zero por falta de dados: ausência da fonte significa `Não conciliado`, não `Em aberto`.
+
+## Etapa 2 — Decisões por item (colunas AP e AQ)
+
+9. **COMP-009 — Decisão padrão.** Na coluna AP, valor vazio significa `Aprovado`. A decisão é independente da situação de recebimento (colunas K–O).
+10. **COMP-010 — Segurar.** O item fica suspenso até alguém alterar a decisão para `Aprovado`. Deverá ficar fora das projeções futuras de OTB e caixa quando esses módulos forem construídos.
+11. **COMP-011 — Cancelar.** Sinaliza que Compras deve solicitar/efetuar o cancelamento no SISCOM. Não executa cancelamento automático; deverá ficar fora das projeções futuras.
+12. **COMP-012 — Observações.** A coluna AQ é texto livre para justificar/contextualizar qualquer decisão. Não exige motivo obrigatório, pois a planilha também não exige.
+13. **COMP-013 — Persistência.** Chave operacional do item: `(loja, pedido, produto_codigo)`, única nos 22.013 registros reais verificados antes da implementação. A atualização do RPA não apaga as decisões.
+14. **COMP-014 — Auditoria.** Cada criação ou alteração de decisão/observação registra estado anterior e novo, momento e usuário Master; gravação repetida sem alteração não cria evento.
+15. **COMP-015 — Segurança e disponibilidade.** Só perfil Master ativo registra ou consulta decisões. Falha ao buscar a tabela não pode ser tratada como decisão padrão Aprovado; a tela bloqueia a edição e exibe o motivo operacional.
+
+Implementação da Etapa 2: tabelas independentes `public.compras_pedido_decisoes` e `public.compras_pedido_decisoes_auditoria`, com RLS, sem privilégios diretos `anon/authenticated`. RPCs de leitura e gravação verificam `auth.uid()` e `public.profiles` a cada chamada. SQL versionado em `docs/compras/decisoes_pedidos_compra.sql`.

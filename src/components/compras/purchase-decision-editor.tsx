@@ -14,6 +14,7 @@ type Props = {
   produtoCodigo: string
   record: PurchaseDecisionRecord | null
   available: boolean
+  expanded?: boolean
 }
 
 const palette: Record<PurchaseDecision, string> = {
@@ -30,7 +31,7 @@ function formattedDate(date: string): string {
   })
 }
 
-export function PurchaseDecisionEditor({ loja, pedido, produtoCodigo, record, available }: Props) {
+export function PurchaseDecisionEditor({ loja, pedido, produtoCodigo, record, available, expanded = false }: Props) {
   const router = useRouter()
   const [saved, setSaved] = useState<PurchaseDecisionRecord | null>(record)
   const [decision, setDecision] = useState<PurchaseDecision>(effectiveDecision(record?.decisao))
@@ -87,15 +88,8 @@ export function PurchaseDecisionEditor({ loja, pedido, produtoCodigo, record, av
     }
   }
 
-  return (
-    <div className="min-w-[170px]">
-      <span className={`inline-flex rounded-lg border px-2.5 py-1 text-[11px] font-bold ${current === "Aguardando aprovação" ? "border-amber-400/25 bg-amber-400/10 text-amber-200" : palette[current]}`}>{available ? current : "Indisponível"}</span>
-      {available && (
-        <details className="group/decision relative mt-2">
-          <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold text-cyan-300 transition hover:text-cyan-100 focus-visible:outline-2 focus-visible:outline-cyan-300">
-            <ClipboardPenLine size={13} /> Gerenciar pedido
-          </summary>
-          <form onSubmit={submit} className="mt-3 w-full max-w-72 space-y-3 rounded-xl border border-cyan-300/20 bg-[#0c1c2e] p-4 shadow-[0_15px_35px_-15px_rgba(0,0,0,.85)]">
+  const form = (
+          <form onSubmit={submit} className={`mt-3 w-full space-y-3 rounded-xl border border-cyan-300/20 bg-[#0c1c2e] p-4 shadow-[0_15px_35px_-15px_rgba(0,0,0,.85)] ${expanded ? "max-w-none" : "max-w-72"}`}>
             <div>
               <label className="mb-1.5 block text-[11px] font-semibold text-slate-300" htmlFor={`decisao-${loja}-${pedido}-${produtoCodigo}`}>Decisão do item</label>
               <select id={`decisao-${loja}-${pedido}-${produtoCodigo}`} value={decision} onChange={(event) => { setDecision(event.target.value as PurchaseDecision); setFeedback("") }} disabled={busy} className="erp-field w-full px-3 text-xs">
@@ -129,8 +123,19 @@ export function PurchaseDecisionEditor({ loja, pedido, produtoCodigo, record, av
               </details>
             )}
           </form>
+  )
+
+  return (
+    <div className="min-w-[170px]">
+      <span className={`inline-flex rounded-lg border px-2.5 py-1 text-[11px] font-bold ${current === "Aguardando aprovação" ? "border-amber-400/25 bg-amber-400/10 text-amber-200" : palette[current]}`}>{available ? current : "Indisponível"}</span>
+      {available && (expanded ? form : (
+        <details className="group/decision relative mt-2">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold text-cyan-300 transition hover:text-cyan-100 focus-visible:outline-2 focus-visible:outline-cyan-300">
+            <ClipboardPenLine size={13} /> Gerenciar pedido
+          </summary>
+          {form}
         </details>
-      )}
+      ))}
     </div>
   )
 }

@@ -31,11 +31,22 @@ describe("gestão tabular de pedidos", () => {
     expect(screen.getByRole("table")).toHaveTextContent("Retido")
   })
 
-  it("seleciona a linha e mostra gerenciar pedido fora da tabela", () => {
+  it("abre a gestão imediatamente em painel lateral e fecha sem rolar a tabela", () => {
     render(<ManagementTable rows={[{ item: sample("1", "Sal mineral"), record: null }]} />)
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("row", { name: /Sal mineral/ }))
-    expect(screen.getByText("Gerenciar pedido")).toBeInTheDocument()
-    expect(within(screen.getByRole("table")).queryByText("Gerenciar pedido")).not.toBeInTheDocument()
-    expect(screen.getByText("6 unidades pendentes")).toBeInTheDocument()
+    const dialog = screen.getByRole("dialog", { name: /Gerenciar pedido #1/ })
+    expect(within(dialog).getByText("6 unidades pendentes")).toBeInTheDocument()
+    expect(within(dialog).getByLabelText("Decisão do item")).toBeVisible()
+    expect(within(dialog).getByRole("button", { name: "Salvar decisão" })).toBeVisible()
+    expect(within(screen.getByRole("table", { hidden: true })).queryByText("Gerenciar pedido")).not.toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Fechar painel" }))
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("permite abrir a gestão da linha pelo teclado", () => {
+    render(<ManagementTable rows={[{ item: sample("2", "Fertilizante"), record: null }]} />)
+    fireEvent.keyDown(screen.getByRole("row", { name: /Fertilizante/ }), { key: "Enter" })
+    expect(screen.getByRole("dialog", { name: /Gerenciar pedido #2/ })).toBeInTheDocument()
   })
 })

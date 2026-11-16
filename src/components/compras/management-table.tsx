@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowUpRight, CircleCheck, ClipboardPenLine, PackageOpen } from "lucide-react"
+import * as Dialog from "@radix-ui/react-dialog"
+import { CircleCheck, ClipboardPenLine, PackageOpen, X } from "lucide-react"
 import { getBranchDisplayName } from "@/domains/compras/domain/branches"
 import { decisionKey, operationalDecision, type PurchaseDecisionRecord } from "@/domains/compras/domain/purchase-decisions"
 import { PurchaseDecisionEditor } from "./purchase-decision-editor"
@@ -95,21 +96,37 @@ export function ManagementTable({ rows }: { rows: ManagementTableRow[] }) {
         {visible.length === 0 && <div className="px-6 py-12 text-center text-slate-400"><CircleCheck size={26} className="mx-auto mb-3 text-cyan-300" />Nenhum pedido nesta situação neste lote. Os próximos lotes podem conter outros itens.</div>}
       </div>
 
-      <section aria-label="Painel de gerenciamento do pedido selecionado" className="erp-surface scroll-mt-6 rounded-2xl border border-cyan-400/20 p-5 sm:p-7">
-        {selected ? <div className="grid gap-6 lg:grid-cols-[1fr_330px]">
-          <div>
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.17em] text-cyan-300"><PackageOpen size={15} /> Item selecionado <ArrowUpRight size={13} /></div>
-            <h3 className="mt-3 text-xl font-bold text-white">Pedido #{selected.item.pedido}</h3>
-            <p className="mt-2 text-sm text-slate-200">{selected.item.descricao}</p>
-            <p className="mt-1 text-xs text-slate-400">{selected.item.fornecedor_nome} · {getBranchDisplayName(selected.item.loja ?? "")}</p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl bg-amber-400/[.07] p-4"><p className="text-[10px] uppercase tracking-wider text-slate-400">Saldo da entrega</p><p className="mt-2 text-xl font-bold text-amber-200">{quantity.format(toNumber(selected.item.quantidade_pendente))} unidades pendentes</p><p className="mt-1 text-xs text-slate-400">Recebidas: {quantity.format(toNumber(selected.item.quantidade_recebida))} de {quantity.format(toNumber(selected.item.quantidade))}</p></div>
-              <div className="rounded-xl bg-amber-400/[.07] p-4"><p className="text-[10px] uppercase tracking-wider text-slate-400">Valor ainda pendente</p><p className="mt-2 text-xl font-bold text-amber-200">{selected.item.valor_pendente === null ? "Não conciliado" : money.format(toNumber(selected.item.valor_pendente))}</p></div>
+      <Dialog.Root open={Boolean(selected)} onOpenChange={(open) => { if (!open) setSelectedId(null) }}>
+        {selected && <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-[100] bg-[#010711]/80 backdrop-blur-[3px] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0" />
+          <Dialog.Content className="fixed inset-y-0 right-0 z-[110] flex h-[100dvh] w-full max-w-[620px] flex-col overflow-hidden border-l border-cyan-300/20 bg-[#091524] text-slate-100 shadow-[-25px_0_65px_-20px_rgba(0,0,0,.9)] outline-none data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-cyan-300/15 bg-gradient-to-br from-[#112a40] via-[#0d2034] to-[#091524] px-5 py-5 sm:px-7">
+              <div className="min-w-0">
+                <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.17em] text-cyan-300"><PackageOpen size={15} /> Gestão de compras</p>
+                <Dialog.Title className="text-xl font-bold tracking-tight text-white">Gerenciar pedido #{selected.item.pedido}</Dialog.Title>
+                <Dialog.Description className="mt-1.5 text-xs text-slate-400">{getBranchDisplayName(selected.item.loja ?? "")} · {dateBR(selected.item.data_pedido)} · SKU {selected.item.produto_codigo}</Dialog.Description>
+              </div>
+              <Dialog.Close aria-label="Fechar painel" className="shrink-0 rounded-xl border border-white/10 bg-white/5 p-2.5 text-slate-300 transition hover:border-cyan-400/30 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-cyan-300"><X size={18} /></Dialog.Close>
             </div>
-          </div>
-          <div className="rounded-2xl border border-cyan-400/20 bg-[#081625] p-5"><h4 className="mb-4 flex items-center gap-2 text-sm font-bold text-white"><ClipboardPenLine size={16} className="text-cyan-300" /> Decisão do comprador</h4><PurchaseDecisionEditor key={rowId(selected)} loja={selected.item.loja!} pedido={selected.item.pedido!} produtoCodigo={selected.item.produto_codigo!} record={selected.record} available /></div>
-        </div> : <div className="flex flex-wrap items-center gap-3 text-slate-400"><ClipboardPenLine size={20} className="text-cyan-300" /><p className="text-sm">Clique em uma linha da tabela para visualizar o saldo e abrir <strong className="text-cyan-200">Gerenciar pedido</strong>.</p></div>}
-      </section>
+            <div className="flex-1 space-y-5 overflow-y-auto px-5 py-6 sm:px-7">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Produto</p>
+                <p className="mt-1 text-sm font-semibold text-white">{selected.item.descricao ?? "—"}</p>
+                <p className="mt-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Fornecedor</p>
+                <p className="mt-1 text-sm text-slate-200">{selected.item.fornecedor_nome ?? "—"}</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-amber-300/15 bg-amber-400/[.07] p-4"><p className="text-[10px] uppercase tracking-wider text-slate-400">Saldo da entrega</p><p className="mt-2 text-lg font-bold text-amber-200">{quantity.format(toNumber(selected.item.quantidade_pendente))} unidades pendentes</p><p className="mt-1 text-xs text-slate-400">Recebidas: {quantity.format(toNumber(selected.item.quantidade_recebida))} de {quantity.format(toNumber(selected.item.quantidade))}</p></div>
+                <div className="rounded-xl border border-amber-300/15 bg-amber-400/[.07] p-4"><p className="text-[10px] uppercase tracking-wider text-slate-400">Valor ainda pendente</p><p className="mt-2 text-lg font-bold text-amber-200">{selected.item.valor_pendente === null ? "Não conciliado" : money.format(toNumber(selected.item.valor_pendente))}</p></div>
+              </div>
+              <div className="rounded-2xl border border-cyan-400/20 bg-[#081625] p-4 sm:p-5">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-white"><ClipboardPenLine size={16} className="text-cyan-300" /> Decisão do comprador</h3>
+                <PurchaseDecisionEditor key={rowId(selected)} loja={selected.item.loja!} pedido={selected.item.pedido!} produtoCodigo={selected.item.produto_codigo!} record={selected.record} available expanded />
+              </div>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>}
+      </Dialog.Root>
     </div>
   )
 }

@@ -29,6 +29,13 @@ describe("editor de decisão da fila", () => {
     expect(screen.getByRole("button", { name: "Salvar decisão" }).closest("form")).toHaveClass("w-full", "max-w-72")
   })
 
+  it("exibe as ações diretamente quando aberto no painel de gestão", () => {
+    render(<PurchaseDecisionEditor loja="SO SAL" pedido="10" produtoCodigo="A" record={null} available expanded />)
+    expect(screen.queryByText("Gerenciar pedido")).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Decisão do item")).toBeVisible()
+    expect(screen.getByRole("button", { name: "Salvar decisão" }).closest("form")).toHaveClass("max-w-none")
+  })
+
   it("revalida a fila após uma decisão salva", async () => {
     render(<PurchaseDecisionEditor loja="SO SAL" pedido="10" produtoCodigo="A" record={{ loja: "SO SAL", pedido: "10", produto_codigo: "A", decisao: "Segurar", observacao: null, atualizado_em: "2026-11-16T15:00:00Z", alteracoes: [] }} available />)
     fireEvent.click(screen.getByText("Gerenciar pedido"))

@@ -4,7 +4,7 @@ import { Suspense, type ReactNode } from "react"
 import {
   AlertCircle, ArrowUpRight, Boxes, ChevronLeft, ChevronRight, ClipboardList,
   Clock3, Search, ShieldCheck, ShoppingCart, Wallet, CalendarDays,
-  Activity, SlidersHorizontal, Database, Sparkles,
+  Activity, SlidersHorizontal, Database, Sparkles, ClipboardPenLine,
 } from "lucide-react"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { ComprasLogin, ComprasSair } from "@/components/compras/compras-auth"
@@ -13,8 +13,7 @@ import { getBranchDisplayName } from "@/domains/compras/domain/branches"
 import { AnimatedMetricValue } from "@/components/compras/animated-metric-value"
 import { FilterSubmitButton } from "@/components/compras/filter-submit-button"
 import { PurchaseStatus } from "@/components/compras/purchase-status"
-import { PurchaseDecisionEditor } from "@/components/compras/purchase-decision-editor"
-import { decisionKey, type PurchaseDecisionRecord } from "@/domains/compras/domain/purchase-decisions"
+import { purchaseFilteredHref } from "@/domains/compras/domain/purchase-management"
 import { LoadingState } from "@/components/shared/mascot-loader"
 
 type SearchParams = Record<string, string | string[] | undefined>
@@ -120,7 +119,7 @@ export default function ComprasPage({ searchParams }: Props) {
   )
 }
 
-async function ComprasContent({ searchParams }: Props) {
+export async function ComprasContent({ searchParams }: Props) {
   // Supabase Auth pode consultar Date.now() para renovar a sessão. A página é
   // dinâmica e precisa esperar um request real antes de carregar o usuário.
   await connection()
@@ -139,6 +138,7 @@ async function ComprasContent({ searchParams }: Props) {
   const pagina = Math.min(1000, Math.max(1, Number.parseInt(first(params.pagina), 10) || 1))
   const tamanho = 25
   const filters = { busca, loja, inicio, fim }
+  const manageHref = purchaseFilteredHref("/compras/gerenciar", filters)
 
   // A função PostgreSQL exige JWT válido e profile Master ativo, devolvendo apenas leitura.
   // A nova RPC devolve a conciliação calculada em contexto completo, nunca
@@ -198,18 +198,6 @@ async function ComprasContent({ searchParams }: Props) {
   const rows = (data ?? []) as PurchaseItem[]
   const summary = rows[0]
   const items = rows.filter((row) => row.pedido !== null)
-  const chaves = items
-    .filter((item) => item.loja && item.pedido && item.produto_codigo)
-    .map((item) => ({ loja: item.loja!, pedido: item.pedido!, produto_codigo: item.produto_codigo! }))
-  // Consulta apenas as chaves da página. Falha não vira aprovação presumida:
-  // os controles ficam indisponíveis até que a decisão real seja consultada.
-  const consultaDecisoes = await supabase.rpc("fn_listar_decisoes_compra", { p_chaves: chaves })
-  const decisoesDisponiveis = !consultaDecisoes.error
-  const decisoes = new Map(
-    ((consultaDecisoes.data ?? []) as PurchaseDecisionRecord[]).map((registro) => [
-      decisionKey(registro.loja, registro.pedido, registro.produto_codigo), registro,
-    ]),
-  )
   const total = num(summary?.total_itens)
   const totalPages = Math.max(1, Math.ceil(total / tamanho))
   const from = total === 0 || items.length === 0 ? 0 : (pagina - 1) * tamanho + 1
@@ -220,11 +208,6 @@ async function ComprasContent({ searchParams }: Props) {
       {!conciliacaoDisponivel && (
         <div role="alert" className="rounded-2xl border border-amber-500/30 bg-amber-950/30 px-5 py-4 text-sm text-amber-100">
           A conferência com as NFs está temporariamente indisponível. Os pedidos continuam visíveis, mas os saldos recebidos e pendentes não foram calculados.
-        </div>
-      )}
-      {!decisoesDisponiveis && (
-        <div role="alert" className="rounded-2xl border border-amber-500/30 bg-amber-950/30 px-5 py-4 text-sm text-amber-100">
-          As decisões dos pedidos não puderam ser consultadas. A edição está temporariamente desabilitada para não exibir aprovações incorretas.
         </div>
       )}
       <header className="erp-reveal flex flex-wrap items-center justify-between gap-3">
@@ -253,7 +236,7 @@ async function ComprasContent({ searchParams }: Props) {
             </span>
             <h1 className="mt-5 text-3xl font-bold tracking-[-.045em] sm:text-[44px] sm:leading-tight">Pedidos de <span className="bg-gradient-to-r from-white via-cyan-100 to-cyan-400 bg-clip-text text-transparent">compra</span></h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
-              Consulte o histórico integrado ao SISCOM, concilie recebimentos e registre decisões de compra por item.
+              Consulte o histórico integrado ao SISCOM, confira entradas de NFs e acompanhe os saldos por filial.
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-4 text-xs text-slate-400">
               <span className="inline-flex items-center gap-2"><Activity size={14} className="text-cyan-300" /> Histórico consolidado</span>
@@ -282,10 +265,10 @@ async function ComprasContent({ searchParams }: Props) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.18em] text-cyan-400"><SlidersHorizontal size={13} /> Centro de consulta</p>
-              <h2 className="text-xl font-semibold tracking-tight text-white">Pedidos e decisões</h2>
-              <p className="mt-1.5 text-sm text-slate-400">Confira entradas de NFs e saldos, e registre Aprovar, Segurar ou Cancelar em cada produto.</p>
+              <h2 className="text-xl font-semibold tracking-tight text-white">Consulta de pedidos</h2>
+              <p className="mt-1.5 text-sm text-slate-400">Confira pedidos, entradas de NFs, quantidades e valores ainda pendentes.</p>
             </div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-[11px] font-semibold text-cyan-200"><ShieldCheck size={14} /> Decisões auditadas</span>
+            <Link href={manageHref} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 text-sm font-bold text-white shadow-[0_12px_30px_-15px_rgba(6,182,212,.9)] transition hover:-translate-y-0.5 hover:shadow-[0_15px_35px_-12px_rgba(6,182,212,.65)]"><ClipboardPenLine size={17} /> Gerenciar pedidos <ArrowUpRight size={15} /></Link>
           </div>
 
           <form action="/compras" method="get" role="search" className="mt-7 grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_185px_160px_160px_auto]">
@@ -314,7 +297,7 @@ async function ComprasContent({ searchParams }: Props) {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="erp-table w-full min-w-[1850px] text-left text-[13px]">
+          <table className="erp-table w-full min-w-[1670px] text-left text-[13px]">
             <thead className="bg-[#121e30] text-[10px] uppercase tracking-[.12em] text-slate-400">
               <tr className="border-b border-[#26354c]">
                 <th className="px-5 py-4 font-semibold">Pedido</th>
@@ -328,7 +311,6 @@ async function ComprasContent({ searchParams }: Props) {
                 <th className="px-5 py-4 text-right font-semibold">Valor pedido</th>
                 <th className="px-5 py-4 text-right font-semibold">Valor pendente</th>
                 <th className="px-5 py-4 font-semibold">Situação</th>
-                <th className="px-5 py-4 font-semibold">Decisão de compra</th>
                 <th className="px-5 py-4 font-semibold">Detalhes</th>
               </tr>
             </thead>
@@ -347,16 +329,6 @@ async function ComprasContent({ searchParams }: Props) {
                   <td className="whitespace-nowrap px-5 py-4 text-right font-semibold tabular-nums text-amber-200">{item.valor_pendente == null ? "—" : brl.format(num(item.valor_pendente))}</td>
                   <td className="px-5 py-4"><PurchaseStatus status={item.situacao_recebimento} /></td>
                   <td className="px-5 py-4">
-                    {item.loja && item.pedido && item.produto_codigo ? (
-                      <PurchaseDecisionEditor
-                        key={decisionKey(item.loja, item.pedido, item.produto_codigo) + ":" + (decisoes.get(decisionKey(item.loja, item.pedido, item.produto_codigo))?.atualizado_em ?? "")}
-                        loja={item.loja} pedido={item.pedido} produtoCodigo={item.produto_codigo}
-                        record={decisoes.get(decisionKey(item.loja, item.pedido, item.produto_codigo)) ?? null}
-                        available={decisoesDisponiveis}
-                      />
-                    ) : <span className="text-xs text-slate-500">Sem chave</span>}
-                  </td>
-                  <td className="px-5 py-4">
                     <details className="group/details">
                       <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md text-xs font-semibold text-cyan-300 transition-colors hover:text-cyan-100 focus-visible:outline-2 focus-visible:outline-cyan-300">Ver detalhes <ArrowUpRight size={13} className="transition-transform group-open/details:rotate-45" /></summary>
                       <div className="mt-3 w-64 rounded-xl border border-[#34445e] bg-[#101d2d] p-4 text-xs shadow-[0_12px_30px_-15px_rgba(0,0,0,.8)]">
@@ -372,7 +344,7 @@ async function ComprasContent({ searchParams }: Props) {
               ))}
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="px-5 py-16 text-center">
+                  <td colSpan={12} className="px-5 py-16 text-center">
                     <Search className="mx-auto mb-3 text-cyan-400/40" size={28} />
                     <p className="font-semibold text-slate-100">Nenhum item encontrado</p>
                     <p className="mt-1 text-sm text-slate-400">Tente alterar os filtros ou o período.</p>
@@ -400,7 +372,7 @@ async function ComprasContent({ searchParams }: Props) {
         </div>
         <div className="erp-surface flex items-start gap-3 rounded-2xl p-5 text-sm">
           <AlertCircle size={20} className="mt-0.5 shrink-0 text-amber-400" />
-          <div><h3 className="font-semibold text-slate-100">Decisões e integração futura</h3><p className="mt-1 leading-6 text-slate-400">Decisão em branco equivale a Aprovado. Segurar adia o item; Cancelar sinaliza uma ação manual ao setor de Compras, sem cancelar no SISCOM. OTB, parcelas e fluxo de caixa ainda não são recalculados por estas decisões.</p></div>
+          <div><h3 className="font-semibold text-slate-100">Decisões em tela dedicada</h3><p className="mt-1 leading-6 text-slate-400">Para aprovar, segurar ou cancelar, use <Link href={manageHref} className="font-semibold text-cyan-300 hover:text-cyan-100">Gerenciar pedidos</Link>. As decisões ficam auditadas; não cancelam automaticamente no SISCOM e ainda não alteram OTB ou caixa.</p></div>
         </div>
       </section>
     </div>

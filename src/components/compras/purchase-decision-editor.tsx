@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
+import { useRouter } from "next/navigation"
 import { Check, ClipboardPenLine, History, Loader2 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/client"
 import {
@@ -30,6 +31,7 @@ function formattedDate(date: string): string {
 }
 
 export function PurchaseDecisionEditor({ loja, pedido, produtoCodigo, record, available }: Props) {
+  const router = useRouter()
   const [saved, setSaved] = useState<PurchaseDecisionRecord | null>(record)
   const [decision, setDecision] = useState<PurchaseDecision>(effectiveDecision(record?.decisao))
   const [note, setNote] = useState(record?.observacao ?? "")
@@ -76,6 +78,8 @@ export function PurchaseDecisionEditor({ loja, pedido, produtoCodigo, record, av
         setNote(latest?.observacao ?? "")
         setFeedback("Decisão registrada com sucesso.")
       }
+      // Uma decisão pode retirar o item da fila de gestão; atualiza os cartões.
+      router.refresh()
     } catch {
       setFeedback("Falha de conexão. Confira se a decisão foi salva antes de tentar novamente.")
     } finally {
@@ -91,7 +95,7 @@ export function PurchaseDecisionEditor({ loja, pedido, produtoCodigo, record, av
           <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold text-cyan-300 transition hover:text-cyan-100 focus-visible:outline-2 focus-visible:outline-cyan-300">
             <ClipboardPenLine size={13} /> Gerenciar
           </summary>
-          <form onSubmit={submit} className="mt-3 w-72 space-y-3 rounded-xl border border-cyan-300/20 bg-[#0c1c2e] p-4 shadow-[0_15px_35px_-15px_rgba(0,0,0,.85)]">
+          <form onSubmit={submit} className="mt-3 w-full max-w-72 space-y-3 rounded-xl border border-cyan-300/20 bg-[#0c1c2e] p-4 shadow-[0_15px_35px_-15px_rgba(0,0,0,.85)]">
             <div>
               <label className="mb-1.5 block text-[11px] font-semibold text-slate-300" htmlFor={`decisao-${loja}-${pedido}-${produtoCodigo}`}>Decisão do item</label>
               <select id={`decisao-${loja}-${pedido}-${produtoCodigo}`} value={decision} onChange={(event) => { setDecision(event.target.value as PurchaseDecision); setFeedback("") }} disabled={busy} className="erp-field w-full px-3 text-xs">

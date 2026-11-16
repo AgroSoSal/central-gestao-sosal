@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Bell, User, Command } from "lucide-react"
@@ -36,6 +37,12 @@ export function Header({ mobileOpen, onToggleMobile }: HeaderProps) {
             <MenuIcon className="h-5 w-5" aria-hidden="true" />
           )}
         </button>
+        <Link href="/" className="flex items-center gap-2 rounded-lg focus-visible:outline-2 focus-visible:outline-cyan-300 lg:hidden" aria-label="Página inicial Só Sal">
+          <span className="flex size-9 items-center justify-center overflow-hidden rounded-lg bg-white p-0.5">
+            <Image src="/brand/sosal-logo.png" alt="" width={200} height={200} className="size-full object-contain" />
+          </span>
+          <span className="hidden text-xs font-bold text-slate-100 sm:inline">Só Sal</span>
+        </Link>
         <div className="mr-5 hidden items-center gap-2 border-r border-slate-700/50 pr-5 text-xs font-semibold text-slate-400 xl:flex"><Command size={15} className="text-cyan-400" /> Workspace</div>
         <nav className="hidden md:flex items-center gap-1 text-sm font-medium">
           {MODULES.filter((m) => ["compras", "estoque", "financeiro", "comercial"].includes(m.id)).map((m) => {

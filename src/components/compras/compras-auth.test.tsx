@@ -26,6 +26,7 @@ describe("ComprasLogin — experiência com o Boi Só Sal", () => {
     render(<ComprasLogin configured />)
 
     expect(screen.getByRole("button", { name: /acessar plataforma/i })).toBeVisible()
+    expect(screen.queryByText(/o boi da só sal vai abrir as portas/i)).not.toBeInTheDocument()
     expect(screen.queryByRole("textbox", { name: /e-mail corporativo/i })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: /acessar plataforma/i }))

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -13,7 +14,6 @@ import {
   Settings,
   X,
   ChevronsRight,
-  Layers3,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MODULES, isModuleAvailable } from "@/domains/shared/modules"
@@ -56,15 +56,15 @@ export function Sidebar({ open = false, onToggle }: SidebarProps) {
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
-          <div className="flex items-center gap-3 flex-1">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-300/30 bg-gradient-to-br from-cyan-500/30 to-blue-600/20 shadow-[0_0_20px_-5px_rgba(34,211,238,.35)]">
-              <Layers3 className="h-5 w-5 text-cyan-300" />
+          <Link href="/" onClick={open ? onToggle : undefined} className="group flex flex-1 items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-cyan-300" aria-label="Página inicial da Central de Gestão Só Sal">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1 shadow-[0_0_24px_-7px_rgba(34,211,238,.45)] transition-transform duration-300 group-hover:rotate-[-4deg] group-hover:scale-105">
+              <Image src="/brand/sosal-logo.png" alt="Só Sal Produtos Agropecuários" width={200} height={200} className="h-full w-full object-contain" />
             </div>
             <div>
               <span className="block text-[17px] font-bold tracking-tight text-white">Só Sal</span>
               <span className="block text-[9px] font-bold uppercase tracking-[.18em] text-cyan-400/80">Central de Gestão</span>
             </div>
-          </div>
+          </Link>
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 py-7">

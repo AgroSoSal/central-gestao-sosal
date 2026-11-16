@@ -141,6 +141,40 @@ body {
   to { transform: scale(1.16); opacity: 1; }
 }
 
+/* Marca Só Sal presente no workspace e nos módulos sem reduzir o contraste. */
+.sosal-brand-stage {
+  box-shadow: inset 0 1px rgba(255,255,255,.07), 0 23px 75px -45px rgba(34,211,238,.37);
+  background-image:
+    radial-gradient(circle at 82% 25%, rgba(34,211,238,.15), transparent 50%),
+    linear-gradient(140deg, rgba(15,58,83,.75), rgba(11,25,43,.85));
+}
+.sosal-brand-logo {
+  animation: sosal-brand-logo-in .85s cubic-bezier(.2,.8,.2,1) both;
+}
+.sosal-brand-mascot {
+  animation: sosal-brand-float 4.4s 1s ease-in-out infinite alternate;
+  transform-origin: center bottom;
+}
+.sosal-module-art {
+  opacity: .11;
+  filter: saturate(.75);
+  mask-image: radial-gradient(circle at center, black 37%, transparent 79%);
+  transform: rotate(-9deg);
+  transition: opacity .35s, transform .45s cubic-bezier(.2,.8,.2,1);
+}
+.sosal-module-card:hover .sosal-module-art {
+  opacity: .24;
+  transform: translate(-6px, -7px) rotate(-1deg) scale(1.06);
+}
+@keyframes sosal-brand-logo-in {
+  from { opacity: 0; transform: translateY(18px) rotate(-7deg) scale(.91); }
+  to { opacity: 1; transform: translateY(0) rotate(-3deg) scale(1); }
+}
+@keyframes sosal-brand-float {
+  from { transform: translateY(0) rotate(-2deg); }
+  to { transform: translateY(-12px) rotate(2deg); }
+}
+
 /* Login Só Sal: cena interativa em que o mascote levanta o painel de acesso. */
 .sosal-login-grid {
   background-image:
@@ -290,6 +324,9 @@ body {
   .erp-reveal, .erp-glow, .erp-table details[open] > div { animation: none !important; }
   .erp-metric, .erp-table tbody tr { transition: none !important; }
   .erp-metric:hover { transform: none; }
+  .sosal-brand-logo, .sosal-brand-mascot { animation: none !important; }
+  .sosal-module-art { transition: none !important; }
+  .sosal-module-card:hover .sosal-module-art { transform: none; }
   .sosal-login-aurora, .sosal-login-copy, .sosal-login-intro-card,
   .sosal-login-cow, .sosal-login-form-panel, .sosal-login-success {
     animation: none !important;

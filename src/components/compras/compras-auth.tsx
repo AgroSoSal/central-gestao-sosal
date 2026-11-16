@@ -134,7 +134,6 @@ export function ComprasLogin({ configured }: { configured: boolean }) {
               <div className="inline-flex size-12 items-center justify-center rounded-2xl border border-cyan-300/15 bg-cyan-400/10 text-cyan-200"><Sparkles size={23} /></div>
               <p className="mt-7 text-[11px] font-bold uppercase tracking-[.22em] text-cyan-300">Sua jornada começa aqui</p>
               <h2 className="mt-3 text-[clamp(1.7rem,3vw,2.2rem)] font-bold leading-tight tracking-tight">Olá, seja bem-vindo!</h2>
-              <p className="mt-3 text-sm leading-6 text-slate-300">O Boi da Só Sal vai abrir as portas para sua experiência de gestão.</p>
 
               {configured ? (
                 <button type="button" onClick={() => { setError(""); setStage("form") }} className="sosal-login-primary mt-9 flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-[#215bff] to-[#167bec] px-4 text-sm font-bold text-white shadow-[0_15px_34px_-12px_rgba(32,110,255,.7)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300">

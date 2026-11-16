@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Suspense } from "react"
 import { connection } from "next/server"
-import { AlertTriangle, ArrowLeft, CalendarClock, ClipboardPenLine, Search, ShieldCheck, Truck } from "lucide-react"
+import { AlertTriangle, ArrowLeft, CalendarClock, ClipboardPenLine, ReceiptText, Search, ShieldCheck, Truck } from "lucide-react"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { ComprasLogin, ComprasSair } from "@/components/compras/compras-auth"
 import { BranchFilterSelect } from "@/components/compras/branch-filter-select"
@@ -79,7 +79,7 @@ export async function FollowUpContent({ searchParams }: Props) {
 
   return <div className="mx-auto max-w-[1500px] space-y-6 pb-12 text-slate-100">
     <header className="erp-reveal flex flex-wrap items-center justify-between gap-3">
-      <div className="flex flex-wrap items-center gap-3 text-xs font-bold"><Link href={returnHref} className="inline-flex items-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-400/5 px-3 py-2 text-cyan-200"><ArrowLeft size={14} /> Gerenciar pedidos</Link><Link href={purchaseFilteredHref("/compras", filters)} className="text-slate-400 hover:text-cyan-200">Consulta</Link><span className="text-slate-500">/ Follow-up</span></div>
+      <div className="flex flex-wrap items-center gap-3 text-xs font-bold"><Link href={returnHref} className="inline-flex items-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-400/5 px-3 py-2 text-cyan-200"><ArrowLeft size={14} /> Gerenciar pedidos</Link><Link href={purchaseFilteredHref("/compras", filters)} className="text-slate-400 hover:text-cyan-200">Consulta</Link><Link href={purchaseFilteredHref("/compras/previsao", filters)} className="inline-flex items-center gap-1 text-cyan-200 hover:text-white"><ReceiptText size={14} /> Previsão de pagamentos</Link><span className="text-slate-500">/ Follow-up</span></div>
       <div className="flex items-center gap-3 text-xs text-slate-400"><ShieldCheck size={14} className="text-emerald-300" /><span className="max-w-44 truncate">{user.email}</span><ComprasSair /></div>
     </header>
     <section className="erp-reveal relative overflow-hidden rounded-[28px] border border-cyan-400/20 bg-gradient-to-br from-[#12314a] via-[#0b1d32] to-[#071423] p-7 sm:p-10">

@@ -46,6 +46,7 @@ describe("tela dedicada Gerenciar pedidos", () => {
     const { ManagementContent } = await import("./page")
     render(await ManagementContent({ searchParams: Promise.resolve({}) }))
     expect(screen.getByRole("link", { name: /Follow-up/ })).toHaveAttribute("href", "/compras/follow-up")
+    expect(screen.getByRole("link", { name: /Previsão de pagamentos/i })).toHaveAttribute("href", "/compras/previsao")
     expect(screen.getByRole("button", { name: /Aguardando aprovação/ })).toBeInTheDocument()
     expect(screen.queryByText("Aprovado")).not.toBeInTheDocument()
   })

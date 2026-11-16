@@ -33,6 +33,7 @@ describe("página Follow-up", () => {
     expect(screen.getByRole("table")).toHaveTextContent("Sal mineral")
     expect(screen.queryByText("Ainda não aprovado")).not.toBeInTheDocument()
     expect(screen.queryByText("Já entregue")).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Previsão de pagamentos/i })).toHaveAttribute("href", "/compras/previsao")
   })
 
   it("não apresenta acompanhamento falso se a RPC ainda não está instalada", async () => {

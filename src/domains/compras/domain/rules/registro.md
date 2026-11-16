@@ -45,3 +45,17 @@ Implementação da Etapa 2: tabelas independentes `public.compras_pedido_decisoe
 21. **COMP-021 — Histórico.** Alterações de acompanhamento ficam auditadas por item, responsável e horário, sem sobrescrever eventos anteriores nem alterar pedidos ou NFs do SISCOM. Ao zerar o saldo, o item deixa a lista ativa, mantendo os registros no banco.
 
 **Status:** regras de interface implementadas no código; SQL de persistência versionado em `docs/compras/followup_pedidos_compra.sql` e aplicado em 16/11/2026 após autorização explícita, pela migração `compras_followup_entregas_20261116`. Funções protegem leitura e gravação por Master ativo, com auditoria própria, sem alterações nas tabelas SISCOM/RPA. A interface bloqueia salvamentos quando a RPC não estiver disponível.
+
+## Etapa 4 — Projeção financeira local de 26 semanas (aprovada em 16/11/2026)
+
+**Escopo aprovado:** opção de leitura, **sem alteração no Supabase**, como preparação para a integração futura com Caixa e OTB. Fontes: aba `Pedidos de Compra`, colunas P–AL e AP, parâmetros B6/B7 e linha 2; saldos já conciliados do SISCOM; previsão informada no Follow-up quando existir.
+
+22. **COMP-022 — Valor projetável.** Usar somente o valor pendente conciliado (`M*J`), sem incluir quantidade já recebida. Zero financeiro não gera novas parcelas; valor zero com entrega ainda pendente significa **sem valor financeiro**, e não entrega concluída. Valores ausentes/inconsistentes permanecem indisponíveis.
+23. **COMP-023 — Decisão financeira.** `Aprovado` e decisão vazia entram na projeção financeira (padrão AP da planilha), mas decisão vazia **continua** `Aguardando aprovação` na operação. `Segurar` e `Cancelar` deixam de gerar parcelas futuras; os registros originais permanecem.
+24. **COMP-024 — Chegada estimada.** Na ausência de previsão registrada pelo comprador no Follow-up, chegada = maior(data do pedido, data-base) + **7 dias**, conforme P12/B6. Previsão de Follow-up válida tem precedência. A data-base usa a data corrente em Campo Grande/MS.
+25. **COMP-025 — Condições e parcelas.** Interpretar sequência explícita de até 10 dias (`30/60/90` etc.); cada vencimento = chegada + dias da parcela. Na condição **vazia**, assumir 30 dias e avisar. Na condição desconhecida, não inventar vencimentos, marcar para conferência e manter valor não programado. Parcelas repartem o saldo pendente com arredondamento ao centavo e soma exata.
+26. **COMP-026 — Horizonte e atrasos.** Mostrar 26 intervalos consecutivos de 7 dias a partir da data-base. Separar parcelas vencidas antes da data-base e posteriores ao final do horizonte, sem ocultar os respectivos valores.
+27. **COMP-027 — Fonte e segurança.** Reaproveitar somente as três RPCs existentes de conciliação, decisões e Follow-up, protegidas por Master. Falha na consulta de conciliação ou decisões interrompe o cálculo. Falha no Follow-up impede usar previsão informada e é sinalizada; o cálculo de 7 dias é identificado como estimativa.
+28. **COMP-028 — Totais limitados ao lote.** A consulta atual é paginada em 50 itens por vez. Os indicadores e as 26 semanas representam **somente o lote selecionado**, nunca o saldo global da empresa. Somente uma futura rotina agregada e validada poderá produzir uma projeção consolidada.
+
+**Implementação:** `src/domains/compras/domain/purchase-payment-forecast.ts`, tela `/compras/previsao` e testes de domínio e interface. Nenhuma alteração de schema, tabela, RPC ou dado externo foi realizada; não há ainda integração real com caixa, OTB, títulos a pagar, bancos ou emissão no SISCOM.

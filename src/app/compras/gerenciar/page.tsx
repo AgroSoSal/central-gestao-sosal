@@ -3,7 +3,7 @@ import { connection } from "next/server"
 import { Suspense } from "react"
 import {
   AlertTriangle, ArrowLeft, ClipboardPenLine, Boxes,
-  Filter, PackageCheck, Search, ShieldCheck, TrendingDown, Truck,
+  Filter, PackageCheck, ReceiptText, Search, ShieldCheck, TrendingDown, Truck,
 } from "lucide-react"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { ComprasLogin, ComprasSair } from "@/components/compras/compras-auth"
@@ -150,7 +150,7 @@ export async function ManagementContent({ searchParams }: Props) {
           <Link href={returnHref} className="inline-flex items-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-400/5 px-3 py-2 text-cyan-200 transition hover:bg-cyan-400/15"><ArrowLeft size={14} /> Voltar à consulta</Link>
           <span className="hidden text-slate-500 sm:inline">/ Gerenciar pedidos</span>
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400"><Link href={purchaseFilteredHref("/compras/follow-up", filters)} className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 font-bold text-cyan-200"><Truck size={14} /> Follow-up</Link><ShieldCheck size={14} className="text-emerald-300" /><span className="max-w-48 truncate">{user.email}</span><ComprasSair /></div>
+        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400"><Link href={purchaseFilteredHref("/compras/previsao", filters)} className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 font-bold text-cyan-200"><ReceiptText size={14} /> Previsão de pagamentos</Link><Link href={purchaseFilteredHref("/compras/follow-up", filters)} className="inline-flex items-center gap-2 rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 font-bold text-cyan-200"><Truck size={14} /> Follow-up</Link><ShieldCheck size={14} className="text-emerald-300" /><span className="max-w-48 truncate">{user.email}</span><ComprasSair /></div>
       </header>
 
       <section className="erp-reveal relative overflow-hidden rounded-[28px] border border-cyan-300/20 bg-gradient-to-br from-[#10263f] via-[#0a192c] to-[#081323] p-7 shadow-[0_30px_80px_-55px_rgba(14,165,233,.45)] sm:p-10">

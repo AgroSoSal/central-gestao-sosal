@@ -21,7 +21,7 @@ export function isApprovedForFollowUp(item: ManagementItem, decision: PurchaseDe
 }
 
 /** Preserva o contexto da pesquisa ao trocar entre consulta e gestão. */
-export function purchaseFilteredHref(path: "/compras" | "/compras/gerenciar" | "/compras/follow-up", filters: {
+export function purchaseFilteredHref(path: "/compras" | "/compras/gerenciar" | "/compras/follow-up" | "/compras/previsao", filters: {
   busca: string; loja: string; inicio: string; fim: string
 }): string {
   const params = new URLSearchParams()

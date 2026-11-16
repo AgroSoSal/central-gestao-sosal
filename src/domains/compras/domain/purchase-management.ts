@@ -5,17 +5,23 @@ export type ManagementItem = {
   situacao_recebimento: string | null
 }
 
-export function requiresPurchaseManagement(item: ManagementItem, decision: PurchaseDecision | null | undefined): boolean {
-  if (decision === "Segurar" || decision === "Cancelar") return true
+/** Saldo só existe quando a conciliação devolve uma quantidade numérica positiva. */
+export function hasOutstandingDelivery(item: ManagementItem): boolean {
   if (item.quantidade_pendente === null) return false
-
   const pending = Number(item.quantidade_pendente)
-  if (!Number.isFinite(pending)) return false
-  return pending > 0 || item.situacao_recebimento === "Em aberto" || item.situacao_recebimento === "Chegada parcial"
+  return Number.isFinite(pending) && pending > 0
+}
+
+export function requiresPurchaseManagement(item: ManagementItem, decision: PurchaseDecision | null | undefined): boolean {
+  return hasOutstandingDelivery(item) && decision !== "Segurar" && decision !== "Cancelar"
+}
+
+export function isApprovedForFollowUp(item: ManagementItem, decision: PurchaseDecision | null | undefined): boolean {
+  return hasOutstandingDelivery(item) && decision === "Aprovado"
 }
 
 /** Preserva o contexto da pesquisa ao trocar entre consulta e gestão. */
-export function purchaseFilteredHref(path: "/compras" | "/compras/gerenciar", filters: {
+export function purchaseFilteredHref(path: "/compras" | "/compras/gerenciar" | "/compras/follow-up", filters: {
   busca: string; loja: string; inicio: string; fim: string
 }): string {
   const params = new URLSearchParams()

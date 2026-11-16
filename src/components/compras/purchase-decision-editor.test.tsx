@@ -16,15 +16,22 @@ vi.mock("@/lib/supabase/client", () => ({
 afterEach(() => { cleanup(); fake.refresh.mockClear() })
 
 describe("editor de decisão da fila", () => {
+  it("exibe aguardando aprovação e habilita salvar a primeira aprovação explícita", () => {
+    render(<PurchaseDecisionEditor loja="SO SAL" pedido="10" produtoCodigo="A" record={null} available />)
+    expect(screen.getByText("Aguardando aprovação")).toBeInTheDocument()
+    fireEvent.click(screen.getByText("Gerenciar pedido"))
+    expect(screen.getByRole("button", { name: "Salvar decisão" })).toBeEnabled()
+  })
+
   it("limita a largura do formulário ao espaço de cartões estreitos", () => {
     render(<PurchaseDecisionEditor loja="SO SAL" pedido="10" produtoCodigo="A" record={null} available />)
-    fireEvent.click(screen.getByText("Gerenciar"))
+    fireEvent.click(screen.getByText("Gerenciar pedido"))
     expect(screen.getByRole("button", { name: "Salvar decisão" }).closest("form")).toHaveClass("w-full", "max-w-72")
   })
 
   it("revalida a fila após uma decisão salva", async () => {
     render(<PurchaseDecisionEditor loja="SO SAL" pedido="10" produtoCodigo="A" record={{ loja: "SO SAL", pedido: "10", produto_codigo: "A", decisao: "Segurar", observacao: null, atualizado_em: "2026-11-16T15:00:00Z", alteracoes: [] }} available />)
-    fireEvent.click(screen.getByText("Gerenciar"))
+    fireEvent.click(screen.getByText("Gerenciar pedido"))
     fireEvent.change(screen.getByLabelText("Decisão do item"), { target: { value: "Aprovado" } })
     fireEvent.click(screen.getByRole("button", { name: "Salvar decisão" }))
     await waitFor(() => expect(fake.refresh).toHaveBeenCalledTimes(1))

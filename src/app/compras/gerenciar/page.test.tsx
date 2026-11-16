@@ -41,4 +41,12 @@ describe("tela dedicada Gerenciar pedidos", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/decisões/i)
     expect(screen.queryByText("Sal mineral")).not.toBeInTheDocument()
   })
+
+  it("apresenta a navegação para o follow-up e status operacional sem aprovação automática", async () => {
+    const { ManagementContent } = await import("./page")
+    render(await ManagementContent({ searchParams: Promise.resolve({}) }))
+    expect(screen.getByRole("link", { name: /Follow-up/ })).toHaveAttribute("href", "/compras/follow-up")
+    expect(screen.getByRole("button", { name: /Aguardando aprovação/ })).toBeInTheDocument()
+    expect(screen.queryByText("Aprovado")).not.toBeInTheDocument()
+  })
 })

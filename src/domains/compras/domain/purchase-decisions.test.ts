@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
-  decisionKey, effectiveDecision, forecastIncludesDecision, normalizeDecision,
+  decisionKey, effectiveDecision, forecastIncludesDecision, normalizeDecision, operationalDecision,
 } from "./purchase-decisions"
 
 describe("decisões dos pedidos de compra", () => {
@@ -8,6 +8,13 @@ describe("decisões dos pedidos de compra", () => {
     expect(effectiveDecision(null)).toBe("Aprovado")
     expect(effectiveDecision(undefined)).toBe("Aprovado")
     expect(forecastIncludesDecision(undefined)).toBe(true)
+  })
+
+  it("distingue aprovação operacional registrada da suposição financeira", () => {
+    expect(operationalDecision(null)).toBe("Aguardando aprovação")
+    expect(operationalDecision("Aprovado")).toBe("Aprovado")
+    expect(operationalDecision("Segurar")).toBe("Segurar")
+    expect(forecastIncludesDecision(null)).toBe(true)
   })
 
   it("segurar e cancelar retiram o item de projeções futuras", () => {

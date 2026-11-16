@@ -26,6 +26,7 @@ describe("consulta principal de compras", () => {
     const links = screen.getAllByRole("link", { name: /gerenciar pedidos/i })
     expect(links.length).toBeGreaterThan(0)
     expect(links[0]).toHaveAttribute("href", "/compras/gerenciar?busca=sal&loja=SO+SAL&inicio=2026-11-01&fim=2026-11-16")
+    expect(screen.getByRole("link", { name: /Follow-up de entregas/i })).toHaveAttribute("href", "/compras/follow-up?busca=sal&loja=SO+SAL&inicio=2026-11-01&fim=2026-11-16")
     expect(screen.queryByText("Gerenciar", { exact: true })).not.toBeInTheDocument()
     expect(callLog.methods).toEqual(["fn_listar_pedidos_compra_conciliados"])
   })

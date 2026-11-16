@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Check, ClipboardPenLine, History, Loader2 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/client"
 import {
-  effectiveDecision, type PurchaseDecision, type PurchaseDecisionRecord,
+  effectiveDecision, operationalDecision, type PurchaseDecision, type PurchaseDecisionRecord,
 } from "@/domains/compras/domain/purchase-decisions"
 
 type Props = {
@@ -38,8 +38,8 @@ export function PurchaseDecisionEditor({ loja, pedido, produtoCodigo, record, av
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState("")
 
-  const current = effectiveDecision(saved?.decisao)
-  const dirty = decision !== current || note.trim() !== (saved?.observacao ?? "")
+  const current = operationalDecision(saved?.decisao)
+  const dirty = !saved || decision !== saved.decisao || note.trim() !== (saved.observacao ?? "")
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -78,7 +78,7 @@ export function PurchaseDecisionEditor({ loja, pedido, produtoCodigo, record, av
         setNote(latest?.observacao ?? "")
         setFeedback("Decisão registrada com sucesso.")
       }
-      // Uma decisão pode retirar o item da fila de gestão; atualiza os cartões.
+      // Uma decisão altera os filtros de fila e os itens elegíveis ao follow-up.
       router.refresh()
     } catch {
       setFeedback("Falha de conexão. Confira se a decisão foi salva antes de tentar novamente.")
@@ -89,11 +89,11 @@ export function PurchaseDecisionEditor({ loja, pedido, produtoCodigo, record, av
 
   return (
     <div className="min-w-[170px]">
-      <span className={`inline-flex rounded-lg border px-2.5 py-1 text-[11px] font-bold ${palette[current]}`}>{available ? current : "Indisponível"}</span>
+      <span className={`inline-flex rounded-lg border px-2.5 py-1 text-[11px] font-bold ${current === "Aguardando aprovação" ? "border-amber-400/25 bg-amber-400/10 text-amber-200" : palette[current]}`}>{available ? current : "Indisponível"}</span>
       {available && (
         <details className="group/decision relative mt-2">
           <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold text-cyan-300 transition hover:text-cyan-100 focus-visible:outline-2 focus-visible:outline-cyan-300">
-            <ClipboardPenLine size={13} /> Gerenciar
+            <ClipboardPenLine size={13} /> Gerenciar pedido
           </summary>
           <form onSubmit={submit} className="mt-3 w-full max-w-72 space-y-3 rounded-xl border border-cyan-300/20 bg-[#0c1c2e] p-4 shadow-[0_15px_35px_-15px_rgba(0,0,0,.85)]">
             <div>

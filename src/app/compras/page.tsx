@@ -4,7 +4,7 @@ import { Suspense, type ReactNode } from "react"
 import {
   AlertCircle, ArrowUpRight, Boxes, ChevronLeft, ChevronRight, ClipboardList,
   Clock3, Search, ShieldCheck, ShoppingCart, Wallet, CalendarDays,
-  Activity, SlidersHorizontal, Database, Sparkles, ClipboardPenLine,
+  Activity, SlidersHorizontal, Database, Sparkles, ClipboardPenLine, Truck,
 } from "lucide-react"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { ComprasLogin, ComprasSair } from "@/components/compras/compras-auth"
@@ -139,6 +139,7 @@ export async function ComprasContent({ searchParams }: Props) {
   const tamanho = 25
   const filters = { busca, loja, inicio, fim }
   const manageHref = purchaseFilteredHref("/compras/gerenciar", filters)
+  const followUpHref = purchaseFilteredHref("/compras/follow-up", filters)
 
   // A função PostgreSQL exige JWT válido e profile Master ativo, devolvendo apenas leitura.
   // A nova RPC devolve a conciliação calculada em contexto completo, nunca
@@ -268,7 +269,7 @@ export async function ComprasContent({ searchParams }: Props) {
               <h2 className="text-xl font-semibold tracking-tight text-white">Consulta de pedidos</h2>
               <p className="mt-1.5 text-sm text-slate-400">Confira pedidos, entradas de NFs, quantidades e valores ainda pendentes.</p>
             </div>
-            <Link href={manageHref} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 text-sm font-bold text-white shadow-[0_12px_30px_-15px_rgba(6,182,212,.9)] transition hover:-translate-y-0.5 hover:shadow-[0_15px_35px_-12px_rgba(6,182,212,.65)]"><ClipboardPenLine size={17} /> Gerenciar pedidos <ArrowUpRight size={15} /></Link>
+            <div className="flex flex-wrap gap-2"><Link href={followUpHref} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-5 text-sm font-bold text-cyan-200 transition hover:bg-cyan-400/20"><Truck size={17} /> Follow-up de entregas</Link><Link href={manageHref} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 text-sm font-bold text-white shadow-[0_12px_30px_-15px_rgba(6,182,212,.9)] transition hover:-translate-y-0.5 hover:shadow-[0_15px_35px_-12px_rgba(6,182,212,.65)]"><ClipboardPenLine size={17} /> Gerenciar pedidos <ArrowUpRight size={15} /></Link></div>
           </div>
 
           <form action="/compras" method="get" role="search" className="mt-7 grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_185px_160px_160px_auto]">

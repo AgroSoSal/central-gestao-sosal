@@ -25,7 +25,7 @@ Aprovação do escopo pelo responsável do projeto em 16/11/2026: a planilha esp
 
 ## Etapa 2 — Decisões por item (colunas AP e AQ)
 
-9. **COMP-009 — Decisão padrão.** Na coluna AP, valor vazio significa `Aprovado`. A decisão é independente da situação de recebimento (colunas K–O).
+9. **COMP-009 — Decisão padrão financeira.** Na coluna AP, valor vazio significa `Aprovado` **exclusivamente nas fórmulas de projeção da planilha**. Isso não significa que um comprador tenha registrado uma aprovação operacional. A decisão é independente da situação de recebimento (colunas K–O).
 10. **COMP-010 — Segurar.** O item fica suspenso até alguém alterar a decisão para `Aprovado`. Deverá ficar fora das projeções futuras de OTB e caixa quando esses módulos forem construídos.
 11. **COMP-011 — Cancelar.** Sinaliza que Compras deve solicitar/efetuar o cancelamento no SISCOM. Não executa cancelamento automático; deverá ficar fora das projeções futuras.
 12. **COMP-012 — Observações.** A coluna AQ é texto livre para justificar/contextualizar qualquer decisão. Não exige motivo obrigatório, pois a planilha também não exige.
@@ -34,3 +34,14 @@ Aprovação do escopo pelo responsável do projeto em 16/11/2026: a planilha esp
 15. **COMP-015 — Segurança e disponibilidade.** Só perfil Master ativo registra ou consulta decisões. Falha ao buscar a tabela não pode ser tratada como decisão padrão Aprovado; a tela bloqueia a edição e exibe o motivo operacional.
 
 Implementação da Etapa 2: tabelas independentes `public.compras_pedido_decisoes` e `public.compras_pedido_decisoes_auditoria`, com RLS, sem privilégios diretos `anon/authenticated`. RPCs de leitura e gravação verificam `auth.uid()` e `public.profiles` a cada chamada. SQL versionado em `docs/compras/decisoes_pedidos_compra.sql`.
+
+## Etapa 3 — Gestão operacional e Follow-up (aprovada em 16/11/2026)
+
+16. **COMP-016 — Aprovação explícita.** Na interface de gestão, decisão ausente = `Aguardando aprovação`, jamais `Aprovado`. A primeira gravação de `Aprovado` deve permanecer habilitada mesmo sem outra alteração. As projeções financeiras futuras continuam obedecendo COMP-009.
+17. **COMP-017 — Fila e filtros.** Gerenciar pedidos exibe itens com quantidade pendente positiva, incluindo recebimento parcial. São abas distintas para `Aguardando aprovação`, `Aprovados` e `Segurar/Cancelar`, com painel de decisão aberto após selecionar uma linha. Pedido sem saldo conciliado não entra na fila.
+18. **COMP-018 — Critério de Follow-up.** Apenas pedido explicitamente aprovado, com quantidade pendente estritamente positiva, é elegível ao acompanhamento de entrega. `Segurar`, `Cancelar` e itens integralmente recebidos ficam fora da fila ativa.
+19. **COMP-019 — Pendência de entrega.** Evidenciar quantidade e valor pendentes após conciliação. Exemplo didático: pedida 100, recebida 60, pendente 40. A parcialidade não encerra o Follow-up.
+20. **COMP-020 — Previsão/rastreabilidade.** Registrar previsão de entrega, próxima cobrança, resposta do fornecedor, posicionamento do comprador, transportadora, código de rastreamento e situação logística. Previsão vencida aparece em destaque; a resposta é registrada internamente pelo comprador, sem acesso direto do fornecedor.
+21. **COMP-021 — Histórico.** Alterações de acompanhamento ficam auditadas por item, responsável e horário, sem sobrescrever eventos anteriores nem alterar pedidos ou NFs do SISCOM. Ao zerar o saldo, o item deixa a lista ativa, mantendo os registros no banco.
+
+**Status:** regras de interface implementadas no código; SQL de persistência versionado em `docs/compras/followup_pedidos_compra.sql` e aplicado em 16/11/2026 após autorização explícita, pela migração `compras_followup_entregas_20261116`. Funções protegem leitura e gravação por Master ativo, com auditoria própria, sem alterações nas tabelas SISCOM/RPA. A interface bloqueia salvamentos quando a RPC não estiver disponível.

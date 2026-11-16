@@ -30,6 +30,11 @@ export function effectiveDecision(value: PurchaseDecision | null | undefined): P
   return value ?? "Aprovado"
 }
 
+/** A previsão da planilha não substitui uma aprovação feita por uma pessoa. */
+export function operationalDecision(value: PurchaseDecision | null | undefined): PurchaseDecision | "Aguardando aprovação" {
+  return value ?? "Aguardando aprovação"
+}
+
 /** Aplicável quando o fluxo de caixa e OTB forem integrados no ERP. */
 export function forecastIncludesDecision(value: PurchaseDecision | null | undefined): boolean {
   return effectiveDecision(value) === "Aprovado"

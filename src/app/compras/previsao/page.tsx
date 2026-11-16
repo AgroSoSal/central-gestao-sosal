@@ -6,10 +6,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { ComprasLogin, ComprasSair } from "@/components/compras/compras-auth"
 import { BranchFilterSelect } from "@/components/compras/branch-filter-select"
 import { FilterSubmitButton } from "@/components/compras/filter-submit-button"
-import { PaymentForecastCalendar, PaymentForecastTable, type PaymentForecastRow } from "@/components/compras/payment-forecast-table"
+import { PaymentForecastTable, type PaymentForecastRow } from "@/components/compras/payment-forecast-table"
+import { GlobalPaymentForecast } from "@/components/compras/global-payment-forecast"
 import { LoadingState } from "@/components/shared/mascot-loader"
 import { decisionKey, type PurchaseDecisionRecord } from "@/domains/compras/domain/purchase-decisions"
-import { forecastPurchasePayments, groupForecastByWeek } from "@/domains/compras/domain/purchase-payment-forecast"
+import { forecastPurchasePayments } from "@/domains/compras/domain/purchase-payment-forecast"
 import { purchaseFilteredHref } from "@/domains/compras/domain/purchase-management"
 
 type SearchParams = Record<string, string | string[] | undefined>
@@ -23,6 +24,8 @@ type PurchaseItem = {
   data_pedido: string | null
   condicao_pagamento: string | null
   quantidade_pendente: number | string | null
+  quantidade_recebida: number | string | null
+  situacao_recebimento: string | null
   valor_pendente: number | string | null
   total_itens: number | string | null
 }
@@ -30,7 +33,6 @@ type FollowUpArrival = { loja: string; pedido: string; produto_codigo: string; p
 
 const shops = ["CAMPO GRANDE", "SO SAL", "RIO VERDE", "COXIM", "PEDRO GOMES", "ANASTACIO"] as const
 const PAGE_SIZE = 50
-const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
 
 function first(value: string | string[] | undefined): string {
   return typeof value === "string" ? value : Array.isArray(value) ? (value[0] ?? "") : ""
@@ -117,12 +119,6 @@ export async function PurchaseForecastContent({ searchParams }: Props) {
     }
   })
 
-  const weeks = groupForecastByWeek(rows.map((row) => row.forecast), dataBase)
-  const inHorizon = rows.reduce((sum, row) => sum + Math.round(row.forecast.inHorizonAmount * 100), 0) / 100
-  const overdue = rows.reduce((sum, row) => sum + Math.round(row.forecast.overdueAmount * 100), 0) / 100
-  const afterHorizon = rows.reduce((sum, row) => sum + Math.round(row.forecast.afterHorizonAmount * 100), 0) / 100
-  const unscheduled = rows.reduce((sum, row) => sum + Math.round(row.forecast.unscheduledAmount * 100), 0) / 100
-  const removedByDecision = rows.reduce((sum, row) => sum + (["segurado", "cancelar"].includes(row.forecast.status) ? Math.round((row.forecast.pendingAmount ?? 0) * 100) : 0), 0) / 100
   const sourceTotal = Number((purchasesResult.data as PurchaseItem[] | null)?.[0]?.total_itens ?? 0)
   const pages = Math.max(1, Math.ceil((Number.isFinite(sourceTotal) ? sourceTotal : 0) / PAGE_SIZE))
 
@@ -143,10 +139,6 @@ export async function PurchaseForecastContent({ searchParams }: Props) {
 
     {!followUpAvailable && <div role="alert" className="flex items-start gap-3 rounded-2xl border border-amber-400/25 bg-amber-400/10 p-4 text-sm text-amber-100"><AlertTriangle size={19} className="shrink-0" /><p>Follow-up indisponível: as previsões informadas pelos fornecedores não puderam ser consultadas. Foram usadas estimativas calculadas pela regra de 7 dias, identificadas como tal na tabela.</p></div>}
 
-    <section role="group" aria-label="Indicadores financeiros do lote" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-      {[{ label: "Vence nas 26 semanas", amount: inHorizon, color: "text-cyan-200" }, { label: "Já vencido", amount: overdue, color: "text-rose-200" }, { label: "Vence depois", amount: afterHorizon, color: "text-blue-200" }, { label: "Condição a conferir", amount: unscheduled, color: "text-amber-200" }, { label: "Fora por Segurar/Cancelar", amount: removedByDecision, color: "text-slate-300" }].map((card) => <div key={card.label} className="erp-surface rounded-xl p-4"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{card.label}</p><p className={`mt-3 text-xl font-black tabular-nums ${card.color}`}>{money.format(card.amount)}</p><p className="mt-2 text-[10px] text-slate-500">Somente neste lote</p></div>)}
-    </section>
-
     <section className="erp-surface rounded-2xl p-5 sm:p-6">
       <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[.16em] text-cyan-300"><Filter size={15} /> Filtrar pedidos</div>
       <form action="/compras/previsao" method="get" role="search" className="mt-5 grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_185px_160px_160px_auto]">
@@ -156,10 +148,10 @@ export async function PurchaseForecastContent({ searchParams }: Props) {
         <div><label htmlFor="forecast-fim" className="mb-2 block text-xs font-semibold text-slate-300">Data final</label><input id="forecast-fim" name="fim" type="date" defaultValue={fim} className="erp-field px-3 text-xs" /></div>
         <FilterSubmitButton />
       </form>
-      <p className="mt-3 text-xs text-slate-400">50 itens por lote de origem. Os indicadores acima e o calendário abaixo são somente deste lote; não representam o total global das compras.</p>
+      <p className="mt-3 text-xs text-slate-400">50 itens por lote para conferência detalhada. O consolidado financeiro considera todos os itens dos filtros, com progresso de leitura e conferência de integridade.</p>
     </section>
 
-    <PaymentForecastCalendar weeks={weeks} />
+    <GlobalPaymentForecast key={JSON.stringify([filters, dataBase, sourceTotal])} filters={filters} dataBase={dataBase} genericCodes={genericCodes} expectedTotal={sourceTotal} viewerId={user.id} />
     <PaymentForecastTable rows={rows} />
 
     <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 p-4 text-xs text-slate-400"><span className="flex items-center gap-2"><CalendarClock size={15} /> Lote {pagina} de {pages} · {rows.length} itens. Valores não programados não são contados nos vencimentos.</span><div className="flex items-center gap-2">{pagina > 1 && <Link href={pageHref(filters, pagina - 1)} className="rounded-lg border border-white/15 px-3 py-2 text-slate-200">Anterior</Link>}<span>{pagina} / {pages}</span>{pagina < pages && <Link href={pageHref(filters, pagina + 1)} className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-cyan-200">Próximo lote</Link>}</div></footer>

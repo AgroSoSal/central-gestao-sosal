@@ -35,6 +35,15 @@ describe("previsão financeira das compras (Zacarini)", () => {
     expect(result.issue).toMatch(/30 dias/i)
   })
 
+  it("valida abreviação de dias usada no SISCOM sem confundir uma condição 6x com dias", () => {
+    const valid = forecastPurchasePayments({ ...basic, paymentTerms: "30d" })
+    expect(valid.installments).toHaveLength(1)
+    expect(valid.installments[0].dueDate).toBe("2026-12-23")
+    const ambiguous = forecastPurchasePayments({ ...basic, paymentTerms: "6x" })
+    expect(ambiguous.installments).toHaveLength(0)
+    expect(ambiguous.unscheduledAmount).toBe(300)
+  })
+
   it("não cria título fictício para condição textual desconhecida ou mais de 10 parcelas", () => {
     for (const paymentTerms of ["BONIFICAÇÃO", "30/XYZ", "1/2/3/4/5/6/7/8/9/10/11"]) {
       const result = forecastPurchasePayments({ ...basic, paymentTerms })

@@ -74,7 +74,7 @@ function paymentDays(value: string | null): { days: number[]; source: "fornecida
   if (!raw) return { days: [DAYS_DEFAULT], source: "padrao", issue: "Condição não informada: aplicado prazo padrão de 30 dias." }
 
   // A Zacarini armazena a condição como dias a partir da chegada: 30/60/90, etc.
-  const normalized = raw.replace(/\s*dias?\.?\s*$/i, "").replace(/\s+/g, "")
+  const normalized = raw.replace(/\s*(?:d|dias?)\.?\s*$/i, "").replace(/\s+/g, "")
   if (!/^\d{1,4}(?:[/,;-]\d{1,4}){0,9}$/.test(normalized)) {
     return { days: [], source: "invalida", issue: `Condição de pagamento "${raw.slice(0, 50)}" não reconhecida. Confira os vencimentos.` }
   }

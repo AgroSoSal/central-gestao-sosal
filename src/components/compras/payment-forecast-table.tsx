@@ -11,12 +11,16 @@ export type PaymentForecastRow = {
     descricao: string | null
     fornecedor_nome: string | null
     condicao_pagamento: string | null
+    quantidade_pendente?: number | string | null
+    quantidade_recebida?: number | string | null
+    situacao_recebimento?: string | null
   }
   forecast: PurchasePaymentForecast
 }
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
 const currencyCompact = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact", maximumFractionDigits: 1 })
+const quantity = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 3 })
 const dateBR = (iso: string | null) => iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)
   ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "—"
 
@@ -68,7 +72,11 @@ export function PaymentForecastTable({ rows }: { rows: PaymentForecastRow[] }) {
             <td className="px-4 py-4"><span className={`inline-flex rounded-md border px-2 py-1 text-[10px] font-bold ${decisionStyle(forecast.operationalDecision)}`}>{forecast.operationalDecision}</span><p className="mt-2 text-[11px] text-slate-400">{forecast.status === "conferir" ? "Conferir pagamento" : forecast.status === "entregue" ? "Entrega concluída" : forecast.status === "sem_valor" ? "Sem valor financeiro" : forecast.status === "sem_dados" ? "Dados incompletos" : forecast.included ? "Na projeção" : "Fora da projeção"}</p></td>
             <td className="whitespace-nowrap px-4 py-4"><span className="font-semibold">{dateBR(forecast.estimatedArrival)}</span><p className="mt-1 text-[10px] text-slate-400">{forecast.arrivalSource === "follow-up" ? "Follow-up do comprador" : forecast.arrivalSource === "calculada" ? "Estimativa de 7 dias" : "—"}</p></td>
             <td className="px-4 py-4"><span className="font-semibold">{forecast.conditionSource === "padrao" ? "30 dias padrão" : (item.condicao_pagamento || "—")}</span>{forecast.conditionSource === "invalida" && <p className="mt-1 text-[10px] text-amber-200">Conferir condição</p>}</td>
-            <td className="whitespace-nowrap px-4 py-4 text-right font-bold text-amber-200">{forecast.pendingAmount === null ? "Não conciliado" : currency.format(forecast.pendingAmount)}</td>
+            <td className="whitespace-nowrap px-4 py-4 text-right font-bold text-amber-200">
+              {forecast.pendingAmount === null ? "Não conciliado" : currency.format(forecast.pendingAmount)}
+              {item.situacao_recebimento === "Chegada parcial" && <span className="mt-2 block text-[10px] font-semibold text-blue-200">Chegada parcial</span>}
+              {item.quantidade_recebida != null && item.quantidade_pendente != null && <span className="mt-1 block text-[10px] font-normal text-slate-400">{quantity.format(Number(item.quantidade_recebida))} recebidas · {quantity.format(Number(item.quantidade_pendente))} pendentes</span>}
+            </td>
             <td className="whitespace-nowrap px-4 py-4 text-right font-bold text-cyan-200">{forecast.included ? currency.format(forecast.inHorizonAmount) : "—"}</td>
             <td className="min-w-48 px-4 py-4">
               {forecast.installments.length > 0 ? <details className="group">

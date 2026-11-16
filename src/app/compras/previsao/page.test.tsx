@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react"
+import { cleanup, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const state = vi.hoisted(() => ({
@@ -6,7 +6,7 @@ const state = vi.hoisted(() => ({
   failDecisions: false,
   failFollowUp: false,
   purchases: [
-    { loja: "SO SAL", pedido: "100", produto_codigo: "P1", descricao: "Sal para rebanho", fornecedor_nome: "Fornecedor A", data_pedido: "2026-11-12", condicao_pagamento: "30/60", quantidade_pendente: 40, valor_pendente: 400, total_itens: 6 },
+    { loja: "SO SAL", pedido: "100", produto_codigo: "P1", descricao: "Sal para rebanho", fornecedor_nome: "Fornecedor A", data_pedido: "2026-11-12", condicao_pagamento: "30/60", quantidade_pendente: 40, quantidade_recebida: 60, situacao_recebimento: "Chegada parcial", valor_pendente: 400, total_itens: 6 },
     { loja: "COXIM", pedido: "101", produto_codigo: "P2", descricao: "Ração segurada", fornecedor_nome: "Fornecedor B", data_pedido: "2026-11-12", condicao_pagamento: "30", quantidade_pendente: 20, valor_pendente: 200, total_itens: 6 },
     { loja: "CAMPO GRANDE", pedido: "102", produto_codigo: "P3", descricao: "Compra sem decisão", fornecedor_nome: "Fornecedor C", data_pedido: "2026-11-12", condicao_pagamento: null, quantidade_pendente: 30, valor_pendente: 300, total_itens: 6 },
     { loja: "CAMPO GRANDE", pedido: "103", produto_codigo: "P4", descricao: "Pedido a cancelar", fornecedor_nome: "Fornecedor D", data_pedido: "2026-11-12", condicao_pagamento: "30", quantidade_pendente: 10, valor_pendente: 100, total_itens: 6 },
@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("next/server", () => ({ connection: async () => undefined }))
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }))
+vi.mock("@/components/compras/global-payment-forecast", () => ({ GlobalPaymentForecast: () => <div aria-label="Resumo global">Consolidação da carteira completa</div> }))
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: async () => ({
     auth: { getUser: async () => ({ data: { user: { email: "master@sosal.com.br" } }, error: null }) },
@@ -38,13 +39,14 @@ beforeEach(() => vi.setSystemTime(new Date("2026-11-16T15:00:00Z")))
 afterEach(() => { cleanup(); vi.useRealTimers(); state.failPurchases = false; state.failDecisions = false; state.failFollowUp = false })
 
 describe("previsão financeira sem alterar o banco", () => {
-  it("mostra soma do lote apenas para itens projetáveis e diferencia falta de aprovação", async () => {
+  it("separa consolidação global do lote detalhado e diferencia falta de aprovação", async () => {
     const { PurchaseForecastContent } = await import("./page")
     render(await PurchaseForecastContent({ searchParams: Promise.resolve({ loja: "SO SAL" }) }))
     expect(screen.getByRole("heading", { name: /Previsão de pagamentos/i })).toBeInTheDocument()
-    const summary = screen.getByRole("group", { name: /Indicadores financeiros do lote/i })
-    expect(within(summary).getByText("R$ 700,00")).toBeInTheDocument()
+    expect(screen.getByLabelText("Resumo global")).toHaveTextContent(/carteira completa/i)
     expect(screen.getByText("Sal para rebanho")).toBeInTheDocument()
+    expect(screen.getByText("Chegada parcial")).toBeInTheDocument()
+    expect(screen.getByText(/60 recebidas · 40 pendentes/i)).toBeInTheDocument()
     expect(screen.getAllByText("BANDEIRANTES").length).toBeGreaterThan(0)
     expect(screen.getByText("Compra sem decisão")).toBeInTheDocument()
     expect(screen.getAllByText("Aguardando aprovação").length).toBeGreaterThan(0)
@@ -58,8 +60,7 @@ describe("previsão financeira sem alterar o banco", () => {
     expect(screen.getByText("Ração segurada")).toBeInTheDocument()
     expect(screen.getByText("Pedido a cancelar")).toBeInTheDocument()
     expect(screen.getByText("Condição especial")).toBeInTheDocument()
-    const summary = screen.getByRole("group", { name: /Indicadores financeiros do lote/i })
-    expect(within(summary).getByText("R$ 70,00")).toBeInTheDocument()
+    expect(screen.getAllByText(/conferir condição/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/BONIFICAÇÃO/).length).toBeGreaterThan(0)
   })
 

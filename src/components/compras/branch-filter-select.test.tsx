@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest"
-import { BranchFilterSelect, getBranchDisplayName } from "./branch-filter-select"
+import { BranchFilterSelect } from "./branch-filter-select"
+import { getBranchDisplayName } from "@/domains/compras/domain/branches"
 
 const branches = ["CAMPO GRANDE", "RIO VERDE", "COXIM"]
 afterEach(cleanup)

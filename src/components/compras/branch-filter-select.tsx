@@ -7,15 +7,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { getBranchDisplayName } from "@/domains/compras/domain/branches"
 
 type Props = {
   branches: readonly string[]
   selectedBranch: string
-}
-
-/** Alias visual informado pela operação: código SO SAL = Bandeirantes. */
-export function getBranchDisplayName(branch: string): string {
-  return branch === "SO SAL" ? "BANDEIRANTES" : branch
 }
 
 /** A seleção Radix mantém o valor no GET do formulário sem usar o menu nativo claro. */

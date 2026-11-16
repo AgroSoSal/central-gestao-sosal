@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { connection } from "next/server"
 import { Suspense, type ReactNode } from "react"
 import {
   AlertCircle, ArrowUpRight, Boxes, ChevronLeft, ChevronRight, ClipboardList,
@@ -7,7 +8,8 @@ import {
 } from "lucide-react"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { ComprasLogin, ComprasSair } from "@/components/compras/compras-auth"
-import { BranchFilterSelect, getBranchDisplayName } from "@/components/compras/branch-filter-select"
+import { BranchFilterSelect } from "@/components/compras/branch-filter-select"
+import { getBranchDisplayName } from "@/domains/compras/domain/branches"
 import { AnimatedMetricValue } from "@/components/compras/animated-metric-value"
 import { FilterSubmitButton } from "@/components/compras/filter-submit-button"
 import { PurchaseStatus } from "@/components/compras/purchase-status"
@@ -117,6 +119,9 @@ export default function ComprasPage({ searchParams }: Props) {
 }
 
 async function ComprasContent({ searchParams }: Props) {
+  // Supabase Auth pode consultar Date.now() para renovar a sessão. A página é
+  // dinâmica e precisa esperar um request real antes de carregar o usuário.
+  await connection()
   const supabase = await createSupabaseServerClient()
   if (!supabase) return <ComprasLogin configured={false} />
 

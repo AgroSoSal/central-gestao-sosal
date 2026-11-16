@@ -8,12 +8,13 @@ afterEach(cleanup)
 describe("Workspace Só Sal", () => {
   it("destaca a identidade oficial da Só Sal no banner principal", () => {
     const { container } = render(<Home />)
+    const banner = container.querySelector(".sosal-hero") as HTMLElement
 
-    expect(screen.getByRole("img", { name: /só sal produtos agropecuários/i })).toBeVisible()
+    expect(within(banner).getByRole("img", { name: /mascote só sal/i })).toBeVisible()
     expect(screen.getByRole("heading", { level: 1, name: /central de gestão só sal/i })).toBeVisible()
-    expect(container.querySelector(".sosal-hero-watermark img")).toHaveAttribute("src", expect.stringContaining("sosal-logo.png"))
+    expect(banner.querySelector(".sosal-hero-mascot img")).toHaveAttribute("src", expect.stringContaining("sosal-mascot.png"))
+    expect(banner.querySelector('img[src*="sosal-logo.png"]')).toBeNull()
     expect(container.querySelector(".sosal-brand-stage")).toBeNull()
-    expect(container.querySelector('img[src*="sosal-mascot"]')).toBeNull()
   })
 
   it("mantém todos os módulos e inclui uma assinatura visual da marca em cada card", () => {

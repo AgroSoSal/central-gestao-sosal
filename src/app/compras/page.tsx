@@ -3,12 +3,14 @@ import { Suspense, type ReactNode } from "react"
 import {
   AlertCircle, ArrowUpRight, Boxes, ChevronLeft, ChevronRight, ClipboardList,
   Clock3, Search, ShieldCheck, ShoppingCart, Wallet, CalendarDays,
-  Activity, ArrowRight, SlidersHorizontal, Database, Sparkles,
+  Activity, SlidersHorizontal, Database, Sparkles,
 } from "lucide-react"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { ComprasLogin, ComprasSair } from "@/components/compras/compras-auth"
 import { BranchFilterSelect } from "@/components/compras/branch-filter-select"
 import { AnimatedMetricValue } from "@/components/compras/animated-metric-value"
+import { FilterSubmitButton } from "@/components/compras/filter-submit-button"
+import { LoadingState } from "@/components/shared/mascot-loader"
 
 type SearchParams = Record<string, string | string[] | undefined>
 type Props = { searchParams: Promise<SearchParams> }
@@ -102,11 +104,7 @@ function Metric({ label, value, footnote, icon: Icon, delay }: {
 
 export default function ComprasPage({ searchParams }: Props) {
   return (
-    <Suspense fallback={
-      <div className="mx-auto max-w-xl py-20 text-center text-sm text-slate-400" role="status">
-        Carregando consulta de pedidos...
-      </div>
-    }>
+    <Suspense fallback={<LoadingState label="Consultando os pedidos..." />}>
       <ComprasContent searchParams={searchParams} />
     </Suspense>
   )
@@ -245,7 +243,7 @@ async function ComprasContent({ searchParams }: Props) {
               <label htmlFor="fim" className="mb-2 block text-xs font-semibold text-slate-300">Data final</label>
               <input id="fim" name="fim" type="date" defaultValue={fim} className="erp-field px-3 text-[13px]" />
             </div>
-            <button type="submit" className="group inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-6 text-sm font-semibold text-white shadow-[0_8px_24px_-10px_rgba(34,211,238,.7)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_10px_30px_-8px_rgba(34,211,238,.65)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300">Aplicar <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" /></button>
+            <FilterSubmitButton />
           </form>
           <div className="mt-3 flex justify-end"><Link href="/compras" className="text-xs font-medium text-slate-400 transition-colors hover:text-cyan-300">Limpar filtros</Link></div>
         </div>

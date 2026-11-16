@@ -141,8 +141,162 @@ body {
   to { transform: scale(1.16); opacity: 1; }
 }
 
+/* Login Só Sal: cena interativa em que o mascote levanta o painel de acesso. */
+.sosal-login-grid {
+  background-image:
+    linear-gradient(rgba(54, 118, 184, .042) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(54, 118, 184, .042) 1px, transparent 1px);
+  background-size: 38px 38px;
+  mask-image: linear-gradient(135deg, rgba(0, 0, 0, .8), transparent 92%);
+}
+.sosal-login-aurora { animation: sosal-login-aurora 7s ease-in-out infinite alternate; }
+.sosal-login-copy { animation: sosal-login-appear .75s cubic-bezier(.2,.8,.2,1) both; }
+.sosal-login-heading-glow {
+  background: linear-gradient(105deg, #6de9ff 8%, #3c8fff 55%, #abcbff 90%);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.sosal-login-intro-card { animation: sosal-login-appear .65s .16s cubic-bezier(.2,.8,.2,1) both; }
+.sosal-login-orbit { box-shadow: inset 0 0 40px rgba(43, 126, 245, .045); }
+.sosal-login-cow {
+  bottom: -35px;
+  left: -48px;
+  width: clamp(185px, 18vw, 252px);
+  height: auto;
+  transform-origin: 50% 90%;
+  animation: sosal-cow-welcome 1.05s cubic-bezier(.22, 1.3, .38, 1) both;
+}
+.sosal-login-form-panel {
+  animation: sosal-panel-lift 1.05s cubic-bezier(.17,.88,.2,1.03) both;
+  transform-origin: center bottom;
+}
+.sosal-login-pull-line {
+  bottom: 145px;
+  left: 140px;
+  width: 148px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2b92ff, #a5edff 55%, #2f8bf5);
+  box-shadow: 0 0 16px rgba(34, 211, 238, .65);
+  transform-origin: left center;
+  opacity: 0;
+  rotate: -40deg;
+}
+.sosal-login-scene[data-stage="form"] .sosal-login-cow {
+  animation: sosal-cow-pull 1.05s cubic-bezier(.15,.85,.22,1) both;
+}
+.sosal-login-scene[data-stage="form"] .sosal-login-pull-line {
+  animation: sosal-rope-pull .9s ease-out both;
+}
+.sosal-login-scene[data-stage="success"] .sosal-login-cow {
+  animation: sosal-cow-exit 1.13s cubic-bezier(.38,0,.5,1) both;
+}
+.sosal-login-scene[data-stage="success"] .sosal-login-form-panel {
+  animation: sosal-panel-exit 1.1s cubic-bezier(.4,0,.7,1) both;
+  pointer-events: none;
+}
+.sosal-login-scene[data-stage="success"] .sosal-login-pull-line {
+  animation: sosal-rope-exit 1.05s cubic-bezier(.4,0,.7,1) both;
+}
+.sosal-login-success { animation: sosal-login-appear .5s .24s ease-out both; }
+.sosal-login-field {
+  border: 1px solid #314660;
+  background: #0a1525;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, .15);
+  transition: border-color .2s, box-shadow .2s, background .2s;
+}
+.sosal-login-field:hover { border-color: #48769d; }
+.sosal-login-field:focus-visible {
+  background: #0b1a2c;
+  border-color: #42c5ee;
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, .13), 0 0 23px rgba(34, 211, 238, .06);
+}
+.sosal-login-primary {
+  position: relative;
+  overflow: hidden;
+  transition: transform .24s cubic-bezier(.2,.8,.2,1), filter .24s, box-shadow .24s;
+}
+.sosal-login-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.27) 50%, transparent 70%);
+  transform: translateX(-140%);
+  transition: transform .6s ease;
+}
+.sosal-login-primary:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.12); }
+.sosal-login-primary:hover::after { transform: translateX(140%); }
+.sosal-login-primary:active:not(:disabled) { transform: translateY(0) scale(.99); }
+
+@keyframes sosal-login-appear {
+  from { opacity: 0; transform: translateY(24px); filter: blur(6px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+@keyframes sosal-login-aurora {
+  from { transform: translate3d(-15px, -8px, 0) scale(.9); opacity: .65; }
+  to { transform: translate3d(10px, 18px, 0) scale(1.1); opacity: 1; }
+}
+@keyframes sosal-cow-welcome {
+  0% { transform: translate3d(-75px, 80px, 0) rotate(-13deg); opacity: 0; }
+  60% { transform: translate3d(0, -14px, 0) rotate(6deg); opacity: 1; }
+  100% { transform: translate3d(0, 0, 0) rotate(0); opacity: 1; }
+}
+@keyframes sosal-cow-pull {
+  0% { transform: translate3d(0, 48px, 0) rotate(-15deg); }
+  30% { transform: translate3d(12px, 12px, 0) rotate(11deg); }
+  60% { transform: translate3d(0, -68px, 0) rotate(-9deg); }
+  83% { transform: translate3d(-5px, -47px, 0) rotate(5deg); }
+  100% { transform: translate3d(0, -52px, 0) rotate(0); }
+}
+@keyframes sosal-panel-lift {
+  0% { opacity: 0; transform: translate3d(0, 580px, 0) rotate(2deg) scale(.95); }
+  30% { opacity: 1; }
+  73% { transform: translate3d(0, -20px, 0) rotate(-.7deg) scale(1); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) rotate(0) scale(1); }
+}
+@keyframes sosal-rope-pull {
+  0%, 10% { opacity: 0; scale: .15 1; }
+  30%, 68% { opacity: 1; scale: 1 1; }
+  100% { opacity: 0; scale: 1 1; }
+}
+@keyframes sosal-cow-exit {
+  0% { transform: translate3d(0, -52px, 0) rotate(0); }
+  28% { transform: translate3d(9px, 0, 0) rotate(8deg); }
+  100% { transform: translate3d(-10px, -310px, 0) rotate(-10deg); opacity: 0; }
+}
+@keyframes sosal-panel-exit {
+  0%, 24% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-125%); }
+}
+@keyframes sosal-rope-exit {
+  0%, 20% { opacity: 0; scale: .3 1; }
+  35%, 72% { opacity: 1; scale: 1 1; }
+  100% { opacity: 0; transform: translateY(-240px); }
+}
+
+@media (max-width: 1023px) {
+  .sosal-login-cow { left: -23px; bottom: -24px; width: 210px; }
+  .sosal-login-pull-line { left: 140px; }
+}
+@media (max-width: 640px) {
+  .sosal-login-scene { min-height: 650px; }
+  .sosal-login-cow { left: -28px; bottom: -44px; width: 165px; }
+  .sosal-login-pull-line { left: 90px; bottom: 90px; width: 85px; }
+  .sosal-login-intro-card { right: 0; }
+  .sosal-login-form-panel { right: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .erp-reveal, .erp-glow, .erp-table details[open] > div { animation: none !important; }
   .erp-metric, .erp-table tbody tr { transition: none !important; }
   .erp-metric:hover { transform: none; }
+  .sosal-login-aurora, .sosal-login-copy, .sosal-login-intro-card,
+  .sosal-login-cow, .sosal-login-form-panel, .sosal-login-success {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+    filter: none !important;
+  }
+  .sosal-login-pull-line { display: none !important; }
+  .sosal-login-primary, .sosal-login-field, .sosal-login-primary::after { transition: none !important; }
 }

@@ -69,3 +69,21 @@ Implementação da Etapa 2: tabelas independentes `public.compras_pedido_decisoe
 33. **COMP-033 — Não equivalência ao fluxo de caixa.** A planilha Zacarini exclui despesas de subgrupos `5.` ao levar a compra ao caixa. Como a RPC atual não expõe esse grupo, os valores do ERP são **simulação bruta**: nenhuma classificação ausente é presumida nem lançado valor em OTB/caixa. Também não existe decisão `Já pago` nas três decisões operacionais permitidas.
 
 **Implementação:** `src/domains/compras/domain/purchase-forecast-consolidation.ts`, `src/components/compras/global-payment-forecast.tsx`, leitura apenas com a chave pública e sessão Master do usuário. Condições explicitadas em `docs/superpowers/specs/2026-11-16-compras-consolidacao-integral-design.md`.
+
+## Etapa 6 — Auditoria de condições e equivalência com a Zacarini (16/11/2026)
+
+34. **COMP-034 — Cartão e dias explícitos.** Conforme premissa B7 da aba Pedidos de Compra, condições **inequívocas** de cartão/crédito e condições vazias recebem prazo padrão de 30 dias, acompanhado de aviso ao comprador. Prazos explícitos aceitam `30d/60d` e `30 dias / 60 dias`, além dos separadores numéricos já documentados. Textos ambíguos com quantidade de parcelas, como `CARTÃO 6X`, e menções explícitas a **débito** não são transformados em vencimentos sem confirmação.
+35. **COMP-035 — Conferência de exceções.** A consolidação integral conta as condições inválidas, separa seus valores do caixa projetado e apresenta até 30 exemplos auditáveis com fornecedor, filial, pedido, SKU, condição e saldo pendente. A lista respeita a ordem original da carteira paginada, independentemente da ordem de conclusão das consultas. Um aviso deixa explícita a quantidade total de exceções e que os demais podem ser localizados por filtro. A UI não altera a condição original no SISCOM.
+
+**Limite mantido:** grupo/subgrupo `5.` não consta da RPC autenticada atual. A consulta não é base segura para o fluxo de caixa deduplicado enquanto não houver uma classificação autorizada por item (COMP-033). Nenhum dado ou objeto do Supabase foi alterado nesta etapa.
+
+## Etapa 7 — Classificação complementar financeira (autorizada em 16/11/2026)
+
+36. **COMP-036 — Fonte de classificação.** A classificação do item usa primeiro o complemento manual Master identificado por `(loja, pedido, produto_codigo)`, e depois `painel.produtos.grupo_subgrupo` pelo código do produto. A classificação manual corresponde à coluna AN da Zacarini: pode variar entre pedidos do mesmo SKU. Um produto sem cadastro não recebe classificação deduzida por descrição.
+37. **COMP-037 — Segregação financeira.** Itens classificados em grupo/subgrupo que começam com `5.` ficam fora da projeção elegível para linha de compras do fluxo; seus saldos permanecem visíveis à parte para conferência de despesas. Itens sem classificação ficam pendentes e fora do valor elegível, nunca presumidos como compras. A simulação bruta continua visível para reconciliação.
+38. **COMP-038 — Auditoria/segurança.** Somente Master ativo consulta e classifica itens por RPC autenticada; a classificação complementar é armazenada separadamente do SISCOM/RPA, com histórico imutável de alterações e motivo. Salvar a mesma classificação sem mudança não gera novo histórico.
+39. **COMP-039 — Capacidade RPC.** Decisões e Follow-up limitam as listas a 50 chaves por chamada: o cliente deve fracionar lotes de conciliação de 100 itens em chamadas de até 50, interrompendo a consolidação integral se alguma falhar.
+
+**Limite:** valores são apenas previsão, não títulos a pagar nem lançamentos financeiros. Categorias sugeridas vêm dos rótulos da planilha, sem carregar seus registros históricos de exemplo no banco.
+
+**Status:** migração aditiva `compras_classificacao_financeira_20261116` aplicada no Supabase em 16/11/2026. Tabelas complementares criadas vazias, sem importar classificações da planilha; RPCs restritas a Master ativo e acesso direto revogado. UI apresenta itens não classificados e grava confirmação com motivo. Os avisos pré-existentes da auditoria de segurança sobre outras views/tabelas não foram alterados.

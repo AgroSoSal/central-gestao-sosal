@@ -73,12 +73,19 @@ function paymentDays(value: string | null): { days: number[]; source: "fornecida
   const raw = (value ?? "").trim()
   if (!raw) return { days: [DAYS_DEFAULT], source: "padrao", issue: "Condição não informada: aplicado prazo padrão de 30 dias." }
 
-  // A Zacarini armazena a condição como dias a partir da chegada: 30/60/90, etc.
-  const normalized = raw.replace(/\s*(?:d|dias?)\.?\s*$/i, "").replace(/\s+/g, "")
-  if (!/^\d{1,4}(?:[/,;-]\d{1,4}){0,9}$/.test(normalized)) {
+  // B7 da Zacarini: cartão sem parcelamento explícito usa 30 dias.
+  const unaccented = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ")
+  if (/^(?:(?:pagamento|pago) (?:no|em) )?cartao(?: de credito)?$/.test(unaccented)) {
+    return { days: [DAYS_DEFAULT], source: "padrao", issue: "Pagamento no cartão: aplicado prazo padrão de 30 dias (premissa B7 da planilha)." }
+  }
+
+  // Os prazos em dias podem vir com sufixo em cada parcela: 30d/60d, 30 dias / 60 dias.
+  const parts = raw.split(/[/,;-]/)
+  const valid = parts.length <= 10 && parts.every((part) => /^\s*\d{1,4}\s*(?:d|dias?)?\.?\s*$/i.test(part))
+  if (!valid) {
     return { days: [], source: "invalida", issue: `Condição de pagamento "${raw.slice(0, 50)}" não reconhecida. Confira os vencimentos.` }
   }
-  const days = normalized.split(/[/,;-]/).map(Number)
+  const days = parts.map((part) => Number(part.match(/\d{1,4}/)![0]))
   if (days.length > 10 || days.some((day) => !Number.isInteger(day) || day < 0)) {
     return { days: [], source: "invalida", issue: "Condição inválida: máximo de 10 parcelas." }
   }

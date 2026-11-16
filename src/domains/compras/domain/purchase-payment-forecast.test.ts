@@ -44,6 +44,32 @@ describe("previsão financeira das compras (Zacarini)", () => {
     expect(ambiguous.unscheduledAmount).toBe(300)
   })
 
+  it("interpreta explicitamente os dias de cada parcela mesmo com sufixos individuais", () => {
+    for (const paymentTerms of ["30d/60d", "30 dias / 60 dias", "30D; 60D"]) {
+      const result = forecastPurchasePayments({ ...basic, paymentTerms })
+      expect(result.status).toBe("projetado")
+      expect(result.paymentDays).toEqual([30, 60])
+      expect(result.installments.map((item) => item.dueDate)).toEqual(["2026-12-23", "2027-01-22"])
+    }
+  })
+
+  it("usa os 30 dias documentados para pagamento inequívoco no cartão, mas mantém parcelamento em x para conferência", () => {
+    for (const paymentTerms of ["CARTÃO", "cartao de credito", "Pagamento no cartão"]) {
+      const result = forecastPurchasePayments({ ...basic, paymentTerms })
+      expect(result.conditionSource).toBe("padrao")
+      expect(result.paymentDays).toEqual([30])
+      expect(result.installments[0].dueDate).toBe("2026-12-23")
+      expect(result.issue).toMatch(/cartão/i)
+    }
+    const ambiguous = forecastPurchasePayments({ ...basic, paymentTerms: "CARTÃO 6X" })
+    expect(ambiguous.status).toBe("conferir")
+    expect(ambiguous.unscheduledAmount).toBe(300)
+    expect(ambiguous.installments).toEqual([])
+    const debit = forecastPurchasePayments({ ...basic, paymentTerms: "CARTÃO DE DÉBITO" })
+    expect(debit.status).toBe("conferir")
+    expect(debit.unscheduledAmount).toBe(300)
+  })
+
   it("não cria título fictício para condição textual desconhecida ou mais de 10 parcelas", () => {
     for (const paymentTerms of ["BONIFICAÇÃO", "30/XYZ", "1/2/3/4/5/6/7/8/9/10/11"]) {
       const result = forecastPurchasePayments({ ...basic, paymentTerms })

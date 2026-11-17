@@ -4,13 +4,16 @@ Ambiente: Supabase branch `fase2-homologacao-20261117`, projeto de teste `qvcjxu
 
 ## Resultados confirmados no PostgreSQL da homologação
 
-- 3 migrações SQL executadas com sucesso após criar schema mínimo de teste.
+- 4 migrações SQL executadas com sucesso após criar schema mínimo de teste (e a migração de ajuste de schema privado aplicada **somente** no banco efêmero para validar o estado final da quarta migração).
 - Teste RPA com dados fictícios de fornecedores a pagar: 3 registros, 1 repetição adicional; `avaliar_importacao_rpa` → `BLOQUEADA`; nenhuma linha normalizada.
 - Teste RPA fictício de pedido de compra: 2 registros sem duplicação; `PENDENTE_APROVACAO` → `APROVADA` (somente homologação fictícia) → `PUBLICADA`. Total matemático de teste = 42.
 - Comissão fictícia out/26: cinco linhas, incluindo CONJUGADA_1/2, VENDA, DEVOLUCAO e BONIFICACAO. Total geral fictício = venda 650, margem 105, comissão 8,50. `painel.v_conferencia_comissao` marcou `OK` com diferenças zero.
 - Consolidação fictícia sem conj. duplicada: CG = venda 600 / margem 100; CX = venda -50 / margem -15; por representantes 100 e 200, respectivamente.
 - Um lote fictício de comissão seguinte com total informado 999 para uma soma real de 650 foi **rejeitado**. `v_conferencia_comissao` marcou `ERRO`; o lote anterior publicado (5 linhas, venda 650) **permaneceu intacto**.
 - Permissões inspecionadas: `anon` tem SELECT nas views agregadas e não tem SELECT em `comissao_notas` ou `rpa_linhas_normalizadas`; tampouco EXECUTE em `publicar_comissao_lote`. No schema mínimo do teste, a permissão USAGE de `anon` não foi concedida; em produção, a permissão existente já é diferente e deve ser testada novamente após homologação integral.
+
+- Ajuste de segurança: 3 views públicas em \`painel\` passaram a ser \`security_invoker\`, consultando projeções materializadas **somente** no schema privado \`painel_interno\`. A auditoria de segurança do Supabase deixou de apontar \`security_definer_view\` e \`materialized_view_in_api\`. Os avisos informativos de tabelas RLS sem policy são intencionais para tabelas privadas e sem grants.
+- Repetição fictícia de publicação após o ajuste para schema interno: **publicado**, com refresh das projeções materializadas concluído.
 
 ## Limitações objetivas
 

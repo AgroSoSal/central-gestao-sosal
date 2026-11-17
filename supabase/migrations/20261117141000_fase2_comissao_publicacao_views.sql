@@ -112,7 +112,7 @@ begin
 end;
 $func$;
 revoke all on function painel.publicar_comissao_lote(bigint) from PUBLIC,anon,authenticated;
-grant execute on function painel.publicar_comissao_lote(bigint) to service_role;
+-- Somente proprietário postgres pode executar a publicação (sem abrir schema painel para service_role).
 
 -- A conferência é SEMPRE contra o TOTAL GERAL duplicado do próprio relatório.
 create or replace view painel.v_conferencia_comissao
@@ -222,5 +222,4 @@ revoke all on painel.v_conferencia_comissao,painel.v_margem_filial_mes,
   painel.v_margem_loja_mes,painel.v_comissao_conjugadas_pendentes from PUBLIC,anon,authenticated;
 grant select on painel.v_conferencia_comissao,painel.v_margem_filial_mes,
   painel.v_margem_loja_mes to anon;
-grant select on painel.v_conferencia_comissao,painel.v_margem_filial_mes,
-  painel.v_margem_loja_mes,painel.v_comissao_conjugadas_pendentes to service_role;
+-- A view de pendências é interna (somente proprietário postgres).

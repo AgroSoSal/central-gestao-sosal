@@ -94,3 +94,12 @@ As migrações adicionais **somente no GitHub** aumentam a cobertura técnica se
 A fonte real \`"Só Sal".v_margens\` foi consultada por SELECT em CG out/2026 e possui NF, período, código de cliente/vendedor e condição/forma de pagamento. O teste é somente de leitura; **as três migrações adicionais ainda não foram instaladas nem testadas em um PostgreSQL isolado**.
 
 O branch de banco anteriormente criado foi encerrado após testes iniciais, evitando custo contínuo. O branch GitHub/PR #4 continua em revisão. Não criar nova homologação paga nem promover produção sem seguir as autorizações exigidas.
+
+## Auditoria adicional — insumos de estoque (somente SELECT na produção)
+
+- Estoque físico no painel: **10.111** combinações de estoque.
+- Combinações com dados correspondentes em \`painel.v_abc_janelas\` (filial antiga): **5.946**.
+- Combinações sem correspondência de histórico ABC: **4.165**.
+- Combinações (filial, produto) duplicadas após o JOIN: **0**.
+
+A ausência na ABC NÃO equivale automaticamente à ausência de venda. É um caso de *cobertura não disponível* que não autoriza calcular DDE infinito ou classificar "parado" sem a regra e o período exatos da versão 2.3.1. As consultas não efetuaram DDL nem alterações nos dados.

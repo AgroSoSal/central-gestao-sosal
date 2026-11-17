@@ -170,6 +170,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource }: Props)
       </div>
       {historicalSource.status === "conectado" && <div role="status" className={`mt-3 rounded-xl border px-4 py-3 text-xs leading-6 ${historicalSource.completeLast12Months ? "border-cyan-300/20 bg-cyan-400/5 text-cyan-100" : "border-amber-300/25 bg-amber-400/10 text-amber-100"}`}>
         {historicalSource.unmappedRecords > 0 && <strong className="mr-2">Atenção: {integer.format(historicalSource.unmappedRecords)} registros sem linha 1–4.</strong>}
+        {historicalSource.excludedRecords > 0 && <strong className="mr-2">{integer.format(historicalSource.excludedRecords)} registros de serviços classificados fora da OTB.</strong>}
         {historicalSource.completeLast12Months
           ? "As últimas 12 competências possuem vendas e saídas classificadas. Ainda faltam premissas financeiras e fluxo de caixa futuro para liberar a OTB."
           : "Histórico ainda não homologado para previsão automática: confira competências ausentes e classificações de produtos. As travas financeiras continuam bloqueadas."}

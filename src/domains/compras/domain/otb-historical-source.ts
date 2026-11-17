@@ -7,6 +7,7 @@ export type OtbHistoricalSourceStatus =
     monthCount: number
     totalRecords: number
     unmappedRecords: number
+    excludedRecords: number
     completeLast12Months: boolean
   }
   | {
@@ -16,6 +17,7 @@ export type OtbHistoricalSourceStatus =
     monthCount: null
     totalRecords: null
     unmappedRecords: null
+    excludedRecords: null
     completeLast12Months: false
   }
 
@@ -26,6 +28,7 @@ const unavailable: OtbHistoricalSourceStatus = {
   monthCount: null,
   totalRecords: null,
   unmappedRecords: null,
+  excludedRecords: null,
   completeLast12Months: false,
 }
 
@@ -73,6 +76,7 @@ export function interpretOtbHistoricalSource(
   const firstMonthOfLookback = monthShift(expectedLastClosedMonth, -11)
   let unmappedRecords = 0
   let unmappedInLookback = 0
+  let excludedRecords = 0
   let totalRecords = 0
 
   for (const raw of data) {
@@ -84,17 +88,23 @@ export function interpretOtbHistoricalSource(
     const cost = numeric(row.cmv)
     const profit = numeric(row.lucro)
     if (!validMonth(mes) || (visao !== "vendido" && visao !== "saida")
-      || typeof linha !== "number" || !Number.isInteger(linha) || linha < 0 || linha > 4
+      || typeof linha !== "number" || !Number.isInteger(linha) || linha < -1 || linha > 4
       || count === null || !Number.isSafeInteger(count) || count < 1
       || sale === null || cost === null || profit === null) return unavailable
     const key = `${mes}|${visao}|${linha}`
     if (usedKeys.has(key)) return unavailable
     usedKeys.add(key)
 
+    totalRecords += count
+    if (linha === -1) {
+      // Código classificado expressamente como N/fora OTB: mantém rastreabilidade,
+      // mas não participa da cobertura comercial nem da pendência de linha zero.
+      excludedRecords += count
+      continue
+    }
     months.add(mes)
     if (!pairs.has(mes)) pairs.set(mes, new Set())
     pairs.get(mes)!.add(visao)
-    totalRecords += count
     if (linha === 0) {
       unmappedRecords += count
       if (mes >= firstMonthOfLookback && mes <= expectedLastClosedMonth) unmappedInLookback += count
@@ -102,6 +112,7 @@ export function interpretOtbHistoricalSource(
   }
 
   const sortedMonths = [...months].sort()
+  if (!sortedMonths.length) return unavailable
   let completeLast12Months = unmappedInLookback === 0
   for (let index = 0; index < 12; index++) {
     const month = monthShift(expectedLastClosedMonth, -index)
@@ -118,6 +129,7 @@ export function interpretOtbHistoricalSource(
     monthCount: months.size,
     totalRecords,
     unmappedRecords,
+    excludedRecords,
     completeLast12Months,
   }
 }

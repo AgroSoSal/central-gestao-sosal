@@ -114,3 +114,10 @@ Implementação da Etapa 2: tabelas independentes `public.compras_pedido_decisoe
 **Teste de referência:** `scripts/compare-otb-cash-workbook.mjs` confronta os três fatores e tetos do XLSX (6/6 valores com desvio abaixo de R$ 0,01); `scripts/verify-otb-cash.mjs` testa pior caixa, liberação por prioridade e bloqueio de dados incompletos.
 
 **Implantado no banco:** função aditiva de leitura `public.fn_otb_historico_mensal(date,date)` criada por migração `otb_historico_mensal_master_20261117` no projeto `eclcqhmclfspskawdcaw`. Confirmado `anon_pode=false`, `autenticado_pode=true`, `security_definer=true`; execução sem JWT retorna SQLSTATE `42501`. Não houve alteração em tabelas, histórico, RPA ou jobs. O estado de publicação da tela deve ser conferido no histórico GitHub/Vercel.
+
+## Etapa 10 — Complemento autorizado de classificação histórica (17/11/2026)
+
+49. **COMP-049 — Serviço e fertilizante.** O código `0` (SERVICOS) fica **fora da OTB** (`linha=-1`) e continua rastreado no total de origem. O código `104356` (FERTILIZANTE SULFAMMO META 29 1000KG) pertence à **Linha 4**, seguindo a classificação existente do mesmo produto em embalagem de 50KG (`104297`). Ambos foram aprovados explicitamente pelo responsável em 17/11/2026. Qualquer outro produto sem linha continua como exceção (`linha=0`), sem classificação deduzida.
+50. **COMP-050 — Integridade do cadastro.** Os dois complementos ficam na tabela protegida `public.otb_classificacao_complementar_produto`, sem UPDATE/INSERT em `painel.produtos`, `painel.vendas` ou SISCOM. A RPC histórica agrega os produtos com classificação complementar antes da linha de cadastro, preservando serviços fora da cobertura comercial. A autenticação continua exigindo Master ativo e a tabela não concede `SELECT` direto a `anon` ou `authenticated`.
+
+**Migração aplicada:** `otb_classificacao_complementar_20261117`. Reconciliação read-only: 419.564 registros históricos permanecem; 1.354 aparecem como serviço fora OTB, 2 foram classificados como Linha 4 e nenhum permanece na linha zero. Os indicadores de caixa continuam bloqueados porque a Projeção 12M financeira ainda não existe no Supabase.

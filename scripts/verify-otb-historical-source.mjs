@@ -34,6 +34,21 @@ test("somente 12 competências com duas visões e classificação completa liber
   assert.equal(status.unmappedRecords, 0)
 })
 
+test("serviços explicitamente fora da OTB não bloqueiam cobertura nem entram na linha zero", () => {
+  const data = []
+  for (let i = 0; i < 12; i++) {
+    const date = new Date(Date.UTC(2025, 10 + i, 1)).toISOString().slice(0, 10)
+    data.push(record(date, "saida", 4), record(date, "vendido", 4))
+  }
+  data.push(record("2026-10-01", "saida", -1, 680), record("2026-10-01", "vendido", -1, 674))
+  const status = interpretOtbHistoricalSource(data, null, "2026-10-01")
+  assert.equal(status.status, "conectado")
+  assert.equal(status.unmappedRecords, 0)
+  assert.equal(status.excludedRecords, 1354)
+  assert.equal(status.totalRecords, 1594)
+  assert.equal(status.completeLast12Months, true)
+})
+
 test("visão ausente no último mês falha fechada para previsão", () => {
   const status = interpretOtbHistoricalSource([record("2026-10-01", "saida", 1)], null, "2026-10-01")
   assert.equal(status.status, "conectado")
@@ -52,6 +67,7 @@ test("rejeita competência, visao, totais ou registros inválidos", () => {
     { ...record("2026-10-01", "saida", 1), registros: "NaN" },
     { ...record("2026-10-01", "saida", 1), cmv: null },
     { ...record("2026-10-01", "saida", 1), linha: 5 },
+    { ...record("2026-10-01", "saida", 1), linha: -2 },
   ]) {
     assert.equal(interpretOtbHistoricalSource([malformed], null, "2026-10-01").status, "indisponivel")
   }

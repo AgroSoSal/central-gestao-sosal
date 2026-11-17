@@ -118,4 +118,4 @@ revoke all on painel.representantes, painel.comissao_lotes,
 grant select, insert, update, delete on painel.representantes, painel.comissao_lotes,
   painel.comissao_linhas_importadas, painel.comissao_notas,
   painel.comissao_conjugadas_atribuicao to service_role;
-grant usage, select on all sequences in schema painel to service_role;
+grant usage, select on sequence painel.comissao_lotes_id_seq to service_role;

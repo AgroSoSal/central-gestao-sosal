@@ -57,6 +57,8 @@ A origem continua sendo \`"Só Sal".rpa_importacoes\` + \`"Só Sal".rpa_linhas\`
 
 As 2 repetições em clientes a pagar NÃO devem ser eliminadas sem verificar se são registros legítimos.
 
+**Permissões de ETL:** foi confirmado por consulta somente-leitura que `service_role` não possui `USAGE` no schema `"Só Sal"` nem no schema `painel`. Por isso, as funções de ETL deste rascunho são `SECURITY INVOKER` e só podem ser chamadas por conexão administrativa de banco, sob controle operacional; **não conceder acesso ao schema legado à chave REST**. A implementação do agendamento deve usar a conexão administrativa autorizada, não a chave pública do frontend.
+
 ## Homologação
 
 1. Provisionar um banco **isolado**, após aprovar eventual custo do branch Supabase, ou ambiente PostgreSQL com a mesma estrutura. Não executar no banco principal.

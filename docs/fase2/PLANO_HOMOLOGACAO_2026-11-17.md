@@ -81,3 +81,16 @@ As 2 repetições em clientes a pagar NÃO devem ser eliminadas sem verificar se
 - Não existe no Supabase atual fonte validada para representante, bonificações/conjugadas completas nem custo financeiro exato de comissão.
 - Power Automate Desktop está no Windows local e não é controlável por esta integração.
 - Um branch Supabase separado pode gerar **cobrança por hora** e exige consentimento explícito antes de criá-lo.
+
+
+## Complemento de desenvolvimento (17/11, continuação)
+
+As migrações adicionais **somente no GitHub** aumentam a cobertura técnica sem presumir regras comerciais:
+
+- \`...144000_fase2_vendas_detalhe_e_eventos_cliente.sql\`: nova tabela tipada \`painel.vendas_detalhe_origem\` e função administrativa para recuperar NF, cliente, condição/forma de pagamento e comissão dos relatórios ABC já disponíveis. NENHUM valor é tratado como margem oficial do Relatório de Comissão. A função não modifica a carga \`painel.vendas\`; é um ETL por período/filial, sem execução automática. A view \`painel.v_clientes_eventos_representante\` oferece apenas eventos de venda homologados, **não** os KPIs "novos/ativos", pois falta o SQL assinado.
+- \`...145000_fase2_abc_estoque_insumos_sem_regras_novas.sql\`: fontes de estoque físico por filial e rede, com demanda 90d e comparativo anual tal como já calculados por \`painel.v_abc_janelas\`. Não calcular Curva A/B/C, DDE ou "parado" sem a fórmula oficial da planilha 2.3.1. Não usar filial como representante.
+- \`...146000_fase2_bloqueio_margem_nao_homologada.sql\`: bloqueia a exposição dos KPIs de margem se a conferência da **última carga** do mês não estiver OK, para evitar apresentação de números antigos como aprovados.
+
+A fonte real \`"Só Sal".v_margens\` foi consultada por SELECT em CG out/2026 e possui NF, período, código de cliente/vendedor e condição/forma de pagamento. O teste é somente de leitura; **as três migrações adicionais ainda não foram instaladas nem testadas em um PostgreSQL isolado**.
+
+O branch de banco anteriormente criado foi encerrado após testes iniciais, evitando custo contínuo. O branch GitHub/PR #4 continua em revisão. Não criar nova homologação paga nem promover produção sem seguir as autorizações exigidas.

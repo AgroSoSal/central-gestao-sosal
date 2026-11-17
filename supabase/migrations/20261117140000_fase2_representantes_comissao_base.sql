@@ -115,7 +115,5 @@ alter table painel.comissao_conjugadas_atribuicao enable row level security;
 revoke all on painel.representantes, painel.comissao_lotes,
   painel.comissao_linhas_importadas, painel.comissao_notas,
   painel.comissao_conjugadas_atribuicao from PUBLIC, anon, authenticated;
-grant select, insert, update, delete on painel.representantes, painel.comissao_lotes,
-  painel.comissao_linhas_importadas, painel.comissao_notas,
-  painel.comissao_conjugadas_atribuicao to service_role;
-grant usage, select on sequence painel.comissao_lotes_id_seq to service_role;
+-- Cargas executadas somente por função invocadora na conexão administrativa
+-- postgres; não ampliar acesso a schemas/tabelas preexistentes.

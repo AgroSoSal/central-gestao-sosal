@@ -192,4 +192,17 @@ as $$
 $$;
 
 -- Nenhuma dessas rotinas deve ser chamada pelo browser ou concedida em massa.
-revoke all on all functions in schema painel_interno from PUBLIC,anon,authenticated;
+revoke all on function painel_interno.zac_v224_crescimento_limitado(numeric,numeric,numeric,numeric),
+  painel_interno.zac_v224_previsao_90d(numeric,numeric,numeric,numeric),
+  painel_interno.zac_v224_dde(numeric,numeric,numeric),
+  painel_interno.zac_v224_curva(boolean,numeric,numeric,numeric),
+  painel_interno.zac_v224_necessidade_otb(text,numeric,numeric,numeric,numeric),
+  painel_interno.zac_v224_liberacao_subgrupo(numeric,numeric,numeric,numeric,numeric,numeric),
+  painel_interno.zac_v224_liberacao_mp(numeric,numeric),
+  painel_interno.zac_v224_saldo_otb(numeric,numeric,numeric),
+  painel_interno.zac_v224_situacao_otb(numeric,numeric,numeric),
+  painel_interno.zac_v224_fator_comprador(numeric,numeric,numeric),
+  painel_interno.zac_v224_necessidade_comprador(numeric,numeric,numeric,numeric,numeric),
+  painel_interno.zac_v224_multiplicador_premio(numeric),
+  painel_interno.zac_v224_premio_kpi(numeric,numeric,numeric)
+from PUBLIC,anon,authenticated;

@@ -1,4 +1,4 @@
--- Executar SOMENTE após as migrações 147000/148000/149000
+-- Executar SOMENTE após as migrações 151000/152000/153000
 -- em banco isolado de homologação. Todos os números são FICTÍCIOS
 -- e não representam valores da Só Sal nem da planilha.
 do $test$

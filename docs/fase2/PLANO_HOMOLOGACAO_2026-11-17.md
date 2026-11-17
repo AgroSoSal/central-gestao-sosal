@@ -59,6 +59,8 @@ As 2 repetições em clientes a pagar NÃO devem ser eliminadas sem verificar se
 
 **Permissões de ETL:** foi confirmado por consulta somente-leitura que `service_role` não possui `USAGE` no schema `"Só Sal"` nem no schema `painel`. Por isso, as funções de ETL deste rascunho são `SECURITY INVOKER` e só podem ser chamadas por conexão administrativa de banco, sob controle operacional; **não conceder acesso ao schema legado à chave REST**. A implementação do agendamento deve usar a conexão administrativa autorizada, não a chave pública do frontend.
 
+> **Segurança:** a 4ª migração usa `painel_interno` para armazenar projeções materializadas, mantendo as três views públicas como `security_invoker`. A auditoria do branch não acusou `security_definer_view` nem materialized view exposta na API. Não abrir o schema `painel_interno` nas configurações do REST API.
+
 ## Homologação
 
 1. Provisionar um banco **isolado**, após aprovar eventual custo do branch Supabase, ou ambiente PostgreSQL com a mesma estrutura. Não executar no banco principal.

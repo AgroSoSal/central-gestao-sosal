@@ -221,14 +221,12 @@ from painel.rpa_avaliacoes;
 alter table painel.rpa_avaliacoes enable row level security;
 alter table painel.rpa_linhas_normalizadas enable row level security;
 revoke all on painel.rpa_avaliacoes,painel.rpa_linhas_normalizadas from PUBLIC,anon,authenticated;
-grant select,insert,update,delete on painel.rpa_avaliacoes,painel.rpa_linhas_normalizadas to service_role;
+-- Sem permissão de tabela para API; ETL só via conexão postgres que já lê a origem.
 revoke all on painel.v_rpa_pedidos_fonte,painel.v_rpa_pagamentos_fonte,
   painel.v_rpa_a_pagar_fonte,painel.v_rpa_qualidade_cargas from PUBLIC,anon,authenticated;
-grant select on painel.v_rpa_pedidos_fonte,painel.v_rpa_pagamentos_fonte,
-  painel.v_rpa_a_pagar_fonte,painel.v_rpa_qualidade_cargas to service_role;
+-- Views tipadas internas; não expor detalhes financeiros à chave anon.
 revoke all on function painel.avaliar_importacao_rpa(bigint),
   painel.aprovar_importacao_rpa(bigint,text),
   painel.publicar_importacao_rpa(bigint) from PUBLIC,anon,authenticated;
-grant execute on function painel.avaliar_importacao_rpa(bigint),
-  painel.aprovar_importacao_rpa(bigint,text),
-  painel.publicar_importacao_rpa(bigint) to service_role;
+-- O proprietário postgres executa estas funções via conexão SQL administrativa;
+-- não conceder EXECUTE a roles da Data API.

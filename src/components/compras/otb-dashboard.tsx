@@ -10,12 +10,14 @@ import {
 import { ComprasSair } from "@/components/compras/compras-auth"
 import type { OtbResult, OtbSubgroupMonth } from "@/domains/compras/domain/otb-calculation"
 import type { OtbHistoricalSourceStatus } from "@/domains/compras/domain/otb-historical-source"
+import type { OtbStockPosition } from "@/domains/compras/domain/otb-position-source"
 import type { OtbPurchaseSourceStatus } from "@/domains/compras/domain/otb-source-status"
 
 type Props = {
   email: string
   purchaseSource: OtbPurchaseSourceStatus
   historicalSource: OtbHistoricalSourceStatus
+  stockPosition: OtbStockPosition
   /** Resultado de fonte oficial, validado NO SERVIDOR. Nunca arquivo no navegador. */
   officialScenario?: OtbResult | null
 }
@@ -64,12 +66,14 @@ function Metric({ label, value, sub, icon }: { label: string; value: string; sub
   </div>
 }
 
-export function OtbDashboard({ email, purchaseSource, historicalSource, officialScenario }: Props) {
+export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, officialScenario }: Props) {
   const result = officialScenario ?? null
   const [monthIndex, setMonthIndex] = useState(0)
   const [lineFilter, setLineFilter] = useState("")
   const [kindFilter, setKindFilter] = useState("")
   const [search, setSearch] = useState("")
+  const [positionLine, setPositionLine] = useState("")
+  const [positionSearch, setPositionSearch] = useState("")
 
   const month = result?.months[monthIndex]
   const lines = useMemo(() => [...new Set(month?.subgroups.map((item) => item.line) ?? [])].sort((a, b) => a.localeCompare(b, "pt-BR")), [month])
@@ -78,6 +82,10 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, official
     && (!kindFilter || item.kind === kindFilter)
     && (!search.trim() || `${item.line} ${item.name}`.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR"))),
   ), [month, lineFilter, kindFilter, search])
+  const filteredPositions = useMemo(() => stockPosition.subgroups.filter((entry) =>
+    (!positionLine || String(entry.line) === positionLine)
+    && (!positionSearch.trim() || entry.subgroup.toLocaleLowerCase("pt-BR").includes(positionSearch.trim().toLocaleLowerCase("pt-BR")))
+  ).sort((a, b) => Math.abs(b.stockCost) - Math.abs(a.stockCost)), [stockPosition, positionLine, positionSearch])
 
   return <main className="mx-auto max-w-[1520px] space-y-6 pb-14 text-slate-100">
     <header className="erp-reveal flex flex-wrap items-center justify-between gap-4">
@@ -147,6 +155,50 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, official
           ? "As últimas 12 competências possuem vendas e saídas classificadas. Ainda faltam premissas financeiras e fluxo de caixa futuro para liberar a OTB."
           : "Histórico ainda não homologado para previsão automática: confira competências ausentes e classificações de produtos. As travas financeiras continuam bloqueadas."}
       </div>}
+    </section>
+
+    <section className="erp-surface overflow-hidden rounded-[24px]" aria-label="Estoque e CMV reais do Supabase">
+      <div className="flex flex-wrap items-center justify-between gap-4 p-6 sm:p-7">
+        <div>
+          <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.17em] text-cyan-300"><Warehouse size={15} /> Posição operacional conectada</p>
+          <h2 className="mt-2 text-xl font-bold text-white">Estoque e CMV por subgrupo</h2>
+          <p className="mt-2 max-w-3xl text-xs leading-6 text-slate-400">Foto real das seis filiais e custo das saídas dos últimos 90 dias. DDE observado = estoque a custo ÷ CMV diário. Esta leitura não é DDE-alvo, previsão nem verba autorizada.</p>
+        </div>
+        {stockPosition.status === "conectado" && <span className="rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-bold text-emerald-200">Fonte Supabase atualizada</span>}
+      </div>
+      {stockPosition.status === "indisponivel" ?
+        <div role="status" className="border-t border-[#25354e] bg-amber-400/5 px-7 py-6 text-sm text-amber-200">Não foi possível ler a posição completa do estoque. Valores não estimados.</div>
+        : <>
+          <div className="grid gap-3 border-y border-[#25354e] bg-[#0a1929]/60 p-5 sm:grid-cols-3">
+            <Metric label="Estoque atual a custo" value={money.format(stockPosition.stockCost)} sub={`${integer.format(stockPosition.stockSkus)} SKUs distintos · consolidado`} icon={<Warehouse size={20} />} />
+            <Metric label="CMV real · últimos 90 dias" value={stockPosition.cmv90d === null ? "—" : money.format(stockPosition.cmv90d)} sub="Saída efetiva, não meta nem previsão" icon={<ChartNoAxesCombined size={20} />} />
+            <Metric label="DDE observado · consolidado" value={stockPosition.cmv90d !== null && stockPosition.cmv90d > 0 ? `${integer.format(Math.round(stockPosition.stockCost * 90 / stockPosition.cmv90d))} dias` : "—"} sub="Referência calculada, sem DDE-alvo definido" icon={<CalendarRange size={20} />} />
+          </div>
+          <div className="flex flex-wrap items-end gap-4 p-5 sm:p-7">
+            <label className="min-w-[240px] flex-1 text-xs font-semibold text-slate-300">Buscar subgrupo
+              <input className="erp-field mt-2 w-full px-3" type="search" value={positionSearch} onChange={(event) => setPositionSearch(event.target.value)} placeholder="Produto, família ou subgrupo" />
+            </label>
+            <label className="min-w-[180px] text-xs font-semibold text-slate-300">Linha
+              <select className="erp-field mt-2 w-full px-3" value={positionLine} onChange={(event) => setPositionLine(event.target.value)}>
+                <option value="">Todas as linhas</option>
+                {[1, 2, 3, 4, 0, -1].map((line) => <option key={line} value={String(line)}>{line === -1 ? "Fora da OTB" : line === 0 ? "Sem linha" : `Linha ${line}`}</option>)}
+              </select>
+            </label>
+            <p className="text-[11px] text-slate-400">{integer.format(filteredPositions.length)} subgrupos · foto {new Date(stockPosition.snapshotAt).toLocaleString("pt-BR", { timeZone: "America/Campo_Grande" })}</p>
+          </div>
+          <div className="overflow-x-auto"><table className="erp-table w-full min-w-[850px] text-left text-xs">
+            <thead className="bg-[#121e30] text-[10px] uppercase tracking-wide text-slate-400"><tr><th className="p-4">Linha</th><th className="p-4">Grupo / Subgrupo</th><th className="p-4 text-right">SKUs</th><th className="p-4 text-right">Estoque a custo</th><th className="p-4 text-right">CMV 90 dias</th><th className="p-4 text-right">DDE observado</th></tr></thead>
+            <tbody className="divide-y divide-[#1c2b40]">{filteredPositions.slice(0, 50).map((entry) => <tr key={`${entry.line}|${entry.subgroup}`}>
+              <td className="p-4 font-bold text-cyan-300">{entry.line === -1 ? "Fora" : entry.line === 0 ? "Pendente" : entry.line}</td>
+              <td className="max-w-[440px] p-4 text-slate-100">{entry.subgroup}</td>
+              <td className="p-4 text-right tabular-nums">{integer.format(entry.skuCount)}</td>
+              <td className="p-4 text-right tabular-nums">{money.format(entry.stockCost)}</td>
+              <td className="p-4 text-right tabular-nums">{entry.cmv90d === null ? "—" : money.format(entry.cmv90d)}</td>
+              <td className="p-4 text-right tabular-nums">{entry.observedDde === null ? "—" : `${integer.format(Math.round(entry.observedDde))} dias`}</td>
+            </tr>)}</tbody>
+          </table></div>
+          <p className="px-5 py-4 text-[11px] text-slate-500">Exibindo até 50 subgrupos por vez, filtráveis por linha ou nome. Nenhuma alteração é realizada no estoque.</p>
+        </>}
     </section>
 
     {!month ? <>

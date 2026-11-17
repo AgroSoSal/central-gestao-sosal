@@ -7,6 +7,7 @@ import { OtbDashboard } from "@/components/compras/otb-dashboard"
 import { LoadingState } from "@/components/shared/mascot-loader"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { interpretOtbHistoricalSource, lastClosedMonthInCampoGrande } from "@/domains/compras/domain/otb-historical-source"
+import { interpretOtbStockPosition } from "@/domains/compras/domain/otb-position-source"
 import { interpretOtbPurchaseSource } from "@/domains/compras/domain/otb-source-status"
 
 export default function ComprasOtbPage() {
@@ -47,10 +48,15 @@ export async function OtbContent() {
   const lastClosedMonth = lastClosedMonthInCampoGrande()
   const [year, month] = lastClosedMonth.split("-").map(Number)
   const firstMonth = new Date(Date.UTC(year, month - 24, 1)).toISOString().slice(0, 10)
+  const todayParts = new Intl.DateTimeFormat("en-US", {
+    year: "numeric", month: "2-digit", day: "2-digit", timeZone: "America/Campo_Grande",
+  }).formatToParts(new Date())
+  const today = (type: string) => todayParts.find((part) => part.type === type)?.value ?? ""
+  const todayISO = `${today("year")}-${today("month")}-${today("day")}`
 
   // Duas fontes agregadas, somente leitura, verificadas pelo banco como Master.
   // O histórico NÃO contém fluxo de caixa futuro nem substitui a Projeção 12M.
-  const [summary, historical] = await Promise.all([
+  const [summary, historical, stock] = await Promise.all([
     supabase.rpc("fn_listar_pedidos_compra", {
     p_busca: null,
     p_loja: null,
@@ -60,9 +66,11 @@ export async function OtbContent() {
     p_tamanho: 1,
     }),
     supabase.rpc("fn_otb_historico_mensal", { p_inicio: firstMonth, p_fim: lastClosedMonth }),
+    supabase.rpc("fn_otb_posicao_subgrupos", { p_data_base: todayISO }),
   ])
   const purchaseSource = interpretOtbPurchaseSource(summary.data, summary.error)
   const historicalSource = interpretOtbHistoricalSource(historical.data, historical.error, lastClosedMonth)
+  const stockPosition = interpretOtbStockPosition(stock.data, stock.error)
 
-  return <OtbDashboard email={user.email ?? ""} purchaseSource={purchaseSource} historicalSource={historicalSource} />
+  return <OtbDashboard email={user.email ?? ""} purchaseSource={purchaseSource} historicalSource={historicalSource} stockPosition={stockPosition} />
 }

@@ -2,6 +2,8 @@
 
 **Data:** 17/11/2026. **Status:** histórico comercial conectado; cadastro versionado inicial de premissas financeiras disponível somente a Master, sem projeção 12M homologada.
 
+**Posição operacional entregue:** a RPC Master `public.fn_otb_posicao_subgrupos(date)` lê estoque atual a custo e CMV efetivo das saídas em 90 dias, por grupo/subgrupo e linha. A tela calcula DDE **observado**, não DDE-alvo ou verba liberada. Os dados vêm exclusivamente do Supabase e a função não grava nem altera fontes SISCOM/RPA. A falta de caixa inicial real e das hipóteses de fluxo projetado continua impedindo qualquer teto financeiro.
+
 ## Contrato read-only esperado
 
 O motor `calculateOtb` exige um único cenário completo (`OtbInput`), com dados coerentes na **mesma data-base**:
@@ -52,6 +54,7 @@ O motor `calculateOtb` exige um único cenário completo (`OtbInput`), com dados
 | Premissas de crescimento, despesas, giro e prazo | **Ainda pendentes.** Caixa inicial e colchão têm cadastro versionado separado | Formalizar as demais premissas, responsáveis, vigência e origem |
 | Pior fluxo de caixa entre cenários (C613:N613) | **Inexistente** | Reconstruir fluxo completo por 12 meses e auditar contra a planilha |
 | Orçamento liberado para compras | **Bloqueado** | Três tetos financeiros + DDE, MP, subgrupos e pedidos reconciliados |
+| Posição atual de estoque, CMV e DDE observado por subgrupo | RPC Master **conectada**; cálculo descritivo, sem previsão | Homologar metas de DDE e projeção por categoria para uso financeiro |
 
 Regra de operação: **não converter médias de vendas em caixa livre** e não reutilizar números históricos do XLSX como se fossem a situação atual da Só Sal.
 

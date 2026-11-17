@@ -21,6 +21,30 @@ begin
   select * into l from painel.comissao_lotes where id = p_lote_id for update;
   if not found then raise exception 'Lote % inexistente',p_lote_id; end if;
   if l.situacao = 'publicado' then return 'ja_publicado'; end if;
+  -- Critérios fixos do relatório; sem valores ou parâmetros estimados.
+  if not (l.parametros_extracao @> '{
+    "modalidade":"comissao_sobre_faturamento",
+    "filiais":"todas",
+    "vendedores":"todos",
+    "representantes":"todos",
+    "clientes":"todos",
+    "produtos":"todos",
+    "custo":"custo_liquido",
+    "ignorar_empresas_grupo":true,
+    "deduzir_bonificacoes":true,
+    "acrescentar_custo_financeiro_prazo":true,
+    "incluir_icms_st_internas":true,
+    "conjugadas_comissao_percentuais":[50,50],
+    "comissao_servicos":false,
+    "apenas_servicos":false,
+    "icms_st_interestaduais":false
+  }'::jsonb) then
+    update painel.comissao_lotes
+      set situacao='erro',erro_validacao='Filtros do Siscom divergentes dos critérios oficiais'
+    where id=p_lote_id;
+    return 'erro: filtros do Siscom divergentes';
+  end if;
+
 
   select count(*),coalesce(sum(vl_nota),0),coalesce(sum(margem),0),
          coalesce(sum(comissao),0),count(distinct nullif(btrim(vendedor_cod),''))

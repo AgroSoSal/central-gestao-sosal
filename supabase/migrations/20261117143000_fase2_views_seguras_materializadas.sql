@@ -2,8 +2,13 @@
 -- lendo apenas materialized views agregadas (sem dados identificáveis de clientes).
 -- O papel anon NUNCA recebe acesso às tabelas de comissão, RPA ou representantes.
 -- Refresh ocorre atomicamente no ato da publicação do mês.
+-- As materialized views ficam em schema NÃO EXPOSTO pela Data API;
+-- o anon só acessa as três views de apresentação do painel via REST.
+create schema if not exists painel_interno;
+revoke all on schema painel_interno from PUBLIC,authenticated;
+grant usage on schema painel_interno to anon;
 
-create materialized view if not exists painel.mv_conferencia_comissao as
+create materialized view if not exists painel_interno.mv_conferencia_comissao as
 with ultimo as (
   select distinct on (mes_comercial) *
     from painel.comissao_lotes order by mes_comercial,id desc
@@ -35,18 +40,18 @@ select mes_comercial,situacao,erro_validacao,
        when situacao='erro' then 'ERRO'
        else 'PENDENTE' end as resultado
 from soma;
-create unique index if not exists ux_mv_conf_comissao_mes on painel.mv_conferencia_comissao(mes_comercial);
+create unique index if not exists ux_mv_conf_comissao_mes on painel_interno.mv_conferencia_comissao(mes_comercial);
 
-create materialized view if not exists painel.mv_margem_filial_mes as
+create materialized view if not exists painel_interno.mv_margem_filial_mes as
 select mes_comercial,filial,
   sum(vl_nota) venda,sum(margem) margem,
   case when sum(vl_nota)<>0 then round(100*sum(margem)/sum(vl_nota),4) end percentual_margem
 from painel.comissao_notas
 where tipo <> 'CONJUGADA_2'
 group by mes_comercial,filial;
-create unique index if not exists ux_mv_margem_filial_mes on painel.mv_margem_filial_mes(mes_comercial,filial);
+create unique index if not exists ux_mv_margem_filial_mes on painel_interno.mv_margem_filial_mes(mes_comercial,filial);
 
-create materialized view if not exists painel.mv_margem_loja_mes as
+create materialized view if not exists painel_interno.mv_margem_loja_mes as
 with pares as (
  select mes_comercial,filial,chave_conjugada,
    count(distinct representante_cod) qtd_representantes,
@@ -79,20 +84,20 @@ from atribuidas a
 join painel.representantes r on r.representante_cod=a.representante_cod
 where not exists (select 1 from meses_incompletos e where e.mes_comercial=a.mes_comercial)
 group by a.mes_comercial,a.representante_cod,r.nome,r.loja,r.tipo;
-create unique index if not exists ux_mv_margem_loja_mes on painel.mv_margem_loja_mes(mes_comercial,representante_cod);
+create unique index if not exists ux_mv_margem_loja_mes on painel_interno.mv_margem_loja_mes(mes_comercial,representante_cod);
 
 -- SECURITY INVOKER: a view pública vê somente projeções materializadas.
 create or replace view painel.v_conferencia_comissao with (security_invoker=true, security_barrier=true)
-as select * from painel.mv_conferencia_comissao;
+as select * from painel_interno.mv_conferencia_comissao;
 create or replace view painel.v_margem_filial_mes with (security_invoker=true, security_barrier=true)
-as select * from painel.mv_margem_filial_mes;
+as select * from painel_interno.mv_margem_filial_mes;
 create or replace view painel.v_margem_loja_mes with (security_invoker=true, security_barrier=true)
-as select * from painel.mv_margem_loja_mes;
+as select * from painel_interno.mv_margem_loja_mes;
 
-revoke all on painel.mv_conferencia_comissao,painel.mv_margem_filial_mes,
-  painel.mv_margem_loja_mes from PUBLIC,anon,authenticated;
-grant select on painel.mv_conferencia_comissao,painel.mv_margem_filial_mes,
-  painel.mv_margem_loja_mes to anon;
+revoke all on painel_interno.mv_conferencia_comissao,painel_interno.mv_margem_filial_mes,
+  painel_interno.mv_margem_loja_mes from PUBLIC,anon,authenticated;
+grant select on painel_interno.mv_conferencia_comissao,painel_interno.mv_margem_filial_mes,
+  painel_interno.mv_margem_loja_mes to anon;
 -- Apenas leitura das três VIEWS de apresentação:
 revoke all on painel.v_conferencia_comissao,painel.v_margem_filial_mes,
   painel.v_margem_loja_mes from PUBLIC,anon,authenticated;
@@ -139,7 +144,7 @@ begin
     update painel.comissao_lotes
       set situacao='erro',erro_validacao='Filtros do Siscom divergentes dos critérios oficiais'
     where id=p_lote_id;
-    refresh materialized view painel.mv_conferencia_comissao;
+    refresh materialized view painel_interno.mv_conferencia_comissao;
     return 'erro: filtros do Siscom divergentes';
   end if;
 
@@ -186,7 +191,7 @@ begin
   if problema is not null then
     update painel.comissao_lotes set situacao='erro', erro_validacao=problema
     where id=p_lote_id;
-    refresh materialized view painel.mv_conferencia_comissao;
+    refresh materialized view painel_interno.mv_conferencia_comissao;
     return 'erro: ' || problema;
   end if;
 
@@ -207,9 +212,9 @@ begin
   update painel.comissao_lotes
     set situacao='publicado', erro_validacao=null,publicado_em=now()
     where id=p_lote_id;
-  refresh materialized view painel.mv_conferencia_comissao;
-  refresh materialized view painel.mv_margem_filial_mes;
-  refresh materialized view painel.mv_margem_loja_mes;
+  refresh materialized view painel_interno.mv_conferencia_comissao;
+  refresh materialized view painel_interno.mv_margem_filial_mes;
+  refresh materialized view painel_interno.mv_margem_loja_mes;
   return 'publicado';
 end;
 $func$;

@@ -1,6 +1,6 @@
 # OTB — contrato de fonte oficial (pendente de aprovação)
 
-**Data:** 17/11/2026. **Status:** integração histórica parcial, com RPC Master de leitura aplicada; sem acesso de gravação.
+**Data:** 17/11/2026. **Status:** histórico comercial conectado; cadastro versionado inicial de premissas financeiras disponível somente a Master, sem projeção 12M homologada.
 
 ## Contrato read-only esperado
 
@@ -49,7 +49,7 @@ O motor `calculateOtb` exige um único cenário completo (`OtbInput`), com dados
 | Histórico de vendas, saídas, CMV e lucro mensal | RPC Master **conectada**; exceções de linha 0 conhecidas | Sanear cadastro/classificação sem mudar histórico bruto |
 | Trava de 12 meses e fatores de liberação | Motor puro **implementado**, 6/6 campos conferidos | Alimentar com os cenários financeiros reais do mesmo snapshot |
 | Recebimentos e pagamentos em aberto | Tabelas/views existentes, ainda sem conciliação de posição | Confirmar títulos ativos e deduplicação entre API e RPA |
-| Premissas de crescimento, despesas, giro e prazo | **Sem cadastro versionado no Supabase** | Formalizar parâmetros da planilha, responsáveis, vigência e origem |
+| Premissas de crescimento, despesas, giro e prazo | **Ainda pendentes.** Caixa inicial e colchão têm cadastro versionado separado | Formalizar as demais premissas, responsáveis, vigência e origem |
 | Pior fluxo de caixa entre cenários (C613:N613) | **Inexistente** | Reconstruir fluxo completo por 12 meses e auditar contra a planilha |
 | Orçamento liberado para compras | **Bloqueado** | Três tetos financeiros + DDE, MP, subgrupos e pedidos reconciliados |
 
@@ -67,7 +67,7 @@ Para a mesma fotografia do XLSX, o extrator local:
 python scripts/extract-otb-reference.py "Gestão Zacarini.xlsx"
 ```
 
-Gera na saída padrão um objeto `{ "input": {...}, "expected": {...} }`. Para importar no painel de homologação, salvar somente o objeto gerado em arquivo JSON protegido; o navegador aceita tanto o wrapper quanto o objeto `input` direto. Não adicionar o cenário real ao GitHub nem distribuí-lo publicamente.
+Gera na saída padrão um objeto `{ "input": {...}, "expected": {...} }` **apenas para regressão local de engenharia**. O painel operacional não recebe arquivos nem usa esse objeto como fonte financeira.
 
 Conferência automática (requer Python com openpyxl e Node 24):
 
@@ -76,3 +76,10 @@ node --experimental-strip-types scripts/compare-otb-workbook.mjs "Gestão Zacari
 ```
 
 Fotografia recebida em 17/11/2026: **1.833 comparações, 0 diferenças acima de R$ 0,01**. Essa evidência valida o motor com *aquelas* entradas, não a disponibilidade de dados atuais do Supabase. Antes de uso decisório, repetir os testes contra snapshot atual autorizado, validar saldos por filial/subgrupo e assegurar refresh atômico.
+
+## Cadastro inicial de premissas (17/11/2026)
+
+- Tabela aditiva `public.otb_premissas_financeiras_12m`: registra competência inicial, caixa inicial, colchão permitido e observação da fonte. Cada gravação gera um novo ID; versões anteriores são imutáveis.
+- RPCs `fn_otb_premissas_listar` / `fn_otb_premissas_salvar` exigem JWT de Master ativo. Tabela com RLS habilitada, sem `SELECT`/`INSERT` direto via `anon` ou `authenticated`.
+- A página `/compras/otb/premissas` grava somente via essas RPCs. Não há importação de CSV, XLSX ou JSON no painel.
+- Saldo inicial e colchão, isolados, **não bastam** para simular o pior cenário nem para liberar OTB. Receitas, custos, pagamentos, DDE, MP e conciliação ficam bloqueados enquanto não houver cálculo e homologação completos.

@@ -1,18 +1,24 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState, type ChangeEvent, type ReactNode } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import {
   AlertCircle, ArrowLeft, ArrowUpRight, CalendarRange, ChartNoAxesCombined,
-  CheckCircle2, ClipboardList, Database, FileJson, Layers3, LockKeyhole,
-  Search, ShieldCheck, SlidersHorizontal, Upload, Wallet, Warehouse,
+  CheckCircle2, ClipboardList, Database, Layers3, LockKeyhole,
+  Search, ShieldCheck, SlidersHorizontal, Wallet, Warehouse,
 } from "lucide-react"
 import { ComprasSair } from "@/components/compras/compras-auth"
-import { calculateOtb, type OtbInput, type OtbResult, type OtbSubgroupMonth } from "@/domains/compras/domain/otb-calculation"
+import type { OtbResult, OtbSubgroupMonth } from "@/domains/compras/domain/otb-calculation"
 import type { OtbHistoricalSourceStatus } from "@/domains/compras/domain/otb-historical-source"
 import type { OtbPurchaseSourceStatus } from "@/domains/compras/domain/otb-source-status"
 
-type Props = { email: string; purchaseSource: OtbPurchaseSourceStatus; historicalSource: OtbHistoricalSourceStatus }
+type Props = {
+  email: string
+  purchaseSource: OtbPurchaseSourceStatus
+  historicalSource: OtbHistoricalSourceStatus
+  /** Resultado de fonte oficial, validado NO SERVIDOR. Nunca arquivo no navegador. */
+  officialScenario?: OtbResult | null
+}
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
 const percentage = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 1 })
 const integer = new Intl.NumberFormat("pt-BR")
@@ -58,44 +64,12 @@ function Metric({ label, value, sub, icon }: { label: string; value: string; sub
   </div>
 }
 
-export function OtbDashboard({ email, purchaseSource, historicalSource }: Props) {
-  const [result, setResult] = useState<OtbResult | null>(null)
-  const [scenarioName, setScenarioName] = useState("")
-  const [error, setError] = useState("")
+export function OtbDashboard({ email, purchaseSource, historicalSource, officialScenario }: Props) {
+  const result = officialScenario ?? null
   const [monthIndex, setMonthIndex] = useState(0)
   const [lineFilter, setLineFilter] = useState("")
   const [kindFilter, setKindFilter] = useState("")
   const [search, setSearch] = useState("")
-
-  async function importScenario(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0]
-    event.currentTarget.value = ""
-    if (!file) return
-
-    // Prévia local; o navegador não faz upload de dados de compradores.
-    if (file.size > 2 * 1024 * 1024) {
-      setError("Arquivo muito grande. O cenário deve ter até 2 MB.")
-      return
-    }
-    try {
-      const parsed: unknown = JSON.parse(await file.text())
-      const raw: unknown = parsed && typeof parsed === "object" && "input" in parsed ? (parsed as { input: unknown }).input : parsed
-      if (!raw || typeof raw !== "object" || !Array.isArray((raw as OtbInput).subgroups) || !(raw as OtbInput).subgroups.length) {
-        throw new Error("O arquivo deve conter o contrato OTB completo, incluindo os subgrupos.")
-      }
-      const calculated = calculateOtb(raw as OtbInput)
-      setResult(calculated)
-      setScenarioName(file.name)
-      setMonthIndex(0)
-      setLineFilter("")
-      setKindFilter("")
-      setSearch("")
-      setError("")
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Não foi possível interpretar o cenário de OTB.")
-      // Mantém o cenário previamente validado, em vez de exibir novos totais parciais.
-    }
-  }
 
   const month = result?.months[monthIndex]
   const lines = useMemo(() => [...new Set(month?.subgroups.map((item) => item.line) ?? [])].sort((a, b) => a.localeCompare(b, "pt-BR")), [month])
@@ -126,7 +100,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource }: Props)
         <div>
           <span className="inline-flex items-center gap-2 rounded-full border border-cyan-300/25 bg-cyan-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[.15em] text-cyan-200"><ChartNoAxesCombined size={14} /> Inteligência de compras</span>
           <h1 className="mt-5 text-3xl font-bold tracking-[-.045em] sm:text-[43px]">Open-to-<span className="bg-gradient-to-r from-white to-cyan-300 bg-clip-text text-transparent">Buy</span></h1>
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">Planejamento mensal de compras, estoque, matéria-prima e orçamento por linha e subgrupo. Cálculos segundo a Gestão Zacarini 2.2.24.</p>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">Planejamento mensal de compras, estoque, matéria-prima e orçamento por linha e subgrupo. Dados operacionais exclusivamente no Supabase.</p>
           <div className="mt-5 flex flex-wrap items-center gap-3 text-[11px] text-slate-400">
             <span className="flex items-center gap-1.5"><CalendarRange size={13} className="text-cyan-300" /> Horizonte: três meses</span>
             <span className="text-slate-600">/</span>
@@ -141,20 +115,18 @@ export function OtbDashboard({ email, purchaseSource, historicalSource }: Props)
       <div className="flex flex-wrap items-center justify-between gap-5">
         <div className="max-w-3xl">
           <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.17em] text-cyan-400"><Database size={14} /> Estado da integração</p>
-          <h2 className="mt-2 text-lg font-bold text-white">{result ? "Cenário local de homologação" : "Aguardando a Projeção 12M do Supabase"}</h2>
+          <h2 className="mt-2 text-lg font-bold text-white">{result ? "Projeção oficial do Supabase" : "Aguardando a Projeção 12M do Supabase"}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-400">
             {result
-              ? `Arquivo ${scenarioName} · fonte declarada: ${result.source} · data-base ${dateBR(result.baseDate)}. Valores calculados no navegador para conferência; ainda não são dados operacionais publicados.`
+              ? `Cenário da fonte oficial do Supabase · origem ${result.source} · data-base ${dateBR(result.baseDate)}.`
               : "O banco atual não oferece uma fonte validada para o teto mensal de pior caso, o DDE projetado e todas as premissas da Projeção 12M. Para evitar valores de compras incorretos, os indicadores ficam indisponíveis até a integração oficial."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {result && <button type="button" onClick={() => { setResult(null); setScenarioName(""); setError("") }} className="h-11 rounded-xl border border-slate-600/50 px-4 text-xs font-bold text-slate-300 transition hover:border-slate-400">Limpar cenário</button>}
-          <label htmlFor="otb-import" className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 text-xs font-bold text-white shadow-lg shadow-cyan-900/40 transition hover:brightness-110"><Upload size={16} /> Importar cenário JSON</label>
-          <input id="otb-import" type="file" accept=".json,application/json" className="sr-only" onChange={importScenario} aria-describedby="otb-import-hint" />
+          <span className="inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-4 text-xs font-bold text-emerald-200"><Database size={16} /> Somente Supabase</span>
+          <Link href="/compras/otb/premissas" className="inline-flex h-11 items-center rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 text-xs font-bold text-white shadow-lg shadow-cyan-900/40 transition hover:brightness-110">Cadastrar premissas</Link>
         </div>
       </div>
-      <p id="otb-import-hint" className="mt-3 flex items-center gap-2 text-[11px] leading-5 text-slate-500"><FileJson size={13} /> Validação local de um cenário completo; arquivo não enviado ao servidor. Tamanho máximo: 2 MB.</p>
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#2c455e] bg-[#071625]/50 px-4 py-3" aria-label="Conexão de pedidos com Supabase">
         <div className="flex items-center gap-2 text-sm font-semibold text-slate-200"><Database size={16} className="text-cyan-300" /> Pedidos de compra · Supabase</div>
         {purchaseSource.status === "conectado" ? <div className="flex flex-wrap items-center gap-3 text-xs text-emerald-200"><span className="inline-flex items-center gap-1.5 font-bold"><CheckCircle2 size={14} /> Fonte conectada</span><span className="text-slate-300">{integer.format(purchaseSource.itemCount)} itens registrados</span><span className="text-slate-400">Importado em {new Date(purchaseSource.lastImportedAt).toLocaleString("pt-BR", { timeZone: "America/Campo_Grande", dateStyle: "short", timeStyle: "short" })}</span></div>
@@ -175,7 +147,6 @@ export function OtbDashboard({ email, purchaseSource, historicalSource }: Props)
           ? "As últimas 12 competências possuem vendas e saídas classificadas. Ainda faltam premissas financeiras e fluxo de caixa futuro para liberar a OTB."
           : "Histórico ainda não homologado para previsão automática: confira competências ausentes e classificações de produtos. As travas financeiras continuam bloqueadas."}
       </div>}
-      {error && <p role="alert" className="mt-4 flex items-start gap-2 rounded-xl border border-rose-300/25 bg-rose-400/10 px-4 py-3 text-sm text-rose-200"><AlertCircle size={18} className="shrink-0" />{error}</p>}
     </section>
 
     {!month ? <>
@@ -189,7 +160,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource }: Props)
           <AlertCircle size={24} className="mt-0.5 shrink-0 text-amber-300" />
           <div>
             <h2 className="text-lg font-bold text-amber-100">OTB ainda não disponível para decisão de compra</h2>
-            <p className="mt-2 max-w-4xl text-sm leading-7 text-amber-100/75">A regra de cálculo já está implementada e testada. Ainda falta alimentar as três competências com dados completos e auditados, incluindo necessidade de matéria-prima e classificação S/P/M/N. Nenhum valor da fotografia antiga da planilha será apresentado como orçamento atual.</p>
+            <p className="mt-2 max-w-4xl text-sm leading-7 text-amber-100/75">A regra de cálculo já está implementada e testada. Ainda falta homologar as premissas financeiras, a necessidade de matéria-prima e os saldos por subgrupo. Nenhum valor histórico será apresentado como orçamento atual.</p>
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               {[
                 ["01", "Projeção 12M", "Teto de pior caso mensal"],
@@ -201,7 +172,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource }: Props)
         </div>
       </section>
     </> : <>
-      <div role="status" className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-300/25 bg-amber-400/10 px-4 py-3 text-xs leading-5 text-amber-100"><AlertCircle size={17} className="shrink-0" /> Homologação — valores do arquivo local, não homologados como saldos atuais do Supabase. Nenhuma autorização de pedido é gerada.</div>
+      <div role="status" className="flex flex-wrap items-center gap-2 rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-4 py-3 text-xs leading-5 text-cyan-100"><ShieldCheck size={17} className="shrink-0" /> Cenário recebido exclusivamente da fonte oficial do Supabase. Nenhuma autorização de pedido é gerada automaticamente.</div>
 
       <section className="erp-surface overflow-hidden rounded-[22px] p-2" aria-label="Selecionar mês da OTB">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -281,6 +252,6 @@ export function OtbDashboard({ email, purchaseSource, historicalSource }: Props)
       </section>
     </>}
 
-    <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/70 py-4 text-xs text-slate-500"><span>Referência de cálculo: Gestão Zacarini 2.2.24 · OTB / Projeção 12M</span><Link href="/compras" className="inline-flex items-center gap-1.5 font-bold text-cyan-300 transition hover:text-cyan-100">Consulta de pedidos <ArrowUpRight size={13} /></Link></footer>
+    <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/70 py-4 text-xs text-slate-500"><span>OTB / Projeção 12M · fonte única Supabase</span><Link href="/compras" className="inline-flex items-center gap-1.5 font-bold text-cyan-300 transition hover:text-cyan-100">Consulta de pedidos <ArrowUpRight size={13} /></Link></footer>
   </main>
 }

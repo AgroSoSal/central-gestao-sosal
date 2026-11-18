@@ -4,7 +4,7 @@ import { Suspense } from "react"
 import { AlertTriangle, ArrowLeft, Search, Store } from "lucide-react"
 import { ComprasLogin, ComprasSair } from "@/components/compras/compras-auth"
 import { LoadingState } from "@/components/shared/mascot-loader"
-import { AtendimentoFornecedor, type AttendanceProduct, type PurchaseDraft } from "@/components/compras/atendimento-fornecedor"
+import { AtendimentoFornecedor, type AttendanceProduct, type PurchaseDraft, type AttendanceDdeMeta } from "@/components/compras/atendimento-fornecedor"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 type Params = { busca?: string; filial?: string }
@@ -40,6 +40,16 @@ async function Content({ searchParams }: { searchParams: Promise<Params> }) {
   const date = (key: string) => parts.find((p) => p.type === key)?.value ?? ""
   const baseDate = date("year")+"-"+date("month")+"-"+date("day")
 
+  // A versão 2.3.7 seleciona a competência do primeiro mês da OTB.
+  const mesPlano=new Date(baseDate+"T00:00:00Z")
+  mesPlano.setUTCDate(1)
+  mesPlano.setUTCMonth(mesPlano.getUTCMonth()+1)
+  const competencia=mesPlano.toISOString().slice(0,7)+"-01"
+  const metasResult=products.length>0?await supabase.rpc("fn_compras_dde_plano_237",{
+    p_codigos:products.map(p=>p.produto_cod),p_mes:competencia,
+  }):{data:[],error:null}
+  const metas=(metasResult.data??[]) as AttendanceDdeMeta[]
+
   return <main className="mx-auto max-w-[1600px] space-y-6 pb-12 text-slate-100">
     <div className="flex flex-wrap items-center justify-between gap-4">
       <Link href="/compras" className="inline-flex items-center gap-2 text-xs font-bold text-cyan-300"><ArrowLeft size={16}/> Voltar a Compras</Link>
@@ -63,6 +73,12 @@ async function Content({ searchParams }: { searchParams: Promise<Params> }) {
     </section>
     {error ? <div role="alert" className="rounded-xl border border-amber-400/25 bg-amber-400/10 p-5 text-amber-100">Consulta indisponível. Confira a RPC de Atendimento Fornecedor e a permissão Master; não foram presumidos dados ausentes.</div>
       : busca.length < 2 ? <div className="erp-surface rounded-xl p-7 text-sm text-slate-300">Digite pelo menos dois caracteres para consultar o catálogo. Nenhuma busca integral é executada automaticamente.</div>
-      : <AtendimentoFornecedor key={busca+"-"+filial} products={products} branch={filial} baseDate={baseDate} drafts={drafts} />}
+      : <><div className="erp-surface rounded-xl p-4 text-xs text-slate-300">
+          Plano de Estoque Zacarini 2.3.7 · competência {competencia.slice(0,7)}.
+          Metas combinadas por subgrupo são consultadas no Supabase; demais itens exibem a referência básica da linha como estimativa.
+          {metasResult.error&&<p className="mt-2 text-amber-200">Não foi possível consultar as metas do plano: as sugestões não foram homologadas.</p>}
+        </div>
+        <AtendimentoFornecedor key={busca+"-"+filial} products={products} branch={filial} baseDate={baseDate} drafts={drafts} ddeMetas={metas} />
+        </>}
   </main>
 }

@@ -169,4 +169,11 @@ describe("previsão financeira das compras (Zacarini)", () => {
     expect(result.paymentDays).toEqual([0, 30, 60])
     expect(result.installments.map((i) => i.dueDate)).toEqual(["2026-11-23", "2026-12-23", "2027-01-22"])
   })
+  it("Zacarini 2.3.7: condição 10x segue as dez parcelas parametrizadas em R:AA", () => {
+    const result = forecastPurchasePayments({ ...basic, paymentTerms: "10x" })
+    expect(result.status).toBe("projetado")
+    expect(result.paymentDays).toEqual([30,60,90,120,150,180,210,240,270,300])
+    expect(result.installments).toHaveLength(10)
+    expect(Math.round(result.installments.reduce((sum,i)=>sum+i.amount,0)*100)).toBe(30000)
+  })
 })

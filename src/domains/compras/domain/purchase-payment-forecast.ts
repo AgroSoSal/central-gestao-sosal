@@ -84,6 +84,13 @@ function paymentDays(value: string | null): { days: number[]; source: "fornecida
     return { days: [], source: "isenta", issue: null }
   }
   // 'ent' equivale ao vencimento na entrega, dia zero.
+  // Zacarini 2.3.7: '10x' é explicitamente parametrizado em R:AA
+  // como 30/60/90/120/150/180/210/240/270/300 dias (linha 292).
+  // Não generalizar outras expressões Nx sem evidência da planilha.
+  if (/^10\s*x$/i.test(raw)) {
+    return { days: Array.from({ length: 10 }, (_, i) => (i + 1) * 30), source: "fornecida", issue: null }
+  }
+
   // Os prazos em dias podem vir com sufixo em cada parcela: 30d/60d, 30 dias / 60 dias.
   const parts = raw.split(/[/,;-]/)
   const valid = parts.length <= 10 && parts.every((part) => /^(?:\s*ent\s*|\s*\d{1,4}\s*(?:d|dias?)?\.?\s*)$/i.test(part))

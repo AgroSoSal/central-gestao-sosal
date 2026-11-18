@@ -6,6 +6,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client"
 import { AlertTriangle, Calculator, CheckCircle2, CircleHelp, PackageSearch } from "lucide-react"
 import { distributePurchase, negotiatedPurchase, suggestedPurchaseQuantity } from "@/domains/compras/domain/purchase-zacarini-237"
 import { forecastPurchasePayments } from "@/domains/compras/domain/purchase-payment-forecast"
+import { validarAtendimento } from "@/domains/compras/domain/purchase-attendance-validation"
 
 export type AttendanceProduct = {
   produto_cod: string; descricao: string | null; marca: string | null; fornecedor: string | null
@@ -39,7 +40,12 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts}:Props) {
   const [quantities,setQuantities]=useState<Record<string,string>>({})
   const [costs,setCosts]=useState<Record<string,string>>({})
   const [discount,setDiscount]=useState("0")
-  const [paymentTerms,setPaymentTerms]=useState("30/60")
+  // Entrada da Zacarini 2.3.7: H15=7, H16=1, H17=90, H18=30.
+  const [paymentTerms,setPaymentTerms]=useState("")
+  const [prazoEntrega,setPrazoEntrega]=useState("7")
+  const [numeroParcelas,setNumeroParcelas]=useState("1")
+  const [primeiraParcela,setPrimeiraParcela]=useState("90")
+  const [intervaloParcelas,setIntervaloParcelas]=useState("30")
   const [deliveryDate,setDeliveryDate]=useState("")
   const pct = Number(discount)
   const validDiscount=Number.isFinite(pct)&&pct>=0&&pct<=100
@@ -60,10 +66,39 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts}:Props) {
   const invalid=chosen.some(x=>!x.quote||!x.isMerchandise)
   const amount=chosen.reduce((sum,x)=>sum+(x.quote?.total??0),0)
   const units=chosen.reduce((sum,x)=>sum+x.qty,0)
-  const forecast=chosen.length&&!invalid?forecastPurchasePayments({
-    orderDate:baseDate,paymentTerms,pendingQuantity:units,pendingValue:amount,
-    decision:"Aprovado",followUpArrival:deliveryDate||null,baseDate,
+  const qtdParcelas=Number(numeroParcelas)
+  const primeiro=Number(primeiraParcela)
+  const intervalo=Number(intervaloParcelas)
+  const prazo=Number(prazoEntrega)
+  const prazoValido=Number.isInteger(qtdParcelas)&&qtdParcelas>=1&&qtdParcelas<=10
+    &&Number.isInteger(primeiro)&&primeiro>=0&&primeiro<=3650
+    &&Number.isInteger(intervalo)&&intervalo>=0&&intervalo<=3650
+    &&Number.isInteger(prazo)&&prazo>=0&&prazo<=365
+  const termos=paymentTerms.trim()||(prazoValido?Array.from({length:qtdParcelas},(_,i)=>String(primeiro+i*intervalo)).join("/"):"")
+  const chegadaEstimada=(()=>{
+    if(deliveryDate)return deliveryDate
+    if(!prazoValido)return null
+    const d=new Date(baseDate+"T00:00:00Z")
+    d.setUTCDate(d.getUTCDate()+prazo)
+    return d.toISOString().slice(0,10)
+  })()
+  const forecast=chosen.length&&!invalid&&prazoValido?forecastPurchasePayments({
+    orderDate:baseDate,paymentTerms:termos,pendingQuantity:units,pendingValue:amount,
+    decision:"Aprovado",followUpArrival:chegadaEstimada,baseDate,
   }):null
+  const conferencia=validarAtendimento({
+    tipo:"Mercadoria",valor:amount,
+    diasPMP:forecast?.paymentDays.length
+      ?forecast.paymentDays.reduce((s,d)=>s+d,0)/forecast.paymentDays.length:null,
+    // Excel AD63 = custo diário PREVISTO. CMV histórico 90d não substitui a previsão.
+    custoDiarioPrevisto:null,
+    primeiroVencimento:forecast?.installments[0]?.dueDate??null,
+    primeiraDataLiberada:null,
+    parcelas:forecast?.installments.map(p=>({vencimento:p.dueDate,valor:p.amount}))??[],
+    limitesAcumulados:null, // OTB B33:AA41: contrato financeiro ainda sem versão homologada.
+    verbasPorLinha:null, // Atendimento S7:S10: saldo OTB após excesso, ainda indisponível.
+    quantidadeOrfa:false,itensInvalidos:invalid||!prazoValido||forecast?.status==="conferir",
+  })
   async function loadRateio() {
     if (rateioLoading || branch!=="REDE" || chosen.length===0) return
     const client=createSupabaseBrowserClient()
@@ -117,8 +152,20 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts}:Props) {
         <label className="text-xs text-slate-300">Desconto negociado (%)
           <input type="number" step="0.01" min="0" max="100" value={discount} onChange={e=>setDiscount(e.target.value)} className="erp-field mt-2 w-full px-3"/>
         </label>
-        <label className="text-xs text-slate-300">Condição de pagamento
-          <input value={paymentTerms} onChange={e=>setPaymentTerms(e.target.value)} maxLength={100} className="erp-field mt-2 w-full px-3" placeholder="Ex.: ent/30/60" />
+        <label className="text-xs text-slate-300">Prazo de entrega (dias) · H15
+          <input type="number" min="0" max="365" value={prazoEntrega} onChange={e=>setPrazoEntrega(e.target.value)} className="erp-field mt-2 w-full px-3"/>
+        </label>
+        <label className="text-xs text-slate-300">Nº de parcelas · H16
+          <input type="number" min="1" max="10" value={numeroParcelas} onChange={e=>setNumeroParcelas(e.target.value)} className="erp-field mt-2 w-full px-3"/>
+        </label>
+        <label className="text-xs text-slate-300">Primeira parcela após entrega (dias) · H17
+          <input type="number" min="0" max="3650" value={primeiraParcela} onChange={e=>setPrimeiraParcela(e.target.value)} className="erp-field mt-2 w-full px-3"/>
+        </label>
+        <label className="text-xs text-slate-300">Intervalo entre parcelas (dias) · H18
+          <input type="number" min="0" max="3650" value={intervaloParcelas} onChange={e=>setIntervaloParcelas(e.target.value)} className="erp-field mt-2 w-full px-3"/>
+        </label>
+        <label className="text-xs text-slate-300">Condição especial (sobrescreve os prazos acima)
+          <input value={paymentTerms} onChange={e=>setPaymentTerms(e.target.value)} maxLength={100} className="erp-field mt-2 w-full px-3" placeholder="Ex.: ent/30/60 ou 10x" />
         </label>
         <label className="text-xs text-slate-300">Chegada prevista (opcional)
           <input type="date" value={deliveryDate} onChange={e=>setDeliveryDate(e.target.value)} className="erp-field mt-2 w-full px-3"/>
@@ -166,11 +213,26 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts}:Props) {
         {forecast?.installments.length?<div className="mt-4 flex flex-wrap gap-2">{forecast.installments.map(p=><div key={p.number} className="rounded-lg border border-cyan-300/20 bg-cyan-400/5 p-3 text-xs"><p className="text-slate-400">Parcela {p.number} · {p.dueDate}</p><p className="mt-1 font-bold text-cyan-200">{money.format(p.amount)}</p></div>)}</div>:null}
         {invalid&&<div role="alert" className="mt-4 flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-xs text-amber-100"><AlertTriangle size={16}/> Custo inválido ou item sem grupo de mercadorias 1–4. Revise antes de continuar.</div>}
         {forecast?.status==="conferir"&&<div role="alert" className="mt-4 text-xs text-amber-200">{forecast.issue}</div>}
+        <div className="mt-5 rounded-xl border border-white/10 bg-[#0a1c30] p-5">
+          <h3 className="text-sm font-bold text-white">Verificação de pedido · K22 a K27</h3>
+          <p className="mt-1 text-[11px] leading-5 text-slate-400">As cinco conferências usam as mesmas condições da planilha. Pendente indica uma fonte ainda não homologada no Supabase, nunca aprovação implícita.</p>
+          <div className="mt-4 space-y-2">
+            {conferencia.validacoes.map(c=><div key={c.celula} className="flex items-start gap-3 rounded-lg border border-white/10 px-3 py-2 text-xs">
+              <span className="w-10 shrink-0 font-mono font-bold text-cyan-300">{c.celula}</span>
+              <span className={c.estado==="erro"?"text-rose-300":c.estado==="pendente"?"text-amber-200":"text-emerald-200"}>{c.estado==="pendente"?"◷ ":null}{c.texto}</span>
+            </div>)}
+          </div>
+          <div className="mt-4 border-t border-white/10 pt-4 text-sm font-bold">
+            <span className={conferencia.podeGravar?"text-emerald-300":"text-amber-200"}>
+              {conferencia.decisao==="pode_gravar"?"✔ PODE GRAVAR O PEDIDO":conferencia.decisao==="sem_itens"?"Digite as quantidades":"✖ REVISAR ANTES DE GRAVAR"}
+            </span>
+          </div>
+        </div>
         <div className="mt-5 space-y-3 rounded-xl border border-cyan-300/20 bg-cyan-400/5 p-4">
           <label className="block text-xs font-semibold text-slate-300">Observações da negociação
             <textarea value={notes} onChange={e=>setNotes(e.target.value)} maxLength={500} rows={2} placeholder="Fornecedor, frete, carga, descontos ou próximos contatos..." className="erp-field mt-2 w-full resize-y px-3 py-2"/>
           </label>
-          <button type="button" onClick={saveDraft} disabled={saving||invalid||!validDiscount||chosen.length===0} className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">{saving?"Salvando...":"Salvar rascunho no Supabase"}</button>
+          <button type="button" onClick={saveDraft} disabled={saving||invalid||!validDiscount||!prazoValido||chosen.length===0} className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">{saving?"Salvando...":"Salvar rascunho no Supabase"}</button>
           {notice&&<p role="status" className="text-xs text-cyan-100">{notice}</p>}
           <p className="text-[11px] text-slate-400">Rascunho auditável de negociação. Não aprova verba, não grava pedido nem atualiza o SISCOM.</p>
         </div>

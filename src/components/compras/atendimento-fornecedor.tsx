@@ -7,6 +7,7 @@ import { AlertTriangle, Calculator, CheckCircle2, CircleHelp, PackageSearch } fr
 import { distributePurchase, negotiatedPurchase, suggestedPurchaseQuantity } from "@/domains/compras/domain/purchase-zacarini-237"
 import { forecastPurchasePayments } from "@/domains/compras/domain/purchase-payment-forecast"
 import { validarAtendimento } from "@/domains/compras/domain/purchase-attendance-validation"
+import { formatSupplierOrder } from "@/domains/compras/domain/purchase-order-messages"
 
 export type AttendanceProduct = {
   produto_cod: string; descricao: string | null; marca: string | null; fornecedor: string | null
@@ -34,6 +35,9 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts}:Props) {
   const [saving,setSaving] = useState(false)
   const [notice,setNotice] = useState("")
   const [notes,setNotes] = useState("")
+  const [frete,setFrete] = useState("CIF")
+  const [fornecedor,setFornecedor] = useState("")
+  const [comprador,setComprador] = useState("")
   const [rateioLoading,setRateioLoading] = useState(false)
   const [rateioError,setRateioError] = useState("")
   const [branchRows,setBranchRows] = useState<BranchMetric[]>([])
@@ -122,6 +126,30 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts}:Props) {
     const available=matching.every(Boolean)&&weights.some(w=>w>0)
     return {code:entry.p.produto_cod,qty:entry.qty,parts:available?distributePurchase(entry.qty,weights):null}
   })
+  const nomesCompradores:Record<number,string>={1:"Thiago e Filipe",2:"Margotti",3:"Thiago e Filipe",4:"Claudiney"}
+  const linhas=chosen.map(x=>x.p.linha).filter((x):x is number=>x!==null)
+  const mesmaLinha=linhas.length>0&&linhas.every(x=>x===linhas[0])
+  const compradorProposto=mesmaLinha?nomesCompradores[linhas[0]]??"Compras Só Sal":"Compras Só Sal"
+  const marcas=[...new Set(chosen.map(x=>x.p.marca).filter(Boolean))]
+  const marca=marcas.length===1?marcas[0]!:"Marcas diversas"
+  const fornecedores=[...new Set(chosen.map(x=>x.p.fornecedor).filter(Boolean))]
+  const fornecedorProposto=fornecedor.trim()||(fornecedores.length===1?fornecedores[0]!:"Fornecedor a confirmar")
+  const mensagens=chosen.length&&!invalid?formatSupplierOrder({
+    kind:"Mercadoria",brand:marca,supplier:fornecedorProposto,branch,
+    deliveryDate:chegadaEstimada||baseDate,terms:termos,
+    installmentCount:forecast?.paymentDays.length??qtdParcelas,freight:frete,
+    buyer:comprador.trim()||compradorProposto,baseDate,authorized:conferencia.podeGravar,
+    items:chosen.map(x=>{
+      const rateio=allocation.find(a=>a.code===x.p.produto_cod)
+      return {code:x.p.produto_cod,description:x.p.descricao||x.p.produto_cod,
+        quantity:x.qty,unitPrice:x.cost??0,discountPercent:pct,
+        byBranch:rateio?.parts?branches.map((b,i)=>rateio.parts![i]>0?b+": "+rateio.parts![i]:"").filter(Boolean).join(", "):null}
+    }),
+  }):null
+  async function copiar(texto:string){
+    try { await navigator.clipboard.writeText(texto);setNotice("Texto copiado. Rascunho: confira a autorização antes de enviar.") }
+    catch { setNotice("Não foi possível copiar automaticamente. Selecione o texto na prévia.") }
+  }
   async function saveDraft() {
     if (saving || invalid || chosen.length === 0) return
     const client=createSupabaseBrowserClient()
@@ -166,6 +194,17 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts}:Props) {
         </label>
         <label className="text-xs text-slate-300">Condição especial (sobrescreve os prazos acima)
           <input value={paymentTerms} onChange={e=>setPaymentTerms(e.target.value)} maxLength={100} className="erp-field mt-2 w-full px-3" placeholder="Ex.: ent/30/60 ou 10x" />
+        </label>
+        <label className="text-xs text-slate-300">Frete · H20
+          <select value={frete} onChange={e=>setFrete(e.target.value)} className="erp-field mt-2 w-full px-3">
+            <option value="CIF">CIF</option><option value="FOB">FOB</option><option value="A negociar">A negociar</option>
+          </select>
+        </label>
+        <label className="text-xs text-slate-300">Fornecedor confirmado
+          <input value={fornecedor} onChange={e=>setFornecedor(e.target.value)} maxLength={150} placeholder="Informe para a mensagem" className="erp-field mt-2 w-full px-3"/>
+        </label>
+        <label className="text-xs text-slate-300">Comprador
+          <input value={comprador} onChange={e=>setComprador(e.target.value)} maxLength={100} placeholder="Padrão por linha da Zacarini" className="erp-field mt-2 w-full px-3"/>
         </label>
         <label className="text-xs text-slate-300">Chegada prevista (opcional)
           <input type="date" value={deliveryDate} onChange={e=>setDeliveryDate(e.target.value)} className="erp-field mt-2 w-full px-3"/>
@@ -228,6 +267,16 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts}:Props) {
             </span>
           </div>
         </div>
+        {mensagens&&<div className="mt-5 space-y-3 rounded-xl border border-cyan-300/20 bg-[#081e2f] p-4">
+          <h3 className="text-sm font-bold text-cyan-200">Mensagens do pedido · AO6 / AW6 / AW8</h3>
+          <p className="text-[11px] text-amber-200">Até a liberação de caixa e OTB, os textos são rascunhos de negociação, não pedidos autorizados.</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={()=>copiar(mensagens.whatsapp)} className="rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-xs font-bold text-cyan-200">Copiar mensagem WhatsApp</button>
+            <button type="button" onClick={()=>copiar(mensagens.email)} className="rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-xs font-bold text-cyan-200">Copiar corpo do e-mail</button>
+            <button type="button" onClick={()=>copiar(mensagens.subject)} className="rounded-lg border border-white/20 px-4 py-2 text-xs font-bold text-white">Copiar assunto</button>
+          </div>
+          <details className="text-xs text-slate-300"><summary className="cursor-pointer font-semibold">Ver prévia do WhatsApp e assunto do e-mail</summary><p className="mt-3 font-semibold text-cyan-100">{mensagens.subject}</p><pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg bg-[#05101d] p-4 leading-6">{mensagens.whatsapp}</pre></details>
+        </div>}
         <div className="mt-5 space-y-3 rounded-xl border border-cyan-300/20 bg-cyan-400/5 p-4">
           <label className="block text-xs font-semibold text-slate-300">Observações da negociação
             <textarea value={notes} onChange={e=>setNotes(e.target.value)} maxLength={500} rows={2} placeholder="Fornecedor, frete, carga, descontos ou próximos contatos..." className="erp-field mt-2 w-full resize-y px-3 py-2"/>

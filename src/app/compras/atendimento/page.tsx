@@ -5,6 +5,7 @@ import { AlertTriangle, ArrowLeft, Search, Store } from "lucide-react"
 import { ComprasLogin, ComprasSair } from "@/components/compras/compras-auth"
 import { LoadingState } from "@/components/shared/mascot-loader"
 import { AtendimentoFornecedor, type AttendanceProduct, type PurchaseDraft, type AttendanceDdeMeta } from "@/components/compras/atendimento-fornecedor"
+import { AtendimentoDespesas, type ExpenseCatalogEntry } from "@/components/compras/atendimento-despesas"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 type Params = { busca?: string; filial?: string }
@@ -32,6 +33,8 @@ async function Content({ searchParams }: { searchParams: Promise<Params> }) {
     ? await supabase.rpc("fn_compras_atendimento_catalogo", { p_busca: busca, p_filial: filial, p_limite: 40 })
     : { data: [], error: null }
   const products = (data ?? []) as AttendanceProduct[]
+  const expenseCatalogResult=await supabase.rpc("fn_compras_catalogo_despesas_237", {p_busca:null})
+  const expenseCatalog=(expenseCatalogResult.data??[]) as ExpenseCatalogEntry[]
   const draftsResult = await supabase.rpc("fn_compras_listar_cotacoes_rascunho",{p_limite:10})
   const drafts = draftsResult.error ? [] : (draftsResult.data??[]) as PurchaseDraft[]
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -80,5 +83,6 @@ async function Content({ searchParams }: { searchParams: Promise<Params> }) {
         </div>
         <AtendimentoFornecedor key={busca+"-"+filial} products={products} branch={filial} baseDate={baseDate} drafts={drafts} ddeMetas={metas} />
         </>}
+    <AtendimentoDespesas branch={filial} catalog={expenseCatalog} unavailable={!!expenseCatalogResult.error} />
   </main>
 }

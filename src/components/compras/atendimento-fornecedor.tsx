@@ -1,6 +1,8 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
+import { createSupabaseBrowserClient } from "@/lib/supabase/client"
 import { AlertTriangle, Calculator, CheckCircle2, CircleHelp, PackageSearch } from "lucide-react"
 import { negotiatedPurchase, suggestedPurchaseQuantity } from "@/domains/compras/domain/purchase-zacarini-237"
 import { forecastPurchasePayments } from "@/domains/compras/domain/purchase-payment-forecast"
@@ -13,7 +15,8 @@ export type AttendanceProduct = {
   cmv_90d: number | string | null; ultimo_custo: number | string | null
   preco_venda_medio: number | string | null
 }
-type Props = { products: AttendanceProduct[]; branch: string; baseDate: string }
+export type PurchaseDraft = { id: number; filial: string; total: number | string; itens_count: number; observacao: string | null; criado_em: string }
+type Props = { products: AttendanceProduct[]; branch: string; baseDate: string; drafts: PurchaseDraft[] }
 const money = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"})
 const qtyFmt = new Intl.NumberFormat("pt-BR",{maximumFractionDigits:1})
 const ddeDefaults: Record<number, number> = { 1:45, 2:60, 3:60, 4:50 }
@@ -24,7 +27,11 @@ function num(x: number | string | null | undefined): number | null {
 }
 const safe=(x: number | string | null | undefined)=>num(x)??0
 
-export function AtendimentoFornecedor({products,branch,baseDate}:Props) {
+export function AtendimentoFornecedor({products,branch,baseDate,drafts}:Props) {
+  const router = useRouter()
+  const [saving,setSaving] = useState(false)
+  const [notice,setNotice] = useState("")
+  const [notes,setNotes] = useState("")
   const [quantities,setQuantities]=useState<Record<string,string>>({})
   const [costs,setCosts]=useState<Record<string,string>>({})
   const [discount,setDiscount]=useState("0")
@@ -53,6 +60,24 @@ export function AtendimentoFornecedor({products,branch,baseDate}:Props) {
     orderDate:baseDate,paymentTerms,pendingQuantity:units,pendingValue:amount,
     decision:"Aprovado",followUpArrival:deliveryDate||null,baseDate,
   }):null
+  async function saveDraft() {
+    if (saving || invalid || chosen.length === 0) return
+    const client=createSupabaseBrowserClient()
+    if (!client) { setNotice("Conexão indisponível; nada foi salvo."); return }
+    setSaving(true);setNotice("")
+    try {
+      const itens=chosen.map(({p,qty,cost})=>({
+        produto_codigo:p.produto_cod,quantidade:qty,custo_unitario:cost,desconto_percentual:pct,
+      }))
+      const {data,error}=await client.rpc("fn_compras_salvar_cotacao_rascunho",{
+        p_filial:branch,p_itens:itens,p_observacao:notes.trim()||null,
+      })
+      if (error) {setNotice(error.code==="42501"?"Seu perfil não é Master ativo.":"Não foi possível salvar; confira os valores e tente novamente.");return}
+      setNotice("Rascunho #"+String(data)+" salvo no Supabase. Nenhum pedido foi enviado ao SISCOM.")
+      router.refresh()
+    } catch { setNotice("Falha na conexão. Confirme a lista de rascunhos antes de repetir.") }
+    finally {setSaving(false)}
+  }
   return <section className="space-y-5">
     <div className="grid gap-3 sm:grid-cols-3">
       <div className="erp-surface rounded-2xl p-5"><p className="text-xs text-slate-400">Itens encontrados</p><p className="mt-2 text-2xl font-bold text-cyan-200">{products.length}</p><p className="mt-1 text-[11px] text-slate-500">Limite de consulta: 40 produtos</p></div>
@@ -109,8 +134,17 @@ export function AtendimentoFornecedor({products,branch,baseDate}:Props) {
         {forecast?.installments.length?<div className="mt-4 flex flex-wrap gap-2">{forecast.installments.map(p=><div key={p.number} className="rounded-lg border border-cyan-300/20 bg-cyan-400/5 p-3 text-xs"><p className="text-slate-400">Parcela {p.number} · {p.dueDate}</p><p className="mt-1 font-bold text-cyan-200">{money.format(p.amount)}</p></div>)}</div>:null}
         {invalid&&<div role="alert" className="mt-4 flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-xs text-amber-100"><AlertTriangle size={16}/> Custo inválido ou item sem grupo de mercadorias 1–4. Revise antes de continuar.</div>}
         {forecast?.status==="conferir"&&<div role="alert" className="mt-4 text-xs text-amber-200">{forecast.issue}</div>}
+        <div className="mt-5 space-y-3 rounded-xl border border-cyan-300/20 bg-cyan-400/5 p-4">
+          <label className="block text-xs font-semibold text-slate-300">Observações da negociação
+            <textarea value={notes} onChange={e=>setNotes(e.target.value)} maxLength={500} rows={2} placeholder="Fornecedor, frete, carga, descontos ou próximos contatos..." className="erp-field mt-2 w-full resize-y px-3 py-2"/>
+          </label>
+          <button type="button" onClick={saveDraft} disabled={saving||invalid||!validDiscount||chosen.length===0} className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 py-3 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">{saving?"Salvando...":"Salvar rascunho no Supabase"}</button>
+          {notice&&<p role="status" className="text-xs text-cyan-100">{notice}</p>}
+          <p className="text-[11px] text-slate-400">Rascunho auditável de negociação. Não aprova verba, não grava pedido nem atualiza o SISCOM.</p>
+        </div>
         <div className="mt-5 flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-xs leading-6 text-amber-100"><AlertTriangle size={18} className="shrink-0"/> A Zacarini exige caixa disponível em cada vencimento, verba livre da linha e validação da Projeção 12M. Como essa homologação ainda está pendente no Supabase, esta simulação NÃO autoriza gravar pedidos no SISCOM.</div>
       </>}
+      {drafts.length>0&&<div className="mt-5 border-t border-white/10 pt-4"><h3 className="text-xs font-bold text-slate-200">Últimos rascunhos salvos</h3><div className="mt-3 flex flex-wrap gap-2">{drafts.map(d=><div key={d.id} className="rounded-lg border border-white/10 bg-[#071625] p-3 text-xs"><p className="font-bold text-cyan-200">#{d.id} · {d.filial}</p><p className="mt-1">{money.format(Number(d.total))} · {d.itens_count} item(ns)</p><p className="mt-1 text-[11px] text-slate-400">{new Date(d.criado_em).toLocaleString("pt-BR",{timeZone:"America/Campo_Grande"})}</p></div>)}</div></div>}
       <p className="mt-4 flex items-center gap-2 text-[11px] text-slate-500"><CheckCircle2 size={14}/> Consulta limitada, somente Master, nenhuma gravação de pedidos ou alterações no SISCOM · {branch}.</p>
     </div>
   </section>

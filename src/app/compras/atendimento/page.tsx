@@ -4,7 +4,7 @@ import { Suspense } from "react"
 import { AlertTriangle, ArrowLeft, Search, Store } from "lucide-react"
 import { ComprasLogin, ComprasSair } from "@/components/compras/compras-auth"
 import { LoadingState } from "@/components/shared/mascot-loader"
-import { AtendimentoFornecedor, type AttendanceProduct } from "@/components/compras/atendimento-fornecedor"
+import { AtendimentoFornecedor, type AttendanceProduct, type PurchaseDraft } from "@/components/compras/atendimento-fornecedor"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 type Params = { busca?: string; filial?: string }
@@ -32,6 +32,8 @@ async function Content({ searchParams }: { searchParams: Promise<Params> }) {
     ? await supabase.rpc("fn_compras_atendimento_catalogo", { p_busca: busca, p_filial: filial, p_limite: 40 })
     : { data: [], error: null }
   const products = (data ?? []) as AttendanceProduct[]
+  const draftsResult = await supabase.rpc("fn_compras_listar_cotacoes_rascunho",{p_limite:10})
+  const drafts = draftsResult.error ? [] : (draftsResult.data??[]) as PurchaseDraft[]
   const parts = new Intl.DateTimeFormat("en-CA", {
     year: "numeric",month: "2-digit",day: "2-digit", timeZone: "America/Campo_Grande",
   }).formatToParts(new Date())
@@ -61,6 +63,6 @@ async function Content({ searchParams }: { searchParams: Promise<Params> }) {
     </section>
     {error ? <div role="alert" className="rounded-xl border border-amber-400/25 bg-amber-400/10 p-5 text-amber-100">Consulta indisponível. Confira a RPC de Atendimento Fornecedor e a permissão Master; não foram presumidos dados ausentes.</div>
       : busca.length < 2 ? <div className="erp-surface rounded-xl p-7 text-sm text-slate-300">Digite pelo menos dois caracteres para consultar o catálogo. Nenhuma busca integral é executada automaticamente.</div>
-      : <AtendimentoFornecedor key={busca+"-"+filial} products={products} branch={filial} baseDate={baseDate} />}
+      : <AtendimentoFornecedor key={busca+"-"+filial} products={products} branch={filial} baseDate={baseDate} drafts={drafts} />}
   </main>
 }

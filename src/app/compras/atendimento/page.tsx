@@ -7,6 +7,7 @@ import { LoadingState } from "@/components/shared/mascot-loader"
 import { AtendimentoFornecedor, type AttendanceProduct, type PurchaseDraft, type AttendanceDdeMeta } from "@/components/compras/atendimento-fornecedor"
 import { AtendimentoDespesas, type ExpenseCatalogEntry } from "@/components/compras/atendimento-despesas"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
+import { interpretOtbStockPosition } from "@/domains/compras/domain/otb-position-source"
 
 type Params = { busca?: string; filial?: string }
 const filiais = ["REDE","BDS","CG","RIO","CX","PG","AN"] as const
@@ -52,6 +53,12 @@ async function Content({ searchParams }: { searchParams: Promise<Params> }) {
     p_codigos:products.map(p=>p.produto_cod),p_mes:competencia,
   }):{data:[],error:null}
   const metas=(metasResult.data??[]) as AttendanceDdeMeta[]
+  // Estoque/CMV oficiais já agregados por subgrupo no domínio OTB.
+  // Não revarrer vendas nem recalcular a API completa a cada consulta.
+  const posicaoResult=await supabase.rpc("fn_otb_posicao_subgrupos",{p_data_base:baseDate})
+  const posicao=interpretOtbStockPosition(posicaoResult.data,posicaoResult.error)
+  const ddeObservado=posicao.status==="conectado"
+    ?posicao.subgroups.map(s=>({grupo_subgrupo:s.subgroup,dde_observado:s.observedDde})):[]
 
   return <main className="mx-auto max-w-[1600px] space-y-6 pb-12 text-slate-100">
     <div className="flex flex-wrap items-center justify-between gap-4">
@@ -78,10 +85,10 @@ async function Content({ searchParams }: { searchParams: Promise<Params> }) {
       : busca.length < 2 ? <div className="erp-surface rounded-xl p-7 text-sm text-slate-300">Digite pelo menos dois caracteres para consultar o catálogo. Nenhuma busca integral é executada automaticamente.</div>
       : <><div className="erp-surface rounded-xl p-4 text-xs text-slate-300">
           Plano de Estoque Zacarini 2.3.7 · competência {competencia.slice(0,7)}.
-          Metas combinadas por subgrupo são consultadas no Supabase; demais itens exibem a referência básica da linha como estimativa.
+          Metas combinadas por subgrupo são consultadas no Supabase; sem meta manual, o DDE da posição de estoque é aproximado da meta básica pelos fatores mensais 30%, 55%, 75%, 87%, 95% e 100% da planilha.
           {metasResult.error&&<p className="mt-2 text-amber-200">Não foi possível consultar as metas do plano: as sugestões não foram homologadas.</p>}
         </div>
-        <AtendimentoFornecedor key={busca+"-"+filial} products={products} branch={filial} baseDate={baseDate} drafts={drafts} ddeMetas={metas} />
+        <AtendimentoFornecedor key={busca+"-"+filial} products={products} branch={filial} baseDate={baseDate} drafts={drafts} ddeMetas={metas} ddeObservado={ddeObservado} posicaoConectada={posicao.status==="conectado"} competencia={competencia} />
         </>}
     <AtendimentoDespesas branch={filial} catalog={expenseCatalog} unavailable={!!expenseCatalogResult.error} />
   </main>

@@ -6,7 +6,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client"
 import { AlertTriangle, Calculator, CheckCircle2, CircleHelp, PackageSearch } from "lucide-react"
 import { distributePurchase, negotiatedPurchase, suggestedPurchaseQuantity } from "@/domains/compras/domain/purchase-zacarini-237"
 import { forecastPurchasePayments } from "@/domains/compras/domain/purchase-payment-forecast"
-import { validarAtendimento } from "@/domains/compras/domain/purchase-attendance-validation"
+import { validarAtendimento, ddePlanejado, PROGRESSO_DDE_ZACARINI_237 } from "@/domains/compras/domain/purchase-attendance-validation"
 import { formatSupplierOrder } from "@/domains/compras/domain/purchase-order-messages"
 
 export type AttendanceProduct = {
@@ -19,8 +19,10 @@ export type AttendanceProduct = {
 }
 type BranchMetric = { produto_codigo: string; filial: string; estoque_qtde: number | string | null; pedido_pendente: number | string | null; venda_qtde_90d: number | string | null }
 export type AttendanceDdeMeta = { produto_codigo: string; grupo_subgrupo: string|null; competencia:string|null; dde_meta:number|string|null; origem:string|null }
+export type AttendanceObservedDde = { grupo_subgrupo:string; dde_observado:number|null }
 export type PurchaseDraft = { id: number; filial: string; total: number | string; itens_count: number; observacao: string | null; criado_em: string }
-type Props = { products: AttendanceProduct[]; branch: string; baseDate: string; drafts: PurchaseDraft[]; ddeMetas:AttendanceDdeMeta[] }
+type Props = { products: AttendanceProduct[]; branch: string; baseDate: string; drafts: PurchaseDraft[]; ddeMetas:AttendanceDdeMeta[];
+  ddeObservado:AttendanceObservedDde[]; posicaoConectada:boolean; competencia:string }
 const money = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"})
 const qtyFmt = new Intl.NumberFormat("pt-BR",{maximumFractionDigits:1})
 const ddeDefaults: Record<number, number> = { 1:45, 2:60, 3:60, 4:50 }
@@ -31,7 +33,7 @@ function num(x: number | string | null | undefined): number | null {
 }
 const safe=(x: number | string | null | undefined)=>num(x)??0
 
-export function AtendimentoFornecedor({products,branch,baseDate,drafts,ddeMetas}:Props) {
+export function AtendimentoFornecedor({products,branch,baseDate,drafts,ddeMetas,ddeObservado,posicaoConectada,competencia}:Props) {
   const router = useRouter()
   const [saving,setSaving] = useState(false)
   const [notice,setNotice] = useState("")
@@ -57,8 +59,15 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts,ddeMetas}
   const entries = useMemo(()=>products.map(p=>{
     const meta=ddeMetas.find(m=>m.produto_codigo===p.produto_cod)
     const metaAlvo=num(meta?.dde_meta)
-    const target=metaAlvo??(p.linha==null?null:ddeDefaults[p.linha]??null)
-    const metaSource=metaAlvo===null?"Base da linha · estimativa":"Meta combinada · Plano de Estoque"
+    const objetivo=p.linha==null?null:ddeDefaults[p.linha]??null
+    const meses=(Number(competencia.slice(0,4))-2026)*12+Number(competencia.slice(5,7))-11
+    const dentroDoPlano=meses>=0&&meses<6
+    const observado=ddeObservado.find(o=>o.grupo_subgrupo===p.grupo_subgrupo)?.dde_observado??null
+    const target=metaAlvo!==null?metaAlvo:
+      posicaoConectada&&dentroDoPlano&&objetivo!==null
+        ?ddePlanejado(observado,objetivo,PROGRESSO_DDE_ZACARINI_237[meses]):null
+    const metaSource=metaAlvo!==null?"Meta combinada · Plano de Estoque":
+      target!==null?"DDE observado → meta da linha · Plano de Estoque":"Fonte do DDE pendente"
     const sales=safe(p.venda_qtde_90d)/90
     const stock=safe(p.estoque_qtde), pending=safe(p.pedido_pendente_qtde)
     const suggest=target===null?null:suggestedPurchaseQuantity(Math.max(0,sales),target,Math.max(0,stock),Math.max(0,pending))
@@ -69,7 +78,7 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts,ddeMetas}
     const quote=canCalculate?negotiatedPurchase(qty,cost,pct,num(p.preco_venda_medio)):null
     const isMerchandise=!!p.grupo_subgrupo && /^[1-4]\./.test(p.grupo_subgrupo)
     return { p,target,metaSource,sales,stock,pending,suggest,qty,cost,quote,isMerchandise,validQty }
-  }),[products,ddeMetas,quantities,costs,pct,validDiscount])
+  }),[products,ddeMetas,ddeObservado,posicaoConectada,competencia,quantities,costs,pct,validDiscount])
   const chosen=entries.filter(x=>x.qty>0)
   const invalid=chosen.some(x=>!x.quote||!x.isMerchandise)
   const amount=chosen.reduce((sum,x)=>sum+(x.quote?.total??0),0)
@@ -214,7 +223,7 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts,ddeMetas}
           <input type="date" value={deliveryDate} onChange={e=>setDeliveryDate(e.target.value)} className="erp-field mt-2 w-full px-3"/>
         </label>
       </div>
-      <p className="mt-3 text-[11px] leading-5 text-slate-400">Metas combinadas por subgrupo são carregadas do Plano de Estoque 2.3.7 para a competência selecionada. Quando não há meta combinada, usa-se a base da linha (45/60/60/50) somente como estimativa, não como autorização. Os saldos da caixa e da OTB permanecem independentes.</p>
+      <p className="mt-3 text-[11px] leading-5 text-slate-400">Metas combinadas por subgrupo vêm do Plano de Estoque 2.3.7. Nos demais produtos, o DDE observado do Supabase converge gradualmente para a meta da linha (45/60/60/50), com os fatores da planilha. Quando não há fonte validada, a sugestão permanece indisponível. Nenhum valor autoriza pedidos. Os saldos da caixa e da OTB permanecem independentes.</p>
     </div>
     <div className="erp-surface overflow-x-auto rounded-2xl">
       <table className="min-w-[1260px] w-full text-left text-xs">

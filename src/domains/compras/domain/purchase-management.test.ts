@@ -29,6 +29,7 @@ describe("fila de gerenciamento de compras", () => {
     expect(hasOutstandingDelivery(partial)).toBe(true)
     expect(isApprovedForFollowUp(partial, null)).toBe(false)
     expect(isApprovedForFollowUp(partial, "Aprovado")).toBe(true)
+    expect(isApprovedForFollowUp(partial, "Já pago")).toBe(true)
     expect(isApprovedForFollowUp(partial, "Segurar")).toBe(false)
     expect(isApprovedForFollowUp({ ...partial, quantidade_pendente: 0 }, "Aprovado")).toBe(false)
     expect(isApprovedForFollowUp({ ...partial, quantidade_pendente: "NaN" }, "Aprovado")).toBe(false)

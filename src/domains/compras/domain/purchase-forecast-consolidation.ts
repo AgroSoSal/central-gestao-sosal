@@ -57,6 +57,7 @@ export type ConsolidatedPurchaseForecast = {
   eligibleAfterHorizonAmount: number
   eligibleUnscheduledAmount: number
   excludedByGroup5Amount: number
+  excludedByGroup6Amount: number
   unclassifiedAmount: number
   unclassifiedCount: number
   classificationIssues: ForecastTermsIssue[]
@@ -108,6 +109,7 @@ export async function consolidatePurchaseForecast(
   let eligibleAfterHorizon = 0
   let eligibleUnscheduled = 0
   let excludedByGroup5 = 0
+  let excludedByGroup6 = 0
   let unclassified = 0
   let unclassifiedCount = 0
   const issues: { position: number; item: ForecastTermsIssue }[] = []
@@ -169,8 +171,10 @@ export async function consolidatePurchaseForecast(
       const group = classifications.get(key)?.grupo_subgrupo?.trim() ?? ""
       const active = result.status === "projetado" || result.status === "conferir"
       const isGroup5 = /^5\./.test(group)
-      const eligible = active && !!group && !isGroup5
+      const isGroup6 = /^6\./.test(group)
+      const eligible = active && !!group && !isGroup5 && !isGroup6
       if (active && isGroup5) excludedByGroup5 += asCents(result.pendingAmount ?? 0)
+      if (active && isGroup6) excludedByGroup6 += asCents(result.pendingAmount ?? 0)
       if (active && !group) {
         unclassified += asCents(result.pendingAmount ?? 0)
         unclassifiedCount += 1
@@ -246,6 +250,7 @@ export async function consolidatePurchaseForecast(
     eligibleAfterHorizonAmount: eligibleAfterHorizon / 100,
     eligibleUnscheduledAmount: eligibleUnscheduled / 100,
     excludedByGroup5Amount: excludedByGroup5 / 100,
+    excludedByGroup6Amount: excludedByGroup6 / 100,
     unclassifiedAmount: unclassified / 100,
     unclassifiedCount,
     classificationIssues: classificationIssues.sort((a, b) => a.position - b.position).slice(0, MAX_CLASSIFICATION_ISSUES).map((issue) => issue.item),

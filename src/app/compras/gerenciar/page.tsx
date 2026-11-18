@@ -97,7 +97,7 @@ export async function ManagementContent({ searchParams }: Props) {
   const pagina = Math.min(1000, Math.max(1, Number.parseInt(first(params.pagina), 10) || 1))
   const filters = { busca, loja, inicio, fim }
   const returnHref = purchaseFilteredHref("/compras", filters)
-  const genericCodes = (process.env.SOSAL_COMPRAS_CODIGOS_GENERICOS ?? "")
+  const genericCodes = (process.env.SOSAL_COMPRAS_CODIGOS_GENERICOS ?? "545,105329")
     .split(",").map((code) => code.trim()).filter(Boolean)
 
   const result = await supabase.rpc("fn_listar_pedidos_compra_conciliados", {

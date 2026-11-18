@@ -145,7 +145,7 @@ export async function ComprasContent({ searchParams }: Props) {
   // A função PostgreSQL exige JWT válido e profile Master ativo, devolvendo apenas leitura.
   // A nova RPC devolve a conciliação calculada em contexto completo, nunca
   // somente pelas 25 linhas da página (o que duplicaria entradas de NFs).
-  const codigosGenericos = (process.env.SOSAL_COMPRAS_CODIGOS_GENERICOS ?? "")
+  const codigosGenericos = (process.env.SOSAL_COMPRAS_CODIGOS_GENERICOS ?? "545,105329")
     .split(",")
     .map((code) => code.trim())
     .filter(Boolean)

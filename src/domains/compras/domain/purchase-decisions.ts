@@ -1,5 +1,5 @@
 /** Decisão operacional independente da situação de recebimento da NF. */
-export const PURCHASE_DECISIONS = ["Aprovado", "Segurar", "Cancelar"] as const
+export const PURCHASE_DECISIONS = ["Aprovado", "Segurar", "Cancelar", "Já pago"] as const
 
 export type PurchaseDecision = (typeof PURCHASE_DECISIONS)[number]
 

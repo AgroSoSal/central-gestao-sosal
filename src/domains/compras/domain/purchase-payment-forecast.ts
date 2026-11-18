@@ -18,7 +18,7 @@ export type PurchaseInstallment = {
   amount: number
   horizon: PaymentHorizon
 }
-export type ForecastStatus = "projetado" | "segurado" | "cancelar" | "entregue" | "sem_valor" | "sem_dados" | "conferir"
+export type ForecastStatus = "projetado" | "segurado" | "cancelar" | "entregue" | "sem_valor" | "sem_dados" | "conferir" | "pago" | "isento"
 export type PurchasePaymentForecast = {
   status: ForecastStatus
   operationalDecision: ReturnType<typeof operationalDecision>
@@ -26,7 +26,7 @@ export type PurchasePaymentForecast = {
   pendingAmount: number | null
   estimatedArrival: string | null
   arrivalSource: "calculada" | "follow-up" | null
-  conditionSource: "fornecida" | "padrao" | "invalida" | null
+  conditionSource: "fornecida" | "padrao" | "invalida" | "isenta" | null
   paymentDays: number[]
   installments: PurchaseInstallment[]
   inHorizonAmount: number
@@ -69,7 +69,7 @@ function numeric(value: number | string | null): number | null {
   return Number.isFinite(result) && result >= 0 && result <= Number.MAX_SAFE_INTEGER / 100 ? result : null
 }
 
-function paymentDays(value: string | null): { days: number[]; source: "fornecida" | "padrao" | "invalida"; issue: string | null } {
+function paymentDays(value: string | null): { days: number[]; source: "fornecida" | "padrao" | "invalida" | "isenta"; issue: string | null } {
   const raw = (value ?? "").trim()
   if (!raw) return { days: [DAYS_DEFAULT], source: "padrao", issue: "Condição não informada: aplicado prazo padrão de 30 dias." }
 
@@ -79,13 +79,18 @@ function paymentDays(value: string | null): { days: number[]; source: "fornecida
     return { days: [DAYS_DEFAULT], source: "padrao", issue: "Pagamento no cartão: aplicado prazo padrão de 30 dias (premissa B7 da planilha)." }
   }
 
+  // Zacarini 2.3.7: sem ônus financeiro para bonificação/garantia/amostra.
+  if (/^(bonificacao|garantia|amostra gratis|amostra gratuita)$/.test(unaccented)) {
+    return { days: [], source: "isenta", issue: null }
+  }
+  // 'ent' equivale ao vencimento na entrega, dia zero.
   // Os prazos em dias podem vir com sufixo em cada parcela: 30d/60d, 30 dias / 60 dias.
   const parts = raw.split(/[/,;-]/)
-  const valid = parts.length <= 10 && parts.every((part) => /^\s*\d{1,4}\s*(?:d|dias?)?\.?\s*$/i.test(part))
+  const valid = parts.length <= 10 && parts.every((part) => /^(?:\s*ent\s*|\s*\d{1,4}\s*(?:d|dias?)?\.?\s*)$/i.test(part))
   if (!valid) {
     return { days: [], source: "invalida", issue: `Condição de pagamento "${raw.slice(0, 50)}" não reconhecida. Confira os vencimentos.` }
   }
-  const days = parts.map((part) => Number(part.match(/\d{1,4}/)![0]))
+  const days = parts.map((part) => part.trim().toLowerCase() === "ent" ? 0 : Number(part.match(/\d{1,4}/)![0]))
   if (days.length > 10 || days.some((day) => !Number.isInteger(day) || day < 0)) {
     return { days: [], source: "invalida", issue: "Condição inválida: máximo de 10 parcelas." }
   }
@@ -104,6 +109,8 @@ export function forecastPurchasePayments(input: PurchasePaymentInput): PurchaseP
     afterHorizonAmount: 0, unscheduledAmount: 0, issue: null,
   }
 
+  if (input.decision === "Já pago") return { ...empty, status: "pago", pendingAmount: pending }
+
   if (pending === null || pendingQuantity === null || !dayOf(input.baseDate) || !dayOf(input.orderDate)) {
     return { ...empty, issue: "Sem conciliação, data do pedido ou data-base válida para calcular." }
   }
@@ -115,6 +122,9 @@ export function forecastPurchasePayments(input: PurchasePaymentInput): PurchaseP
   }
 
   const terms = paymentDays(input.paymentTerms)
+  if (terms.source === "isenta") {
+    return { ...empty, status: "isento", pendingAmount: pending, conditionSource: "isenta" }
+  }
   if (terms.source === "invalida") {
     return {
       ...empty, status: "conferir", pendingAmount: pending,

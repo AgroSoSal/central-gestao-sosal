@@ -71,7 +71,7 @@ describe("previsão financeira das compras (Zacarini)", () => {
   })
 
   it("não cria título fictício para condição textual desconhecida ou mais de 10 parcelas", () => {
-    for (const paymentTerms of ["BONIFICAÇÃO", "30/XYZ", "1/2/3/4/5/6/7/8/9/10/11"]) {
+    for (const paymentTerms of ["30/XYZ", "1/2/3/4/5/6/7/8/9/10/11"]) {
       const result = forecastPurchasePayments({ ...basic, paymentTerms })
       expect(result.status).toBe("conferir")
       expect(result.installments).toEqual([])
@@ -147,5 +147,26 @@ describe("previsão financeira das compras (Zacarini)", () => {
     expect(result.estimatedArrival).toBe("2027-01-08")
     expect(result.installments[0].dueDate).toBe("2027-07-07")
     expect(result.installments[0].horizon).toBe("posterior")
+  })
+
+  it("Zacarini 2.3.7: Já pago não gera parcelas ou nova saída de caixa", () => {
+    const result = forecastPurchasePayments({ ...basic, decision: "Já pago" })
+    expect(result.status).toBe("pago")
+    expect(result.installments).toEqual([])
+    expect(result.inHorizonAmount).toBe(0)
+  })
+
+  it("Zacarini 2.3.7: bonificação, garantia e amostra grátis não geram parcelas", () => {
+    for (const paymentTerms of ["BONIFICAÇÃO", "GARANTIA", "AMOSTRA GRÁTIS"]) {
+      const result = forecastPurchasePayments({ ...basic, paymentTerms })
+      expect(result.status).toBe("isento")
+      expect(result.installments).toEqual([])
+    }
+  })
+
+  it("Zacarini 2.3.7: parcela na entrega equivale ao dia zero", () => {
+    const result = forecastPurchasePayments({ ...basic, paymentTerms: "ent/30/60" })
+    expect(result.paymentDays).toEqual([0, 30, 60])
+    expect(result.installments.map((i) => i.dueDate)).toEqual(["2026-11-23", "2026-12-23", "2027-01-22"])
   })
 })

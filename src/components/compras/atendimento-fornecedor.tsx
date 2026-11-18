@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { createSupabaseBrowserClient } from "@/lib/supabase/client"
 import { AlertTriangle, Calculator, CheckCircle2, CircleHelp, PackageSearch } from "lucide-react"
-import { negotiatedPurchase, suggestedPurchaseQuantity } from "@/domains/compras/domain/purchase-zacarini-237"
+import { distributePurchase, negotiatedPurchase, suggestedPurchaseQuantity } from "@/domains/compras/domain/purchase-zacarini-237"
 import { forecastPurchasePayments } from "@/domains/compras/domain/purchase-payment-forecast"
 
 export type AttendanceProduct = {
@@ -15,6 +15,7 @@ export type AttendanceProduct = {
   cmv_90d: number | string | null; ultimo_custo: number | string | null
   preco_venda_medio: number | string | null
 }
+type BranchMetric = { produto_codigo: string; filial: string; estoque_qtde: number | string | null; pedido_pendente: number | string | null; venda_qtde_90d: number | string | null }
 export type PurchaseDraft = { id: number; filial: string; total: number | string; itens_count: number; observacao: string | null; criado_em: string }
 type Props = { products: AttendanceProduct[]; branch: string; baseDate: string; drafts: PurchaseDraft[] }
 const money = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"})
@@ -32,6 +33,9 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts}:Props) {
   const [saving,setSaving] = useState(false)
   const [notice,setNotice] = useState("")
   const [notes,setNotes] = useState("")
+  const [rateioLoading,setRateioLoading] = useState(false)
+  const [rateioError,setRateioError] = useState("")
+  const [branchRows,setBranchRows] = useState<BranchMetric[]>([])
   const [quantities,setQuantities]=useState<Record<string,string>>({})
   const [costs,setCosts]=useState<Record<string,string>>({})
   const [discount,setDiscount]=useState("0")
@@ -60,6 +64,29 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts}:Props) {
     orderDate:baseDate,paymentTerms,pendingQuantity:units,pendingValue:amount,
     decision:"Aprovado",followUpArrival:deliveryDate||null,baseDate,
   }):null
+  async function loadRateio() {
+    if (rateioLoading || branch!=="REDE" || chosen.length===0) return
+    const client=createSupabaseBrowserClient()
+    if (!client) {setRateioError("Sem conexão com o Supabase.");return}
+    setRateioLoading(true);setRateioError("")
+    try {
+      const {data,error}=await client.rpc("fn_compras_atendimento_rateio",{
+        p_codigos:chosen.map(({p})=>p.produto_cod),
+      })
+      if(error){setRateioError("Não foi possível obter a posição por filial; rateio indisponível.");return}
+      setBranchRows((data??[]) as BranchMetric[])
+    }catch{setRateioError("Falha de conexão ao consultar rateio.")}
+    finally{setRateioLoading(false)}
+  }
+  const branches=["BDS","CG","RIO","CX","PG","AN"] as const
+  const allocation=chosen.map(entry=>{
+    const matching=branches.map(f=>branchRows.find(r=>r.filial===f&&r.produto_codigo===entry.p.produto_cod))
+    const sales=matching.map(r=>safe(r?.venda_qtde_90d)),totalSales=sales.reduce((a,b)=>a+b,0)
+    const weights=matching.map((r,index)=>entry.target===null||totalSales<=0||!r?0:
+      Math.max(0.0001*sales[index],entry.target*(totalSales/90)*(sales[index]/totalSales)-safe(r.estoque_qtde)-safe(r.pedido_pendente)))
+    const available=matching.every(Boolean)&&weights.some(w=>w>0)
+    return {code:entry.p.produto_cod,qty:entry.qty,parts:available?distributePurchase(entry.qty,weights):null}
+  })
   async function saveDraft() {
     if (saving || invalid || chosen.length === 0) return
     const client=createSupabaseBrowserClient()
@@ -123,6 +150,11 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts}:Props) {
       </table>
       {!products.length&&<div className="p-8 text-center text-sm text-slate-400"><PackageSearch className="mx-auto mb-3 text-cyan-400"/> Nenhum produto encontrado nesta busca.</div>}
     </div>
+    {branch==="REDE"&&chosen.length>0&&<div className="erp-surface rounded-2xl p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-white">Rateio entre as seis filiais</h2><p className="mt-2 text-xs leading-6 text-slate-400">Conforme Atendimento Fornecedor!AW:BB e AP:AU: prioridade pela necessidade, estoque, pendências e participação nas vendas, com arredondamento cumulativo sem sobras.</p></div><button type="button" onClick={loadRateio} disabled={rateioLoading} className="rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-xs font-bold text-cyan-100 disabled:opacity-40">{rateioLoading?"Consultando...":"Calcular rateio"}</button></div>
+      {rateioError&&<p role="alert" className="mt-3 text-xs text-amber-200">{rateioError}</p>}
+      {branchRows.length>0&&<div className="mt-5 overflow-x-auto"><table className="min-w-[720px] w-full text-xs"><thead className="text-left text-[11px] uppercase text-slate-400"><tr>{["SKU","Total","BDS","CG","RIO","CX","PG","AN","Conferência"].map(x=><th key={x} className="p-2">{x}</th>)}</tr></thead><tbody className="divide-y divide-white/10">{allocation.map(a=><tr key={a.code}><td className="p-2 font-bold text-cyan-200">{a.code}</td><td className="p-2">{a.qty}</td>{a.parts? a.parts.map((n,i)=><td key={i} className="p-2">{n}</td>):<td colSpan={6} className="p-2 text-amber-200">Sem fonte suficiente para rateio</td>}<td className="p-2">{a.parts&&a.parts.reduce((x,y)=>x+y,0)===a.qty?"✔ Confere":"Pendente"}</td></tr>)}</tbody></table></div>}
+    </div>}
     <div className="erp-surface rounded-2xl p-6">
       <h2 className="flex items-center gap-2 text-lg font-bold text-white"><CircleHelp className="text-cyan-300"/> Conferência do pedido</h2>
       {!chosen.length?<p className="mt-3 text-sm text-slate-400">Informe quantidades na grade para montar a simulação.</p>:<>

@@ -21,6 +21,7 @@ const palette: Record<PurchaseDecision, string> = {
   Aprovado: "border-emerald-400/25 bg-emerald-400/10 text-emerald-300",
   Segurar: "border-amber-400/25 bg-amber-400/10 text-amber-300",
   Cancelar: "border-rose-400/25 bg-rose-400/10 text-rose-300",
+  "Já pago": "border-violet-400/25 bg-violet-400/10 text-violet-200",
 }
 
 function formattedDate(date: string): string {
@@ -96,8 +97,10 @@ export function PurchaseDecisionEditor({ loja, pedido, produtoCodigo, record, av
                 <option value="Aprovado">Aprovado</option>
                 <option value="Segurar">Segurar</option>
                 <option value="Cancelar">Cancelar</option>
+                <option value="Já pago">Já pago</option>
               </select>
               {decision === "Segurar" && <p className="mt-1.5 text-[11px] leading-4 text-amber-200">Adia o item até voltar para Aprovado.</p>}
+              {decision === "Já pago" && <p className="mt-1.5 text-[11px] leading-4 text-violet-200">Pagamento já realizado: sem novo vencimento no fluxo. Não altera as NFs do SISCOM.</p>}
               {decision === "Cancelar" && <p className="mt-1.5 text-[11px] leading-4 text-rose-200">Sinaliza cancelamento para Compras. Não cancela no SISCOM.</p>}
             </div>
             <div>

@@ -40,7 +40,7 @@ function dateBR(value: string | null): string {
 
 function tabFor(record: PurchaseDecisionRecord | null): Tab {
   if (!record) return "pendentes"
-  return record.decisao === "Aprovado" ? "aprovados" : "retidos"
+  return record.decisao === "Aprovado" || record.decisao === "Já pago" ? "aprovados" : "retidos"
 }
 
 function rowId(row: ManagementTableRow): string {

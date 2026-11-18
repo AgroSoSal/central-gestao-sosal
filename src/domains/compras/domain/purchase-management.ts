@@ -17,7 +17,7 @@ export function requiresPurchaseManagement(item: ManagementItem, decision: Purch
 }
 
 export function isApprovedForFollowUp(item: ManagementItem, decision: PurchaseDecision | null | undefined): boolean {
-  return hasOutstandingDelivery(item) && decision === "Aprovado"
+  return hasOutstandingDelivery(item) && (decision === "Aprovado" || decision === "Já pago")
 }
 
 /** Preserva o contexto da pesquisa ao trocar entre consulta e gestão. */

@@ -33,12 +33,9 @@ describe("consolidação integral de compras", () => {
     expect(result.processedItems).toBe(205)
     expect(progress.at(-1)).toBe(205)
     expect(result.excludedByDecision).toBe(20)
-    expect(result.unscheduledAmount).toBe(22)
-    expect(result.needsReview).toBe(1)
-    expect(result.termsToReview).toEqual([{
-      loja: "SO SAL", pedido: "3", fornecedor_nome: "Fornecedor de referência",
-      produto_codigo: "SKU3", condicao_pagamento: "BONIFICAÇÃO", valor_pendente: 22,
-    }])
+    expect(result.unscheduledAmount).toBe(0)
+    expect(result.needsReview).toBe(0)
+    expect(result.termsToReview).toEqual([])
     expect(result.inHorizonAmount).toBeCloseTo(10.01 + 300 + 201 * 20)
     expect(result.weeks.reduce((sum, week) => sum + week.amount, 0)).toBeCloseTo(result.inHorizonAmount)
     expect(result.weeks.find((week) => week.startsAt === "2027-01-25")?.amount).toBe(150)

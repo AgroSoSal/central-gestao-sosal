@@ -127,6 +127,6 @@ describe("resumo financeiro integral no cliente autenticado", () => {
     fireEvent.click(within(modal).getByRole("button", { name: /Salvar classificação/i }))
     await waitFor(() => expect(mock.classifications["1"]).toBe("5.DESPESAS / LOGISTICA / FRETE"))
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
-    await waitFor(() => expect(screen.getByText("Despesas do grupo 5").parentElement).toHaveTextContent(/R\$\s*10,00/))
+    await waitFor(() => expect(screen.getByText("Despesas e investimentos (5 e 6)").parentElement).toHaveTextContent(/R\$\s*10,00/))
   })
 })

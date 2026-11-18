@@ -60,7 +60,7 @@ describe("previsão financeira sem alterar o banco", () => {
     expect(screen.getByText("Ração segurada")).toBeInTheDocument()
     expect(screen.getByText("Pedido a cancelar")).toBeInTheDocument()
     expect(screen.getByText("Condição especial")).toBeInTheDocument()
-    expect(screen.getAllByText(/conferir condição/i).length).toBeGreaterThan(0)
+    expect(screen.getByText("Sem cobrança")).toBeInTheDocument()
     expect(screen.getAllByText(/BONIFICAÇÃO/).length).toBeGreaterThan(0)
   })
 

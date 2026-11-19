@@ -43,14 +43,12 @@ async function Content({ searchParams }: Props) {
   const month = typeof params.mes === "string" && /^20\d\d-(0[1-9]|1[0-2])$/.test(params.mes)
     ? params.mes : now.month
   const competencia = `${month}-01`
-  const historyBegin = `${Math.max(2020, Number(month.slice(0, 4)) - 1)}-01-01`
 
-  const [config, sales, position, stock, history, bank] = await Promise.all([
+  const [config, sales, position, stock, bank] = await Promise.all([
     supabase.rpc("fn_compras_dashboard_config_237"),
     supabase.rpc("fn_compras_dashboard_vendas_237", { p_competencia: competencia }),
     supabase.rpc("fn_compras_dashboard_posicao_237"),
     supabase.rpc("fn_otb_posicao_subgrupos", { p_data_base: now.today }),
-    supabase.rpc("fn_otb_historico_mensal", { p_inicio: historyBegin, p_fim: competencia }),
     supabase.rpc("fn_otb_extratos_posicao_237"),
   ])
 
@@ -61,12 +59,11 @@ async function Content({ searchParams }: Props) {
     salesRows={sales.error ? [] : (sales.data ?? []) as DashboardSalesRow[]}
     shopPositions={position.error ? [] : position.data ?? []}
     stockRows={stock.error ? [] : stock.data ?? []}
-    historicalRows={history.error ? [] : history.data ?? []}
     bankRows={bank.error ? [] : bank.data ?? []}
     errors={{
       premissas: config.error?.message ?? null, vendas: sales.error?.message ?? null,
       posicao: position.error?.message ?? null, estoque: stock.error?.message ?? null,
-      historico: history.error?.message ?? null, extratos: bank.error?.message ?? null,
+      extratos: bank.error?.message ?? null,
     }}
   />
 }

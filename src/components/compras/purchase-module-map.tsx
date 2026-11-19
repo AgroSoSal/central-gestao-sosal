@@ -12,6 +12,7 @@ type Coverage = {
 
 /** Auditoria funcional da Gestão Zacarini 2.3.7. Status de implementação, não de saúde da conexão. */
 const coverage: readonly Coverage[] = [
+  { title: "Dashboard de Compras", workbook: "Dashboard", state: "parcial", details: "Sete blocos replicados: metas de vendas por linha/loja, margem operacional, DDE, carteira, bancos, DRE e tendências. Fluxo projetado e DRE oficial aguardam premissas homologadas.", href: "/compras/dashboard", action: "Abrir dashboard" },
   { title: "Pedidos de compra", workbook: "Pedidos de Compra", state: "operacional", details: "Consulta, NFs recebidas, saldo e filtros por filial, fornecedor, produto e data.", href: "/compras", action: "Consultar pedidos" },
   { title: "Gerenciamento e decisão", workbook: "Pedidos de Compra · AP/AQ", state: "operacional", details: "Aprovar, segurar, cancelar e registrar observações com histórico de decisões.", href: "/compras/gerenciar", action: "Gerenciar pedidos" },
   { title: "Follow-up de entregas", workbook: "Pedidos de Compra · entregas", state: "operacional", details: "Previsão, cobrança, situação logística e rastreio em pedidos aprovados e pendentes.", href: "/compras/follow-up", action: "Acompanhar entregas" },

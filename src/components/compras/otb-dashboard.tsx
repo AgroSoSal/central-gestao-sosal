@@ -135,6 +135,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-4 text-xs font-bold text-emerald-200"><Database size={16} /> Somente Supabase</span>
+          <Link href="/compras/otb/fluxo-caixa" className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-4 text-xs font-bold text-cyan-200 hover:bg-cyan-400/20"><Wallet size={16}/> Extratos e fluxo 12M</Link>
           <Link href="/compras/cobertura" className="inline-flex h-11 items-center rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 text-xs font-bold text-white shadow-lg shadow-cyan-900/40 transition hover:brightness-110">Conferir o que falta</Link>
         </div>
       </div>
@@ -222,7 +223,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
           <AlertCircle size={24} className="mt-0.5 shrink-0 text-amber-300" />
           <div>
             <h2 className="text-lg font-bold text-amber-100">Posição operacional disponível · autorização de compras ainda pendente</h2>
-            <p className="mt-2 max-w-4xl text-sm leading-7 text-amber-100/75">Continue consultando pedidos, fazendo Follow-up e negociando rascunhos. A verba oficial exige projeção financeira homologada, necessidade de matéria-prima e saldo por subgrupo. A atualização dos extratos bancários poderá ser feita depois; não criaremos verba fictícia neste intervalo.</p>
+            <p className="mt-2 max-w-4xl text-sm leading-7 text-amber-100/75">Continue consultando pedidos, fazendo Follow-up e negociando rascunhos. Os extratos bancários já estão no Supabase e podem ser conferidos na nova tela de fluxo de caixa. A verba oficial exige ainda projeção financeira homologada, matéria-prima e saldo por subgrupo. Não criaremos verba fictícia neste intervalo.</p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {[
                 { number: "01", title: "Projeção 12M", ready: false, note: "Pior caso de caixa, despesas e recebimentos a homologar" },
@@ -231,7 +232,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
                 { number: "04", title: "Produção e MP", ready: false, note: "Necessidade futura da matéria-prima não homologada" },
               ].map(({ number, title, ready, note }) => <div key={number} className="rounded-xl border border-amber-300/10 bg-black/10 px-4 py-4"><div className="flex items-center justify-between gap-2"><p className="font-mono text-xs text-amber-300/80">{number}</p><span className={`text-[10px] font-bold ${ready ? "text-emerald-300" : "text-amber-200"}`}>{ready ? "Fonte conectada" : "Pendente"}</span></div><p className="mt-2 text-sm font-bold text-slate-100">{title}</p><p className="mt-1 text-xs leading-5 text-slate-400">{note}</p></div>)}
             </div>
-            <Link href="/compras/cobertura" className="mt-5 inline-flex items-center gap-2 text-xs font-bold text-cyan-200 hover:text-cyan-100">Ver comparação completa com a Zacarini <ArrowUpRight size={14} /></Link>
+            <div className="mt-5 flex flex-wrap items-center gap-4"><Link href="/compras/otb/fluxo-caixa" className="inline-flex items-center gap-2 text-xs font-bold text-cyan-200 hover:text-cyan-100">Abrir conciliação bancária e agenda 12M <ArrowUpRight size={14}/></Link><Link href="/compras/cobertura" className="inline-flex items-center gap-2 text-xs font-bold text-cyan-200 hover:text-cyan-100">Ver comparação com a Zacarini <ArrowUpRight size={14}/></Link></div>
           </div>
         </div>
       </section>

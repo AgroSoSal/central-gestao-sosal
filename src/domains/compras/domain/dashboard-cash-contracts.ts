@@ -15,12 +15,15 @@ export type PartialCashSeries = {
   state: "indisponivel" | "parcial"
   base: string | null
   warning: string | null
-  weeks: number[]
-  months: number[]
-  minimum13: number | null
-  end13: number | null
-  minimum12: number | null
-  end12: number | null
+  weeklyReceivables: number[]
+  weeklyPayables: number[]
+  monthlyReceivables: number[]
+  monthlyPayables: number[]
+  receivables13: number | null
+  payables13: number | null
+  receivables12: number | null
+  payables12: number | null
+  net12: number | null
   openingCash: number | null
   lastPayablesImport: string | null
 }
@@ -44,8 +47,9 @@ export function buildPartialCashSeries(
 ): PartialCashSeries {
   const unavailable: PartialCashSeries = {
     state: "indisponivel", base: null, warning: "Sem carteira completa e base bancária consistente.",
-    weeks: [], months: [], minimum13: null, end13: null,
-    minimum12: null, end12: null, openingCash: null, lastPayablesImport: null,
+    weeklyReceivables: [], weeklyPayables: [], monthlyReceivables: [], monthlyPayables: [],
+    receivables13: null, payables13: null, receivables12: null,
+    payables12: null, net12: null, openingCash: null, lastPayablesImport: null,
   }
   const bank = assessBankPosition([...banks], today)
   if (bank.state !== "conferido_sem_homologacao" || bank.openingCash === null ||
@@ -62,33 +66,37 @@ export function buildPartialCashSeries(
     return m.mes !== d.toISOString().slice(0, 10)
   })) return unavailable
 
-  const opening = bank.openingCash
-  let sum = opening
-  const ws: number[] = []
+  const weeklyReceivables: number[] = []
+  const weeklyPayables: number[] = []
   for (const w of weeks) {
     const receive = verifiedMoney(w.receber_identificado)
     const pay = verifiedMoney(w.pagar_identificado)
     if (receive === null || pay === null) return unavailable
-    sum += receive - pay
-    ws.push(sum)
+    weeklyReceivables.push(receive)
+    weeklyPayables.push(pay)
   }
-  sum = opening
-  const ms: number[] = []
+  const monthlyReceivables: number[] = []
+  const monthlyPayables: number[] = []
   for (const m of months) {
     const receive = verifiedMoney(m.receber_identificado)
     const pay = verifiedMoney(m.pagar_identificado)
     if (receive === null || pay === null) return unavailable
-    sum += receive - pay
-    ms.push(sum)
+    monthlyReceivables.push(receive)
+    monthlyPayables.push(pay)
   }
+  const add = (values: number[]) => values.reduce((sum, value) => sum + value, 0)
+  const receivables12 = add(monthlyReceivables)
+  const payables12 = add(monthlyPayables)
   const age = Math.round((startDay - timestamp(bank.commonDate)) / 86400000)
   const messages = ["Prévia parcial: carteira atual + base bancária; sem vendas, folha, despesas e compras futuras."]
   if (age > 2) messages.push(`Saldo-base de ${bank.commonDate} (${age} dias antes da consulta).`)
   if (bank.reconciledAccounts < bank.accountCount) messages.push("Sem conciliação bancária homologada.")
   return {
     state: "parcial", base: bank.commonDate, warning: messages.join(" "),
-    weeks: ws, months: ms, minimum13: Math.min(...ws.slice(0,13)), end13: ws[12],
-    minimum12: Math.min(...ms), end12: ms[11], openingCash: opening,
+    weeklyReceivables, weeklyPayables, monthlyReceivables, monthlyPayables,
+    receivables13: add(weeklyReceivables.slice(0,13)), payables13: add(weeklyPayables.slice(0,13)),
+    receivables12, payables12, net12: receivables12 - payables12,
+    openingCash: bank.openingCash,
     lastPayablesImport: weeks[0]?.ultima_importacao_pagar ?? null,
   }
 }

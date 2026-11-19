@@ -96,15 +96,14 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
   const banksReconciled = bankWithBalances.length > 0 && bankWithBalances.every(b => b.conciliado === true)
   const partialCash = buildPartialCashSeries(errors.extratos ? [] : bankRows,
     errors.agenda26s ? [] : contractedWeeks, errors.agenda12m ? [] : contractedMonths, today)
-  const cashMin = dashboardReference(referenceRows, "minimo_caixa", null).valor
-  const weeksSeries = partialCash.state === "parcial" ? [
-    { label: "Carteira identificada (parcial)", values: partialCash.weeks },
-    ...(cashMin === null ? [] : [{ label: "Mínimo de segurança", values: Array(26).fill(cashMin) as number[] }]),
-  ] : undefined
-  const monthsSeries = partialCash.state === "parcial" ? [
-    { label: "Carteira identificada (parcial)", values: partialCash.months },
-    ...(cashMin === null ? [] : [{ label: "Mínimo de segurança", values: Array(12).fill(cashMin) as number[] }]),
-  ] : undefined
+  const weeklyContracts = partialCash.state === "parcial"
+    ? Array.from({ length: 13 }, (_, i) => ({ label: `S${i+1}`, values: [partialCash.weeklyReceivables[i], partialCash.weeklyPayables[i]] })) : []
+  const monthlyContracts = partialCash.state === "parcial"
+    ? partialCash.monthlyReceivables.map((received, i) => {
+      const m = new Date(`${today.slice(0, 7)}-01T12:00:00Z`)
+      m.setUTCMonth(m.getUTCMonth()+i)
+      return { label: new Intl.DateTimeFormat("pt-BR", { month: "short", timeZone: "UTC" }).format(m).replace(".", ""), values: [received, partialCash.monthlyPayables[i]] }
+    }) : []
 
   const dateLabel = new Date(`${date}T12:00:00Z`).toLocaleDateString("pt-BR", { timeZone: "UTC", month: "long", year: "numeric" })
 
@@ -150,16 +149,17 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
           <div key={label} className="rounded-2xl border border-amber-300/15 bg-amber-400/[.025] p-5"><p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-3 text-2xl font-bold">—</p><p className="mt-2 text-[11px] text-amber-200">Cenário homologado ainda não disponível</p></div>)}
       </div>
       <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-400/[.045] p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-cyan-100">Prévia de caixa pelos títulos existentes</h3><p className="mt-1 text-[11px] leading-5 text-slate-400">Apuração independente do Excel: extratos + recebíveis + contas a pagar importadas. Não representa nenhum dos quatro cenários completos acima.</p></div><span className="rounded-full border border-amber-400/20 px-3 py-1 text-[10px] font-bold text-amber-200">Parcial · não libera compras</span></div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-cyan-100">Carteira financeira identificada</h3><p className="mt-1 text-[11px] leading-5 text-slate-400">Saldos bancários e títulos existentes são informações diferentes. Não somamos os dois como se fossem a Projeção 12M da planilha.</p></div><span className="rounded-full border border-amber-400/20 px-3 py-1 text-[10px] font-bold text-amber-200">Parcial · não libera compras</span></div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {[
-            ["Saldo base na mesma data", partialCash.openingCash],
-            ["Menor saldo · títulos 13 sem.", partialCash.minimum13],
-            ["Menor saldo · títulos 12M", partialCash.minimum12],
-            ["Saldo final · títulos 12M", partialCash.end12],
+            ["Saldo bancário · data-base", partialCash.openingCash],
+            ["Títulos a receber · 13 semanas", partialCash.receivables13],
+            ["Fornecedores a pagar · 13 semanas", partialCash.payables13],
+            ["Títulos a receber · 12 meses", partialCash.receivables12],
+            ["Fornecedores a pagar · 12 meses", partialCash.payables12],
           ].map(([label, value]) => <div key={String(label)} className="rounded-xl border border-cyan-300/10 bg-[#0b1524] p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-2 text-xl font-bold tabular-nums text-white">{brl(typeof value === "number" ? value : null)}</p></div>)}
         </div>
-        <p className="mt-4 text-[11px] leading-5 text-amber-100">{partialCash.warning}{partialCash.state === "parcial" && ` Base bancária comum: ${partialCash.base}. Agenda de fornecedores: última importação ${partialCash.lastPayablesImport?.slice(0,10) ?? "não identificada"}.`}</p>
+        <p className="mt-4 text-[11px] leading-5 text-amber-100">{partialCash.warning}{partialCash.state === "parcial" && ` Base bancária comum: ${partialCash.base}. Agenda de fornecedores: última importação ${partialCash.lastPayablesImport?.slice(0,10) ?? "não identificada"}. O saldo final não pode ser obtido subtraindo todos os fornecedores sem projetar recebimentos das vendas novas.`}</p>
       </div>
       <div className="mt-5 grid gap-4 lg:grid-cols-3">
         <div className="rounded-xl border border-cyan-400/15 bg-cyan-300/[.025] p-5 lg:col-span-2">
@@ -224,7 +224,8 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
 
     <Section id="graficos" title="Galeria de gráficos — mesma organização do Excel" detail="Seis gráficos maiores: duas linhas e quatro barras, acompanhando os cinco velocímetros do topo. As séries disponíveis vêm apenas do Supabase.">
       <div className="grid gap-5 lg:grid-cols-2">
-        <ProjectionChart title="Saldo de caixa semanal × mínimo (26 semanas)" subtitle="Prévia contratada disponível; cenários completos com OTB e sem compras ainda dependem das despesas e projeções." legends={["Carteira identificada · parcial", "Mínimo de segurança"]} series={weeksSeries} />
+        <ProjectionChart title="Saldo de caixa semanal × mínimo (26 semanas)" subtitle="O cálculo real com OTB, sem compras e piso mínimo depende das operações futuras." legends={["Com OTB", "Sem compras", "Mínimo de segurança"]} />
+        <GroupedBarsChart title="Títulos previstos por semana (13 semanas)" subtitle="Entradas e pagamentos contratados na carteira do Supabase; não é saldo de caixa." labels={["Recebíveis", "Fornecedores"]} unit="money" rows={weeklyContracts} />
         <GroupedBarsChart title="Venda × meta do mês por loja" subtitle={`${dateLabel} · realizado SISCOM × referência do Alex`} labels={["Meta do mês", "Vendido"]} unit="money" rows={shops.map((s, i) => ({
           label: ["Anast.", "Band.", "Campo G.", "Coxim", "Pedro G.", "Rio V."][i],
           values: [dashboardReference(referenceRows, `meta_loja_${s.id}`, date).valor,
@@ -236,10 +237,11 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
             null, dashboardReference(referenceRows, `dde_alvo_linha_${id}`, null).valor] }
         })} />
         <GroupedBarsChart title="Estoque parado por loja" subtitle="Aguardando série comparável com os critérios da referência" labels={["Parado (R$)"]} unit="money" rows={shops.map((s, i) => ({ label: ["Anast.", "Band.", "Campo G.", "Coxim", "Pedro G.", "Rio V."][i], values: [null] }))} />
-        <ProjectionChart title="Projeção 12M — saldo no fim do mês" subtitle="Prévia baseada em títulos existentes; cenários operacionais do Excel ainda não simulados." legends={["Carteira identificada · parcial", "Mínimo de segurança"]} axisLabels={["M1", "M3", "M5", "M7", "M9", "M11", "M12"]} series={monthsSeries} />
+        <ProjectionChart title="Projeção 12M — saldo no fim do mês" subtitle="Cenários base, conservador e estressado ainda não computados; sem saldo final fictício." legends={["Base", "Conservador", "Estressado", "Piso mínimo"]} axisLabels={["M1", "M3", "M5", "M7", "M9", "M11", "M12"]} />
+        <GroupedBarsChart title="Títulos previstos por mês (12 meses)" subtitle="Recebíveis e fornecedores de contratos registrados; exclui vendas e compras novas." labels={["Recebíveis", "Fornecedores"]} unit="money" rows={monthlyContracts} />
         <ProjectionChart title="Verba do comprador: já gravado × saldo" subtitle="Orçamento de compra por linha após conciliação financeira" legends={["Verba liberada", "Pedidos gravados", "Saldo"]} type="barras" />
       </div>
-      <p className="mt-5 rounded-xl border border-amber-300/15 bg-amber-400/5 px-4 py-3 text-xs leading-6 text-amber-100">As curvas de caixa identificam apenas recebíveis e fornecedores já registrados, com a base bancária da data comum. Não incluem as receitas e custos futuros calculados pela Zacarini; não substituem cenário de compra ou autorização OTB.</p>
+      <p className="mt-5 rounded-xl border border-amber-300/15 bg-amber-400/5 px-4 py-3 text-xs leading-6 text-amber-100">Os gráficos de títulos são informativos: mostram vencimentos contratados, sem somar saldos bancários antigos à carteira futura. As linhas de caixa da planilha serão preenchidas quando as premissas operacionais e os cenários forem implementados e validados; nenhuma série parcial é apresentada como autorização OTB.</p>
     </Section>
 
     <section className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[.04] p-5 text-xs leading-6 text-slate-300">

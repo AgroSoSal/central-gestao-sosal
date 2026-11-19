@@ -29,19 +29,22 @@ const months: ContractedMonth[] = Array.from({ length: 12 }, (_, i) => {
 })
 
 describe("caixa identificado · prévia informativa", () => {
-  it("usa a mesma data-base bancária e acumula apenas os títulos conhecidos", () => {
+  it("separa saldo bancário histórico de valores de títulos, sem produzir saldo final falso", () => {
     const r = buildPartialCashSeries(banks, weeks, months, today)
     expect(r.state).toBe("parcial")
     expect(r.base).toBe("2026-11-11")
     expect(r.openingCash).toBe(1000)
-    expect(r.weeks[0]).toBe(1010)
-    expect(r.weeks[1]).toBe(430)
-    expect(r.minimum13).toBe(430)
-    expect(r.end13).toBe(540)
-    expect(r.months[0]).toBe(1050)
-    expect(r.months[1]).toBe(250)
-    expect(r.minimum12).toBe(250)
-    expect(r.end12).toBe(750)
+    expect(r.weeklyReceivables.slice(0, 2)).toEqual([20, 20])
+    expect(r.weeklyPayables.slice(0, 2)).toEqual([10, 600])
+    expect(r.monthlyReceivables.slice(0, 2)).toEqual([100, 100])
+    expect(r.monthlyPayables.slice(0, 2)).toEqual([50, 900])
+    expect(r.receivables13).toBe(260)
+    expect(r.payables13).toBe(720)
+    expect(r.receivables12).toBe(1200)
+    expect(r.payables12).toBe(1450)
+    expect(r.net12).toBe(-250)
+    expect("end12" in r).toBe(false)
+    expect("minimum13" in r).toBe(false)
     expect(r.warning).toContain("sem vendas, folha, despesas e compras futuras")
   })
   it("não monta número quando fontes faltam, têm datas duplicadas ou totais inválidos", () => {

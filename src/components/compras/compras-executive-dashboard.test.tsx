@@ -25,7 +25,13 @@ describe("dashboard de caixa", () => {
     })
     const html = renderToStaticMarkup(<ComprasExecutiveDashboard
       month="2026-11" today={today} email="master@example.com" referenceRows={[]}
-      salesRows={[]} shopPositions={[]} stockRows={[]}
+      salesRows={[]} shopPositions={[{filial:"BDS",estoque_custo:0,cmv_90d:0,dde_observado:0,
+        carteira_aberta:320642006.46,carteira_vencida:320642006.46,percentual_vencido:1}]} stockRows={[]}
+      recoveryRows={[
+        {filial:"BDS",principal_carteira:4900000,principal_vencido:3500000,principal_recuperavel:2500000,titulos_vencidos:1200,titulos_recuperaveis:710,titulos_sem_principal:0},
+        {filial:"CG",principal_carteira:500000,principal_vencido:200000,principal_recuperavel:150000,titulos_vencidos:100,titulos_recuperaveis:70,titulos_sem_principal:0},
+        ...["RIO","CX","PG","AN"].map(filial=>({filial,principal_carteira:0,principal_vencido:0,principal_recuperavel:0,titulos_vencidos:0,titulos_recuperaveis:0,titulos_sem_principal:0})),
+      ]}
       bankRows={[{ conta_ref:"BDS 1234", filial:"BANDEIRANTES", banco:"PENDENTE_IDENTIFICACAO",
         data_corte_comum:"2026-11-11",data_ultimo_saldo:"2026-11-18",ultimo_saldo:1900,
         data_saldo_base:"2026-11-11",saldo_base:1000,data_arquivo:"2026-11-18",
@@ -45,5 +51,9 @@ describe("dashboard de caixa", () => {
     expect(html).toContain("Pedidos pendentes sem previsão validada")
     expect(html).toContain("4.864")
     expect(html).toContain("62.563.206")
+    expect(html).toContain("Carteira vencida · valor original")
+    expect(html).toContain("3.700.000")
+    expect(html).toContain("2.650.000")
+    expect(html).not.toContain("320.642.006")
   })
 })

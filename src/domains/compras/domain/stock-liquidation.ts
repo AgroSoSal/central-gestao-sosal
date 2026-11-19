@@ -12,6 +12,31 @@ export type StockLiquidationInput = {
 
 export type StockClassification = "sem_giro" | "excesso" | "regular" | "excluido" | "sem_estoque" | "indisponivel"
 
+/** ABCEstoque_DDE!E5:G10: os marcadores dependem da filial, nunca de vendas positivas do SKU. */
+export const liquidationHistoryByBranch = {
+  BDS: { comparable: true, basis: "ano_passado" },
+  CG: { comparable: true, basis: "ano_passado" },
+  PG: { comparable: true, basis: "ano_passado" },
+  RIO: { comparable: true, basis: "ano_passado" },
+  CX: { comparable: false, basis: "ano_passado" },
+  AN: { comparable: false, basis: "ultimos_90d" },
+} as const
+
+export type LiquidationBranch = keyof typeof liquidationHistoryByBranch
+
+/** Liq_Base!H:I,K — sazonal nas cinco lojas antigas; giro recente para Anastácio. */
+export function calculateBranchForecast90d(
+  branch: LiquidationBranch,
+  last90d: number,
+  nextYear90d: number,
+  productOrGroupGrowth: number,
+): number | null {
+  if (![last90d, nextYear90d, productOrGroupGrowth].every(Number.isFinite) ||
+      last90d < 0 || nextYear90d < 0) return null
+  if (liquidationHistoryByBranch[branch].basis === "ultimos_90d") return last90d
+  return Math.max(last90d, nextYear90d * Math.max(0, Math.min(4, productOrGroupGrowth)))
+}
+
 export function calculateStockLiquidation(input: StockLiquidationInput): {
   forecast90d: number | null
   daysOfStock: number | null

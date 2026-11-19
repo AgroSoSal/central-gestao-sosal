@@ -84,7 +84,7 @@ export function StockLiquidationDashboard({ variant, rows, error, filters }: {
       </nav>
     </section>
     <div role="status" className="rounded-2xl border border-amber-400/25 bg-amber-400/5 px-5 py-4 text-xs leading-6 text-amber-100">
-      <strong>Indicador gerencial, não autorização financeira.</strong> O limite de {filters.dde} dias vem da referência Zacarini (60 dias originais, sinalizados para confirmar). A projeção compara 90 dias recentes à sazonalidade do ano anterior quando houver séries comparáveis. O Supabase ainda não disponibiliza os marcadores internos exatos <code>_Base</code>/<code>_Comparavel</code> da planilha; portanto a estimativa não é uma reprodução integral certificada. Estoque e vendas vêm das cargas RPA, e transferências não são executadas automaticamente.
+      <strong>Indicador gerencial, não autorização financeira.</strong> O limite de {filters.dde} dias vem da referência Zacarini (60 dias originais, ajustável para análise). A lógica das colunas <code>_Base</code> e <code>_Comparavel</code> foi conferida nas fórmulas da planilha: Bandeirantes, Campo Grande, Pedro Gomes e Rio Verde compõem a comparação; Coxim utiliza o ano anterior sem compor o fator, e Anastácio usa os últimos 90 dias. A previsão respeita a prioridade do crescimento por SKU, depois subgrupo e, sem histórico, fator 1, com piso no giro recente. Estoque e vendas dependem das cargas RPA; as transferências e o orçamento não são executados automaticamente.
     </div>
     <section className="erp-surface rounded-2xl p-5 sm:p-6">
       <form action={view.base} method="get" role="search" className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(180px,1fr)_170px_130px_170px_110px_auto]">

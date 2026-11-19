@@ -10,6 +10,7 @@ import type { DashboardReferenceRow, DashboardSalesRow } from "@/domains/compras
 import type { ContractedWeek } from "@/domains/compras/domain/dashboard-cash-contracts"
 import type { ContractedMonth } from "@/domains/compras/domain/otb-bank-readiness"
 import type { RecoverableReceivablesLine } from "@/domains/compras/domain/receivables-recovery-237"
+import type { DdePlanRow } from "@/domains/compras/domain/dashboard-goals-and-dde-237"
 
 type Props = { searchParams: Promise<{ mes?: string }> }
 
@@ -47,7 +48,7 @@ async function Content({ searchParams }: Props) {
     ? params.mes : now.month
   const competencia = `${month}-01`
 
-  const [config, sales, position, stock, bank, weeks, months, ordersQuality, recovery] = await Promise.all([
+  const [config, sales, position, stock, bank, weeks, months, ordersQuality, recovery, ddePlan] = await Promise.all([
     supabase.rpc("fn_compras_dashboard_config_237"),
     supabase.rpc("fn_compras_dashboard_vendas_237", { p_competencia: competencia }),
     supabase.rpc("fn_compras_dashboard_posicao_237"),
@@ -57,6 +58,8 @@ async function Content({ searchParams }: Props) {
     supabase.rpc("fn_otb_agenda_contratada_12m_237", { p_inicio: `${now.month}-01` }),
     supabase.rpc("fn_compras_dashboard_pedidos_qualidade_237"),
     supabase.rpc("fn_compras_dashboard_receber_recuperavel_237", { p_data_base: now.today }),
+    supabase.rpc("fn_compras_plano_estoque_237", { p_busca: null, p_competencia: competencia,
+      p_pagina: 1, p_tamanho: 100 }),
   ])
 
   return <ComprasExecutiveDashboard
@@ -72,6 +75,7 @@ async function Content({ searchParams }: Props) {
     contractedMonths={months.error ? [] : (months.data ?? []) as ContractedMonth[]}
     pendingOrdersQuality={ordersQuality.error ? null : (ordersQuality.data?.[0] ?? null)}
     recoveryRows={recovery.error ? [] : (recovery.data ?? []) as RecoverableReceivablesLine[]}
+    ddePlanRows={ddePlan.error ? [] : (ddePlan.data ?? []) as DdePlanRow[]}
     errors={{
       premissas: config.error?.message ?? null, vendas: sales.error?.message ?? null,
       posicao: position.error?.message ?? null, estoque: stock.error?.message ?? null,
@@ -80,6 +84,7 @@ async function Content({ searchParams }: Props) {
       agenda12m: months.error?.message ?? null,
       pedidosPendentes: ordersQuality.error?.message ?? null,
       receberRecuperavel: recovery.error?.message ?? null,
+      planoDde: ddePlan.error?.message ?? null,
     }}
   />
 }

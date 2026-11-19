@@ -10,6 +10,7 @@ import { buildPartialCashSeries, type ContractedWeek } from "@/domains/compras/d
 import { buildZacariniCashForecast } from "@/domains/compras/domain/zacarini-cash-forecast"
 import { resolveReceivablesRecovery, type RecoverableReceivablesLine } from "@/domains/compras/domain/receivables-recovery-237"
 import type { BankPositionRow, ContractedMonth } from "@/domains/compras/domain/otb-bank-readiness"
+import { accumulatedSalesTarget, accumulatedBudgetValue, summarizeDdePlanCoverage, type DdePlanRow } from "@/domains/compras/domain/dashboard-goals-and-dde-237"
 
 type Position = { filial: string; estoque_custo: number | string | null; cmv_90d: number | string | null;
   dde_observado: number | string | null; carteira_aberta: number | string | null;
@@ -25,6 +26,7 @@ type Props = { month: string; today: string; email: string; referenceRows: Dashb
   shopPositions: Position[]; stockRows: Stock[]; bankRows: BankPositionRow[];
   contractedWeeks: ContractedWeek[]; contractedMonths: ContractedMonth[];
   recoveryRows: RecoverableReceivablesLine[];
+  ddePlanRows?: DdePlanRow[];
   pendingOrdersQuality?: PendingOrdersQuality | null;
   errors: Record<string, string | null> }
 
@@ -74,7 +76,7 @@ function Indicator({ label, value, target, note }: { label: string; value: strin
 }
 
 export function ComprasExecutiveDashboard({ month, today, email, referenceRows, salesRows, shopPositions,
-  stockRows, bankRows, contractedWeeks, contractedMonths, recoveryRows, pendingOrdersQuality, errors }: Props) {
+  stockRows, bankRows, contractedWeeks, contractedMonths, recoveryRows, ddePlanRows = [], pendingOrdersQuality, errors }: Props) {
   const date = `${month}-01`
   const totals = summarizeDashboardSales(salesRows)
   const activeTargets = [...Array.from({ length: 4 }, (_, i) => dashboardReference(referenceRows, `meta_linha_${i + 1}`, date)),
@@ -83,6 +85,11 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
   const targetMonth = haveAllTargets ? activeTargets.slice(0, 4).reduce((sum, t) => sum + (t.valor ?? 0), 0) : null
   const salesRatio = metricWithTarget(errors.vendas ? null : totals.vendidoMes,
     { valor: targetMonth, estado: haveAllTargets ? "referencia" : "indisponivel", origem: "Dashboard · metas de linha" })
+  const annualLineGoal = accumulatedSalesTarget(referenceRows,[1,2,3,4].map(i=>`meta_linha_${i}`),month)
+  const annualProgress = metricWithTarget(errors.vendas ? null : totals.vendidoAno,
+    { valor: annualLineGoal, estado: annualLineGoal === null ? "indisponivel" : "referencia", origem: "Metas de Vendas · acumulado" })
+  const cumulativeMonth = new Date(`${date}T12:00:00Z`).toLocaleDateString("pt-BR", { timeZone:"UTC",month:"long" })
+  const ddePlan = errors.planoDde ? summarizeDdePlanCoverage([]) : summarizeDdePlanCoverage(ddePlanRows)
 
   const stockByLine = new Map<number, { estoque: number; cmv: number; itens: number }>()
   const incompleteStockLines = new Set<number>()
@@ -128,6 +135,15 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
     }) : []
 
   const dateLabel = new Date(`${date}T12:00:00Z`).toLocaleDateString("pt-BR", { timeZone: "UTC", month: "long", year: "numeric" })
+  const budgetMarginEbitda = dashboardReference(referenceRows,"dre_margem_ebitda",date).valor
+  const budgetProfit = dashboardReference(referenceRows,"dre_lucro_liquido",date).valor
+  const dreMetrics = [
+    ["Receita bruta","dre_receita_bruta"], ["Receita líquida","dre_receita_liquida"],
+    ["(-) CMV","dre_cmv"], ["Lucro bruto","dre_lucro_bruto"],
+    ["Margem bruta %","dre_margem_bruta"], ["Total despesas","dre_despesas"],
+    ["EBITDA","dre_ebitda"], ["Margem EBITDA %","dre_margem_ebitda"],
+    ["Lucro líquido","dre_lucro_liquido"],
+  ] as const
 
   return <main className="mx-auto max-w-[1570px] space-y-6 pb-16 text-slate-100">
     <header className="flex flex-wrap items-center justify-between gap-4">
@@ -158,10 +174,10 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
     <Section id="velocimetros" detail={`Desempenho referente a ${dateLabel}; metas importadas como referência não equivalem a orçamento homologado.`}>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <PerformanceGauge label="Vendas do mês" value={salesRatio.percentual} headline={pct(salesRatio.percentual)} detail={`${brl(errors.vendas ? null : totals.vendidoMes)} de ${brl(targetMonth)} · meta de referência`} />
-        <PerformanceGauge label="Vendas no ano" value={null} headline={errors.vendas ? "—" : brl(totals.vendidoAno)} detail="Meta anual validada indisponível; não exibir % inventado." />
+        <PerformanceGauge label="Vendas no ano" value={annualProgress.percentual} headline={pct(annualProgress.percentual)} detail={`${brl(errors.vendas ? null : totals.vendidoAno)} de ${brl(annualLineGoal)} · Meta acumulada até ${cumulativeMonth} (referência 2026)`} />
         <PerformanceGauge label="Margem bruta" value={null} headline={errors.vendas ? "—" : pct(totals.margemBruta)} detail="Margem observada nas saídas. Comparação com meta pendente." />
-        <PerformanceGauge label="Margem EBITDA" value={null} headline="—" detail="Percentual orçado × realizado aguarda DRE homologada." />
-        <PerformanceGauge label="Lucro líquido" value={null} headline="—" detail="Resultado ÷ orçamento aguarda fechamento oficial." />
+        <PerformanceGauge label="Margem EBITDA" value={null} headline="—" detail={`Orçado na referência: ${pct(budgetMarginEbitda)}; realizado depende de DRE classificada.`} />
+        <PerformanceGauge label="Lucro líquido" value={null} headline="—" detail={`Orçado na referência: ${brl(budgetProfit)}; realizado depende de fechamento contábil.`} />
       </div>
     </Section>
 
@@ -231,20 +247,23 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
       </div>
     </Section>
 
-    <Section id="linhas" title="Por linha — vendas × meta e DDE × plano" detail="Compradores e metas de novembro são referências identificadas da planilha; vendas, estoque e CMV são leituras do Supabase.">
-      <div className="overflow-x-auto"><table className="erp-table w-full min-w-[1050px] text-left text-xs"><thead className="text-[10px] uppercase tracking-wider text-slate-400"><tr>{["Linha · comprador","Meta mês","Vendido mês","% meta mês","% meta ano","Estoque a custo","DDE hoje","Meta DDE","Diferença","Situação"].map(h => <th key={h} className="px-3 py-4">{h}</th>)}</tr></thead>
+    <Section id="linhas" title="Por linha — vendas × meta e DDE × plano" detail="Metas da competência selecionada e plano de DDE versionados no Supabase; DDE do plano cobre apenas subgrupos com meta individualizada e CMV válido.">
+      <div className="overflow-x-auto"><table className="erp-table w-full min-w-[1150px] text-left text-xs"><thead className="text-[10px] uppercase tracking-wider text-slate-400"><tr>{["Linha · comprador","Meta mês","Vendido mês","% meta mês","% meta ano","Estoque a custo","DDE hoje","DDE plano (subgrupos cobertos)","Meta DDE final","Diferença","Situação"].map(h => <th key={h} className="px-3 py-4">{h}</th>)}</tr></thead>
         <tbody className="divide-y divide-slate-700/40">{[1,2,3,4].map(id => {
           const ref = dashboardReference(referenceRows, `meta_linha_${id}`, date)
           const assigned = referenceRows.find(r => r.codigo === `meta_linha_${id}` && r.competencia === date)
           const actual = errors.vendas ? null : totals.linhas[id]?.vendidoMes ?? 0
           const ratio = metricWithTarget(actual, ref).percentual
+          const yearGoal = accumulatedSalesTarget(referenceRows,[`meta_linha_${id}`],month)
+          const yearRatio = metricWithTarget(errors.vendas ? null : totals.linhas[id]?.vendidoAno ?? 0,
+            {valor:yearGoal,estado:yearGoal===null?"indisponivel":"referencia",origem:"Metas de Vendas"}).percentual
           const stock = stockByLine.get(id)
           const ddeLine = stock && stock.cmv > 0 ? stock.estoque * 90 / stock.cmv : null
           const goal = dashboardReference(referenceRows, `dde_alvo_linha_${id}`, null).valor
           const diff = ddeLine !== null && goal !== null ? ddeLine - goal : null
-          return <tr key={id} className="hover:bg-cyan-300/[.035]"><td className="px-3 py-4"><strong className="block text-white">{lines[id]}</strong><span className="text-[10px] text-slate-400">{assigned?.texto ?? "Responsável não configurado"}</span></td><td className="px-3 py-4">{brl(ref.valor)}</td><td className="px-3 py-4 font-semibold text-white">{brl(actual)}</td><td className="px-3 py-4">{pct(ratio)}</td><td className="px-3 py-4 text-slate-500">—</td><td className="px-3 py-4">{brl(stock?.estoque ?? null)}</td><td className="px-3 py-4">{days(ddeLine)}</td><td className="px-3 py-4">{days(goal)}</td><td className="px-3 py-4">{days(diff)}</td><td className="px-3 py-4 text-amber-200">{diff === null ? "A conferir" : diff > 0 ? "Acima do alvo" : "Dentro do alvo"}</td></tr>
+          return <tr key={id} className="hover:bg-cyan-300/[.035]"><td className="px-3 py-4"><strong className="block text-white">{lines[id]}</strong><span className="text-[10px] text-slate-400">{assigned?.texto ?? "Responsável não configurado"}</span></td><td className="px-3 py-4">{brl(ref.valor)}</td><td className="px-3 py-4 font-semibold text-white">{brl(actual)}</td><td className="px-3 py-4">{pct(ratio)}</td><td className="px-3 py-4">{pct(yearRatio)}</td><td className="px-3 py-4">{brl(stock?.estoque ?? null)}</td><td className="px-3 py-4">{days(ddeLine)}</td><td className="px-3 py-4" title={`${ddePlan[id]?.valid ?? 0} subgrupos válidos de ${ddePlan[id]?.covered ?? 0} com meta`}>{days(ddePlan[id]?.targetDde ?? null)}<span className="block text-[10px] text-slate-500">{ddePlan[id]?.valid ?? 0} grupos</span></td><td className="px-3 py-4">{days(goal)}</td><td className="px-3 py-4">{days(diff)}</td><td className="px-3 py-4 text-amber-200">{diff === null ? "A conferir" : diff > 0 ? "Acima do alvo" : "Dentro do alvo"}</td></tr>
         })}</tbody></table></div>
-      <p className="mt-4 flex items-center gap-2 text-[11px] text-amber-200"><CircleHelp size={13} /> Não extrapolar metas desta versão para meses sem configuração; nenhum status constitui autorização de compra.</p>
+      <p className="mt-4 flex items-center gap-2 text-[11px] text-amber-200"><CircleHelp size={13} /> A comparação DDE completo da linha × meta final é observacional. O DDE plano ponderado considera só os {ddePlanRows.length} subgrupos parametrizados disponíveis; não deve ser tratado como meta de toda a linha. Nenhum status libera compras.</p>
     </Section>
 
     <Section id="lojas" title="Por loja — vendas, margem, estoque, receber e parado" detail="Seis filiais da rede. Margem operacional utiliza saídas; carteira vencida utiliza títulos importados e data de vencimento.">
@@ -257,15 +276,23 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
           const p = errors.posicao ? undefined : positionMap.get(s.id)
           const late = recovery?.byBranch[s.id]?.overdueShare ?? null
           const ratio = metricWithTarget(actual, ref).percentual
-          return <tr key={s.id} className="hover:bg-cyan-300/[.035]"><td className="px-3 py-4"><strong className="block text-white">{s.nome}</strong><span className="text-[10px] text-slate-400">{assigned?.texto ?? "Gerente não configurado"}</span></td><td className="px-3 py-4">{brl(ref.valor)}</td><td className="px-3 py-4 font-semibold text-white">{brl(actual)}</td><td className="px-3 py-4">{pct(ratio)}</td><td className="px-3 py-4 text-slate-500">—</td><td className="px-3 py-4">{pct(marge)}</td><td className="px-3 py-4">{brl(number(p?.estoque_custo))}</td><td className="px-3 py-4">{days(number(p?.dde_observado))}</td><td className="px-3 py-4">{pct(late)}</td><td className="px-3 py-4">—</td><td className="px-3 py-4 text-amber-200">Conferir giro e metas</td></tr>
+          const yearGoal = accumulatedSalesTarget(referenceRows,[`meta_loja_${s.id}`],month)
+          const yearRatio = metricWithTarget(errors.vendas ? null : totals.lojas[s.id]?.vendidoAno ?? 0,
+            {valor:yearGoal,estado:yearGoal===null?"indisponivel":"referencia",origem:"Metas de Vendas"}).percentual
+          return <tr key={s.id} className="hover:bg-cyan-300/[.035]"><td className="px-3 py-4"><strong className="block text-white">{s.nome}</strong><span className="text-[10px] text-slate-400">{assigned?.texto ?? "Gerente não configurado"}</span></td><td className="px-3 py-4">{brl(ref.valor)}</td><td className="px-3 py-4 font-semibold text-white">{brl(actual)}</td><td className="px-3 py-4">{pct(ratio)}</td><td className="px-3 py-4">{pct(yearRatio)}</td><td className="px-3 py-4">{pct(marge)}</td><td className="px-3 py-4">{brl(number(p?.estoque_custo))}</td><td className="px-3 py-4">{days(number(p?.dde_observado))}</td><td className="px-3 py-4">{pct(late)}</td><td className="px-3 py-4">—</td><td className="px-3 py-4 text-amber-200">Conferir giro e metas</td></tr>
         })}</tbody></table></div>
       <p className="mt-4 text-[11px] text-slate-400">A divergência de referências “SO SAL” entre extrações não interfere aqui: a dashboard usa os seis códigos de filial existentes no Supabase.</p>
     </Section>
 
-    <Section id="dre" title="DRE 2026 — orçado × realizado" detail="Estrutura reproduzida da dashboard. Os valores de DRE não podem ser substituídos pelo retrato da planilha nem inferidos apenas pelas vendas e despesas; requerem fechamento contábil e orçamento homologado.">
+    <Section id="dre" title={`DRE ${month.slice(0,4)} — orçado × realizado`} detail="Orçado 2026 · referência da planilha (ou 2027, quando selecionado). Recalculado no banco a partir de Orc_Dados, tipo Projetado. Não há integração contábil homologada do realizado atual: células correspondentes permanecem indisponíveis.">
       <div className="overflow-x-auto"><table className="erp-table w-full min-w-[600px] text-left text-xs"><thead><tr className="text-[10px] uppercase tracking-wider text-slate-400"><th className="px-4 py-3">Conta de resultado</th><th className="px-4 py-3">Orçado mês</th><th className="px-4 py-3">Realizado mês</th><th className="px-4 py-3">Orçado acumulado</th><th className="px-4 py-3">Realizado acumulado</th><th className="px-4 py-3">Desvio</th></tr></thead>
-        <tbody className="divide-y divide-slate-700/40">{["Receita bruta","Receita líquida","(-) CMV","Lucro bruto","Margem bruta %","Total despesas","EBITDA","Margem EBITDA %","Lucro líquido"].map(label => <tr key={label}><td className="px-4 py-3 font-semibold text-white">{label}</td>{[1,2,3,4,5].map(n => <td key={n} className="px-4 py-3 text-amber-200">—</td>)}</tr>)}</tbody></table></div>
-      <div className="mt-4 text-xs text-amber-200"><Missing reason="Orçamento e resultado contábil homologados pendentes" /></div>
+        <tbody className="divide-y divide-slate-700/40">{dreMetrics.map(([label,code]) => {
+          const asPercent = code.includes("margem")
+          const monthValue = dashboardReference(referenceRows,code,date).valor
+          const yearValue = accumulatedBudgetValue(referenceRows,code,month)
+          return <tr key={code}><td className="px-4 py-3 font-semibold text-white">{label}</td><td className="px-4 py-3 tabular-nums text-cyan-200">{asPercent?pct(monthValue):brl(monthValue)}</td><td className="px-4 py-3 text-amber-200">—</td><td className="px-4 py-3 tabular-nums text-cyan-200">{asPercent?pct(yearValue):brl(yearValue)}</td><td className="px-4 py-3 text-amber-200">—</td><td className="px-4 py-3 text-amber-200">—</td></tr>
+        })}</tbody></table></div>
+      <div className="mt-4 text-xs text-amber-200"><Missing reason="Orçamento importado como referência, ainda sem aprovação; resultado contábil realizado e classificação aguardam homologação" /></div>
     </Section>
 
     <Section id="graficos" title="Galeria de gráficos — mesma organização do Excel" detail="Seis gráficos maiores: duas linhas e quatro barras, acompanhando os cinco velocímetros do topo. As séries disponíveis vêm apenas do Supabase.">
@@ -282,10 +309,9 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
           values: [dashboardReference(referenceRows, `meta_loja_${s.id}`, date).valor,
             errors.vendas ? null : totals.lojas[s.id]?.vendidoMes ?? 0],
         }))} />
-        <GroupedBarsChart title="DDE por linha: hoje × plano × meta final" subtitle="Comparação da posição de estoque a custo com a meta DDE da versão 2.3.7" labels={["DDE hoje", "Plano do mês", "Meta final"]} unit="days" rows={[1,2,3,4].map(id => {
-          const stock = stockByLine.get(id)
-          return { label: lines[id], values: [stock && stock.cmv > 0 ? stock.estoque * 90 / stock.cmv : null,
-            null, dashboardReference(referenceRows, `dde_alvo_linha_${id}`, null).valor] }
+        <GroupedBarsChart title="DDE por linha: hoje × plano × meta final" subtitle="Hoje e plano calculados nos subgrupos com meta individual; meta final definida por linha. Não representa toda a linha." labels={["Hoje (com plano)", "Plano do mês", "Meta final da linha"]} unit="days" rows={[1,2,3,4].map(id => {
+          return { label: lines[id], values: [ddePlan[id]?.observedDde ?? null,
+            ddePlan[id]?.targetDde ?? null, dashboardReference(referenceRows, `dde_alvo_linha_${id}`, null).valor] }
         })} />
         <GroupedBarsChart title="Estoque parado por loja" subtitle="Aguardando série comparável com os critérios da referência" labels={["Parado (R$)"]} unit="money" rows={shops.map((s, i) => ({ label: ["Anast.", "Band.", "Campo G.", "Coxim", "Pedro G.", "Rio V."][i], values: [null] }))} />
         <ProjectionChart title="Projeção 12M — saldo no fim do mês" subtitle="Planos 90%, 100%, histórico e pior caso correto (sem recebimento do extra de Saúde, com custos mantidos) · não homologados" legends={["Plano 90%", "Plano 100%", "Histórico", "Piso mínimo", "Pior caso correto"]} axisLabels={["M1", "M3", "M5", "M7", "M9", "M11", "M12"]}

@@ -5,12 +5,12 @@ const months = ["2026-12-01", "2027-01-01", "2027-02-01"] as const
 
 function scenario(overrides: Partial<OtbInput> = {}): OtbInput {
   return {
-    source: "Zacarini 2.2.24 — regressão",
+    source: "Zacarini 2.3.7 — regressão",
     baseDate: "2026-11-07",
     months,
     cashCaps: [1_000_000, 1_000_000, 1_000_000],
     mpNeeds: [0, 0, 0],
-    buyerShare: 0.85,
+    buyerShare: 0.9,
     subgroups: [],
     ...overrides,
   }
@@ -35,7 +35,7 @@ describe("OTB de três meses segundo Gestão Zacarini", () => {
     expect(result.months[0].cashStatus).toBe("TRAVADO")
   })
 
-  it("prioriza curva A e divide a verba 85%/15%", () => {
+  it("prioriza curva A e divide a verba pelos 90%/10% de OTB!R24", () => {
     const result = calculateOtb(scenario({
       cashCaps: [1200, 1200, 1200],
       subgroups: [
@@ -45,8 +45,8 @@ describe("OTB de três meses segundo Gestão Zacarini", () => {
     }))
     expect(result.months[0].subgroups[0].released).toBeCloseTo(1000, 2)
     expect(result.months[0].subgroups[1].released).toBeCloseTo(200, 2)
-    expect(result.months[0].buyerBudget).toBeCloseTo(1020, 2)
-    expect(result.months[0].directorReserve).toBeCloseTo(180, 2)
+    expect(result.months[0].buyerBudget).toBeCloseTo(1080, 2)
+    expect(result.months[0].directorReserve).toBeCloseTo(120, 2)
   })
 
   it("carrega estoque de um mês ao seguinte", () => {
@@ -82,6 +82,7 @@ describe("OTB de três meses segundo Gestão Zacarini", () => {
   })
 
   it("recusa entradas incompletas e proporções erradas", () => {
+    expect(() => calculateOtb(scenario({ buyerShare: 0.85 }))).toThrow(/90%/)
     expect(() => calculateOtb(scenario({ cashCaps: [Number.NaN, 100, 100] }))).toThrow()
     expect(() => calculateOtb(scenario({ subgroups: [row({ curveAShare: 1.5 })] }))).toThrow()
     expect(() => calculateOtb(scenario({ months: [months[1], months[0], months[2]] }))).toThrow()

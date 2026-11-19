@@ -19,6 +19,8 @@ type Props = {
   purchaseSource: OtbPurchaseSourceStatus
   historicalSource: OtbHistoricalSourceStatus
   stockPosition: OtbStockPosition
+  /** Reposição calculada pelo cenário 90%: apenas simulação, sem teto nem aprovação. */
+  indicativeMonths?: {month:string;amount:number}[] | null
   /** Resultado de fonte oficial, validado NO SERVIDOR. Nunca arquivo no navegador. */
   officialScenario?: OtbResult | null
 }
@@ -67,7 +69,7 @@ function Metric({ label, value, sub, icon }: { label: string; value: string; sub
   </div>
 }
 
-export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, officialScenario }: Props) {
+export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, indicativeMonths, officialScenario }: Props) {
   const result = officialScenario ?? null
   const [monthIndex, setMonthIndex] = useState(0)
   const [lineFilter, setLineFilter] = useState("")
@@ -126,11 +128,12 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
       <div className="flex flex-wrap items-center justify-between gap-5">
         <div className="max-w-3xl">
           <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.17em] text-cyan-400"><Database size={14} /> Estado da integração</p>
-          <h2 className="mt-2 text-lg font-bold text-white">{result ? "Projeção oficial do Supabase" : "Aguardando a Projeção 12M do Supabase"}</h2>
+          <h2 className="mt-2 text-lg font-bold text-white">{result ? "Projeção oficial do Supabase" : indicativeMonths ? "Prévia operacional de reposição calculada" : "Aguardando a Projeção 12M do Supabase"}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-400">
             {result
               ? `Cenário da fonte oficial do Supabase · origem ${result.source} · data-base ${dateBR(result.baseDate)}.`
-              : "O banco atual não oferece uma fonte validada para o teto mensal de pior caso, o DDE projetado e todas as premissas da Projeção 12M. Para evitar valores de compras incorretos, os indicadores ficam indisponíveis até a integração oficial."}
+              : indicativeMonths ? "Os volumes projetados por mês já podem ser consultados usando premissas 2.3.7 e dados atuais. Faltam a previsão de entrada dos pedidos, a matéria-prima e a conciliação do cenário de pior caso para transformar necessidade física em verba de compra."
+                : "O banco atual não oferece uma fonte validada para o teto mensal de pior caso, o DDE projetado e todas as premissas da Projeção 12M. Para evitar valores de compras incorretos, os indicadores ficam indisponíveis até a integração oficial."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -212,6 +215,12 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
         </>}
     </section>
 
+    {indicativeMonths && <section className="rounded-[24px] border border-cyan-300/20 bg-cyan-400/[.035] p-6 sm:p-7" aria-label="Prévia operacional dos três meses de compras">
+      <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.17em] text-cyan-300">OTB!B7 · três meses à frente</p><h2 className="mt-2 text-lg font-bold">Reposição prevista antes da trava financeira</h2><p className="mt-2 max-w-4xl text-xs leading-6 text-slate-400">Cenário de demanda a 90% com estoque atual e DDE por linha. Projeção operacional da Zacarini 2.3.7, recalculada com Supabase. Os pedidos já emitidos ainda não têm entregas confirmadas por item; esses volumes não são verba autorizada.</p></div><span className="rounded-lg border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-[10px] font-bold text-amber-200">Simulado · não libera compras</span></div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">{indicativeMonths.map((item,i)=><div key={item.month} className="rounded-xl border border-cyan-300/15 bg-[#0b1626] p-5"><p className="text-[10px] font-bold uppercase text-slate-400">Mês {i+1} · {monthLabel(item.month)}</p><p className="mt-3 text-2xl font-bold tabular-nums text-white">{money.format(item.amount)}</p><p className="mt-2 text-[11px] text-amber-200">Necessidade de reposição simulada, sem conciliar pedidos em trânsito</p></div>)}</div>
+      <p className="mt-4 text-xs leading-6 text-amber-100">O teto por mês, a reserva de matéria-prima, o saldo do comprador e o status “LIBERADO” permanecem indisponíveis enquanto a Projeção 12M oficial não estiver homologada. Não gravamos pedidos nem saldos automaticamente.</p>
+    </section>}
+
     {!month ? <>
       <div className="grid gap-4 md:grid-cols-3" aria-label="Indicadores indisponíveis">
         <Metric label="Teto mensal de caixa" value="—" sub="Depende do pior caso da Projeção 12M" icon={<Wallet size={20} />} />
@@ -277,11 +286,11 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
         </article>
         <article className="erp-surface rounded-[24px] p-6">
           <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.17em] text-cyan-300"><SlidersHorizontal size={14} /> Governança de orçamento</p>
-          <h2 className="mt-2 text-lg font-bold">Distribuição 85% / 15%</h2>
-          <div className="mt-6 flex h-3 overflow-hidden rounded-full bg-[#24334c]"><div className="bg-cyan-400" style={{ width: `${month.releasedTotal > 0 ? month.buyerBudget / month.releasedTotal * 100 : 85}%` }} /><div className="flex-1 bg-violet-400" /></div>
+          <h2 className="mt-2 text-lg font-bold">Distribuição 90% / 10%</h2>
+          <div className="mt-6 flex h-3 overflow-hidden rounded-full bg-[#24334c]"><div className="bg-cyan-400" style={{ width: `${month.releasedTotal > 0 ? month.buyerBudget / month.releasedTotal * 100 : 90}%` }} /><div className="flex-1 bg-violet-400" /></div>
           <dl className="mt-6 grid grid-cols-2 gap-3">
-            <div><dt className="text-xs text-slate-400">Comprador · 85%</dt><dd className="mt-2 text-xl font-bold text-cyan-200 tabular-nums">{money.format(month.buyerBudget)}</dd></div>
-            <div><dt className="text-xs text-slate-400">Diretoria · 15%</dt><dd className="mt-2 text-xl font-bold text-violet-200 tabular-nums">{money.format(month.directorReserve)}</dd></div>
+            <div><dt className="text-xs text-slate-400">Comprador · 90%</dt><dd className="mt-2 text-xl font-bold text-cyan-200 tabular-nums">{money.format(month.buyerBudget)}</dd></div>
+            <div><dt className="text-xs text-slate-400">Diretoria · 10%</dt><dd className="mt-2 text-xl font-bold text-violet-200 tabular-nums">{money.format(month.directorReserve)}</dd></div>
           </dl>
           <p className="mt-5 text-xs text-slate-500">Divisão da verba liberada; não aumenta o limite mensal.</p>
         </article>
@@ -290,7 +299,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
       <section className="erp-surface overflow-hidden rounded-[24px]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#25354e] p-5 sm:p-7"><div><p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.17em] text-cyan-300"><Layers3 size={14} /> Visão gerencial</p><h2 className="mt-2 text-xl font-bold">Orçamento por linha</h2><p className="mt-1 text-xs text-slate-400">O saldo da linha já considera excesso; não confundir com o saldo bruto do subgrupo.</p></div><Status value={month.cashStatus} /></div>
         <div className="overflow-x-auto"><table className="erp-table w-full min-w-[900px] text-left text-xs">
-          <thead className="bg-[#121e30] text-[10px] uppercase tracking-wide text-slate-400"><tr><th className="px-5 py-4">Linha</th><th className="px-5 py-4 text-right">Liberado</th><th className="px-5 py-4 text-right">Comprador 85%</th><th className="px-5 py-4 text-right">Diretoria 15%</th><th className="px-5 py-4 text-right">Já gravado</th><th className="px-5 py-4 text-right">Excesso</th><th className="px-5 py-4 text-right">Saldo livre</th></tr></thead>
+          <thead className="bg-[#121e30] text-[10px] uppercase tracking-wide text-slate-400"><tr><th className="px-5 py-4">Linha</th><th className="px-5 py-4 text-right">Liberado</th><th className="px-5 py-4 text-right">Comprador 90%</th><th className="px-5 py-4 text-right">Diretoria 10%</th><th className="px-5 py-4 text-right">Já gravado</th><th className="px-5 py-4 text-right">Excesso</th><th className="px-5 py-4 text-right">Saldo livre</th></tr></thead>
           <tbody className="divide-y divide-[#1c2b40]">{month.lines.map((line) => <tr key={line.line}><td className="px-5 py-4 font-semibold text-cyan-200">{line.line}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(line.released)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(line.buyerBudget)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(line.directorReserve)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(line.recorded)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(line.excess)}</td><td className="px-5 py-4 text-right tabular-nums"><Balance value={line.freeBalance} /></td></tr>)}
             {!month.lines.length && <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-400">Nenhuma linha de mercadorias neste cenário.</td></tr>}
           </tbody>

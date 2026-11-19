@@ -6,14 +6,29 @@ const futureMonths=referenceMonths.slice(1,4) as [string,string,string]
 const projectedCmv=referenceMonths.map(()=>[100,200,300,400])
 const base={months:futureMonths,referenceMonths,projectedCmv,
   positions:[
-    {line:1,subgroup:"1.LINHA / A",stockCost:10,cmv90d:60},
-    {line:1,subgroup:"1.LINHA / B",stockCost:30,cmv90d:40},
+    {line:1,subgroup:"1.LINHA / A",kind:"S" as const,stockCost:10,cmv90d:60},
+    {line:1,subgroup:"1.LINHA / B",kind:"S" as const,stockCost:30,cmv90d:40},
   ],
   plans:futureMonths.map(competencia=>({grupo_subgrupo:"1.LINHA / A",competencia,dde_meta:10})),
   fallbackDde:{1:20,2:30,3:40,4:50},
 }
 
 describe("prévia da OTB por subgrupo independente da planilha",()=>{
+  it("não trata produção própria e núcleo/premix como compras novas; reserva matéria-prima como S",()=>{
+    const preview=buildOtbSubgroupPreview({...base,positions:[
+      {line:1,subgroup:"1.LINHA NUTRIÇÃO / MINERAL E PROTEICO",stockCost:0,cmv90d:40},
+      {line:1,subgroup:"1.LINHA NUTRIÇÃO / NUCLEO E PREMIX",stockCost:0,cmv90d:20},
+      {line:1,subgroup:"1.LINHA NUTRIÇÃO / MATERIA PRIMA",stockCost:0,cmv90d:40},
+    ]})
+    expect(preview.state).toBe("calculado")
+    if(preview.state!=="calculado")return
+    expect(preview.rows.map(row=>row.kind)).toEqual(["P","M","S"])
+    expect(preview.rows[0].months?.[0].need).toBe(0)
+    expect(preview.rows[1].months?.[0].need).toBe(0)
+    expect(preview.rows[2].months?.[0].need).toBeGreaterThan(0)
+    expect(preview.totals[1]![0]).toBeCloseTo(preview.rows[2].months![0].need)
+    expect(preview.authorizesPurchases).toBe(false)
+  })
   it("usa OTB!D/E/F projetados por SKU, vendas entregues e pesos BH/BI para custo futuro",()=>{
     const preview=buildOtbSubgroupPreview({...base,
       projectedDeliveries:referenceMonths.map(()=>[200,400,600,800]),
@@ -70,7 +85,7 @@ describe("prévia da OTB por subgrupo independente da planilha",()=>{
   })
 
   it("recusa o total da linha quando um subgrupo não tem CMV, sem assumir zero",()=>{
-    const preview=buildOtbSubgroupPreview({...base,positions:[...base.positions,{line:1,subgroup:"1.LINHA / C",stockCost:10,cmv90d:null}]})
+    const preview=buildOtbSubgroupPreview({...base,positions:[...base.positions,{line:1,subgroup:"1.LINHA / C",kind:"S",stockCost:10,cmv90d:null}]})
     expect(preview.state).toBe("calculado")
     if(preview.state!=="calculado")return
     expect(preview.rows.every(r=>r.issue!==null)).toBe(true)

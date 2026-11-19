@@ -24,7 +24,8 @@
 | `ABCEstoque_DDE!N/O/P` → `OTB!D/E/F` | **Ligado à prévia:** cresce a base do ano anterior por produto (ou subgrupo), usa a loja nova de 90d, aplica limite de crescimento 0–4 e custos da versão 2.3.7. Faltam a homologação dos custos e a reconciliação por SKU para uso oficial. |
 | `OTB!AY:BP` | **Ligado:** quatro janelas da venda `saida` por subgrupo e linha, leitura agregada e autenticação Master. A interpretação bloqueia cobertura menor que seis meses por linha. |
 | `OTB!H` | **Ligado à prévia:** identifica curva A pelo lucro bruto projetado acumulado de até 80%, com exclusão de matéria-prima, como `ABCEstoque_DDE!U/V`. |
-| `OTB!I/J/V/AE/AN` | Estoque a custo menos liquidação, pedidos elegíveis anteriores e compras gravadas em cada mês, reconciliadas por item e data; datas de chegada reais não existem para toda a carteira. |
+| `OTB!I` | **Ligado à prévia:** estoque a custo desconta a marca consignada GALLAGHER (`Liquidação Lojas!B7`) por subgrupo, com a mesma classificação e foto do estoque observado. Consulta `fn_otb_estoque_consignado_237`, segura para Master. |
+| `OTB!J/V/AE/AN` | Pedidos elegíveis anteriores e compras gravadas em cada mês, reconciliadas por item e data; datas de chegada reais não existem para toda a carteira. |
 | `OTB!S173/AB173/AK173` | Matéria-prima agregada e produção própria com parâmetros aprovados. |
 | `OTB!B21:D31` | Teto de caixa pelo pior caso financeiro, sem somar contas a pagar importadas duas vezes; cenário oficial ainda não homologado. |
 

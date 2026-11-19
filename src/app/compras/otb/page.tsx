@@ -17,6 +17,7 @@ import { dashboardReference, type DashboardReferenceRow } from "@/domains/compra
 import { buildOtbSubgroupPreview, type OtbSubgroupPreview } from "@/domains/compras/domain/otb-subgroup-preview"
 import { interpretOtbSeasonalHistory } from "@/domains/compras/domain/otb-seasonal-source"
 import { interpretOtbAbcProjection } from "@/domains/compras/domain/otb-abc-projection-237"
+import { subtractOtbConsignedStock } from "@/domains/compras/domain/otb-consigned-stock-237"
 import { fetchOtbSubgroupPlans } from "@/domains/compras/domain/otb-subgroup-plan-source"
 import type { BankPositionRow, ContractedMonth } from "@/domains/compras/domain/otb-bank-readiness"
 
@@ -66,7 +67,7 @@ export async function OtbContent() {
 
   // Duas fontes agregadas, somente leitura, verificadas pelo banco como Master.
   // O histórico NÃO contém fluxo de caixa futuro nem substitui a Projeção 12M.
-  const [summary, historical, stock, config, bank, weeks, months, recovery] = await Promise.all([
+  const [summary, historical, stock, config, bank, weeks, months, recovery, consigned] = await Promise.all([
     supabase.rpc("fn_listar_pedidos_compra", {
     p_busca: null,
     p_loja: null,
@@ -82,10 +83,14 @@ export async function OtbContent() {
     supabase.rpc("fn_compras_dashboard_agenda_26s_237", { p_inicio: todayISO }),
     supabase.rpc("fn_otb_agenda_contratada_12m_237", { p_inicio: `${todayISO.slice(0,7)}-01` }),
     supabase.rpc("fn_compras_dashboard_receber_recuperavel_237", { p_data_base: todayISO }),
+    supabase.rpc("fn_otb_estoque_consignado_237"),
   ])
   const purchaseSource = interpretOtbPurchaseSource(summary.data, summary.error)
   const historicalSource = interpretOtbHistoricalSource(historical.data, historical.error, lastClosedMonth)
   const stockPosition = interpretOtbStockPosition(stock.data, stock.error)
+  // OTB!I desconta a marca consignada de Liquidação Lojas!B7 (GALLAGHER).
+  // A foto bruta é preservada para auditoria; só a projeção usa o líquido.
+  const consignedPosition=subtractOtbConsignedStock(stockPosition,consigned.data,consigned.error)
 
   // Mesmo cenário operacional simulado da dashboard, sem teto oficial nem
   // autorizar compra. OTB!B7 inicia no mês SEGUINTE ao fluxo.
@@ -93,7 +98,7 @@ export async function OtbContent() {
     weeks.error ? [] : (weeks.data ?? []) as ContractedWeek[],
     months.error ? [] : (months.data ?? []) as ContractedMonth[], todayISO)
   const stocks = new Map<number,{linha:number;estoque:number;cmv90:number;incompleto:boolean}>()
-  if (stockPosition.status === "conectado") for (const row of stockPosition.subgroups) {
+  if (consignedPosition.state === "conectado") for (const row of consignedPosition.subgroups) {
     if (row.line < 1 || row.line > 4) continue
     const group = stocks.get(row.line) ?? {linha:row.line,estoque:0,cmv90:0,incompleto:false}
     group.estoque += row.stockCost
@@ -123,8 +128,8 @@ export async function OtbContent() {
 
   let subgroupPreview:OtbSubgroupPreview|null=null
   if(indicativeMonths?.length===3&&forecast.state==="simulado"){
-    if(stockPosition.status!=="conectado"||config.error){
-      subgroupPreview={state:"indisponivel",reason:"Posição de estoque ou parâmetros de planejamento indisponíveis.",authorizesPurchases:false}
+    if(stockPosition.status!=="conectado"||consignedPosition.state!=="conectado"||config.error){
+      subgroupPreview={state:"indisponivel",reason:"Estoque líquido da marca consignada ou parâmetros de planejamento indisponíveis.",authorizesPurchases:false}
     }else{
       const nextMonths=indicativeMonths.map(item=>item.month) as [string,string,string]
       const planSource=await fetchOtbSubgroupPlans(nextMonths,async competencia=>
@@ -143,7 +148,7 @@ export async function OtbContent() {
         const abcByGroup=new Map<string,Extract<typeof abcProjection,{state:"conectado"}>["groups"][number]>(
           abcProjection.state==="conectado"?
           abcProjection.groups.map(group=>[`${group.line}\0${group.name}`,group] as const):[])
-        const positions=stockPosition.subgroups.filter(row=>row.line>=1&&row.line<=4).map(row=>{
+        const positions=consignedPosition.subgroups.filter(row=>row.line>=1&&row.line<=4).map(row=>{
           const abc=abcByGroup.get(`${row.line}\0${row.subgroup}`)
           return {line:row.line,subgroup:row.subgroup,stockCost:row.stockCost,cmv90d:row.cmv90d,
             ...(abcProjection.state==="conectado"?{
@@ -178,7 +183,7 @@ export async function OtbContent() {
 
   return <OtbDashboard email={user.email ?? ""} purchaseSource={purchaseSource} historicalSource={historicalSource}
     stockPosition={stockPosition} indicativeMonths={indicativeMonths} subgroupPreview={subgroupPreview}
-    seasonalHistory={seasonalHistory} abcProjection={abcProjection}
+    seasonalHistory={seasonalHistory} abcProjection={abcProjection} consignedPosition={consignedPosition}
     forecastIssues={forecast.state==="indisponivel"?forecast.reasons:
       indicativeMonths?[]:["A referência da Projeção 12M não contém os três meses seguintes completos."]} />
 }

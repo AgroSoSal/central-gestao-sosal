@@ -16,6 +16,7 @@ import { pageOtbPositions } from "@/domains/compras/domain/otb-position-paging"
 import type { OtbSubgroupPreview } from "@/domains/compras/domain/otb-subgroup-preview"
 import type { OtbSeasonalHistory } from "@/domains/compras/domain/otb-seasonal-source"
 import type { OtbAbcProjection } from "@/domains/compras/domain/otb-abc-projection-237"
+import type { OtbConsignedStock } from "@/domains/compras/domain/otb-consigned-stock-237"
 
 type Props = {
   email: string
@@ -32,6 +33,8 @@ type Props = {
   seasonalHistory?: OtbSeasonalHistory
   /** Venda e margem estimadas por SKU conforme ABCEstoque_DDE!D:P. */
   abcProjection?: OtbAbcProjection
+  /** Estoque da OTB já líquido de GALLAGHER; bruto permanece em stockPosition. */
+  consignedPosition?: OtbConsignedStock
   /** Resultado de fonte oficial, validado NO SERVIDOR. Nunca arquivo no navegador. */
   officialScenario?: OtbResult | null
 }
@@ -80,7 +83,7 @@ function Metric({ label, value, sub, icon }: { label: string; value: string; sub
   </div>
 }
 
-export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, indicativeMonths, forecastIssues, subgroupPreview, seasonalHistory, abcProjection, officialScenario }: Props) {
+export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, indicativeMonths, forecastIssues, subgroupPreview, seasonalHistory, abcProjection, consignedPosition, officialScenario }: Props) {
   const result = officialScenario ?? null
   const [monthIndex, setMonthIndex] = useState(0)
   const [lineFilter, setLineFilter] = useState("")
@@ -237,6 +240,11 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
         </>}
     </section>
 
+    {consignedPosition?.state==="conectado"&&<section className="rounded-2xl border border-cyan-400/25 bg-cyan-400/[.05] p-5 text-xs leading-6 text-cyan-100" aria-label="Estoque líquido de consignação">
+      <strong>Estoque líquido da OTB conferido.</strong> {money.format(consignedPosition.consignedCost)} da marca consignada GALLAGHER foram descontados do estoque disponível segundo OTB!I, mantendo a foto bruta para auditoria. Estoque considerado na simulação: <strong>{money.format(consignedPosition.stockCost)}</strong>. A exclusão não representa venda, pagamento nem autorização de compra.
+    </section>}
+    {consignedPosition?.state==="indisponivel"&&<section role="status" className="rounded-2xl border border-amber-300/25 bg-amber-500/[.06] p-5 text-xs leading-6 text-amber-100"><strong>Conciliação da marca consignada indisponível.</strong> {consignedPosition.reason} A prévia não será calculada sobre estoque bruto indevidamente.</section>}
+
     {abcProjection?.state==="conectado"&&<section className="rounded-2xl border border-emerald-400/25 bg-emerald-400/[.05] p-5 text-xs leading-6 text-emerald-100" aria-label="Previsão ABC da planilha">
       <strong>Previsão ABC por produto conectada ao Supabase.</strong> {integer.format(abcProjection.groups.reduce((sum,group)=>sum+group.skuCount,0))} produtos/grupos em {integer.format(abcProjection.groups.length)} subgrupos; foto {dateBR(abcProjection.snapshotAt)}. A regra usa vendas dos últimos 90 dias, crescimento comparável entre filiais, base do ano anterior, curva ABC e custo extra dos 60 itens de produção própria configurados na Zacarini 2.3.7. <span className="text-amber-200">Custo de produção ainda não homologado; {integer.format(abcProjection.pendingProductionCosts)} possível(is) produto(s) Só Sal sem custo referenciado. Não libera verba.</span>
     </section>}
@@ -288,10 +296,28 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
       <div className="mt-5 overflow-x-auto"><table aria-label="Necessidade simulada por linha" className="w-full min-w-[680px] text-left text-xs"><thead className="bg-[#121e30] text-[10px] uppercase tracking-wider text-slate-400"><tr><th className="px-4 py-3">Linha</th>{subgroupPreview.months.map(m=><th key={m} className="px-4 py-3 text-right">{monthLabel(m)}</th>)}<th className="px-4 py-3">Cobertura</th></tr></thead><tbody className="divide-y divide-white/10">
         {[1,2,3,4].map(line=>{const amount=subgroupPreview.totals[line];const entries=subgroupPreview.rows.filter(r=>r.line===line);const ready=entries.filter(r=>r.months!==null).length;return <tr key={line}><td className="px-4 py-3 font-bold text-cyan-200">Linha {line}</td>{[0,1,2].map(i=><td key={i} className="px-4 py-3 text-right font-semibold tabular-nums">{amount?.[i]===null||amount?.[i]===undefined?"—":money.format(amount[i]!)}</td>)}<td className="px-4 py-3 text-amber-100">{ready}/{entries.length} subgrupos</td></tr>})}
       </tbody></table></div>
-      <p className="mt-3 text-[11px] leading-5 text-amber-100">As necessidades não deduzem pedidos em trânsito sem confirmação, matéria-prima, estoque a liquidar ou compras novas do mês corrente. {subgroupPreview.seasonality==="venda_abc_237"?"Participação por subgrupo usa a venda ABC projetada por SKU.":"Participação média ainda usa CMV histórico como proxy."} Não podem ser convertidas em teto de caixa ou OTB liberada. {subgroupPreview.reconciledPlanGroups.length} nome(s) reconciliados por acentos perdidos na extração; {subgroupPreview.unmatchedPlanGroups.length} sem correspondência segura.</p>
+      <p className="mt-3 text-[11px] leading-5 text-amber-100">O tipo S gera necessidade de compra de mercadoria; P (produção própria) e M (núcleo/premix) não geram compra nova nesta linha da OTB. A matéria-prima do grupo S é reservada separadamente antes da verba dos compradores. As necessidades não deduzem pedidos sem entrega confirmada, estoque a liquidar ou compras do mês atual. {subgroupPreview.seasonality==="venda_abc_237"?"Participação por subgrupo usa a venda ABC projetada por SKU.":"Participação média ainda usa CMV histórico como proxy."} Não podem ser convertidas em teto de caixa ou OTB liberada. {subgroupPreview.reconciledPlanGroups.length} nome(s) reconciliados por acentos perdidos na extração; {subgroupPreview.unmatchedPlanGroups.length} sem correspondência segura.</p>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-5 py-4"><h3 className="text-sm font-bold text-slate-100">Simulação SKU agregada por subgrupo</h3><label className="text-xs text-slate-300">Filtrar linha <select className="erp-field ml-2 w-40 px-3" value={previewLine} onChange={e=>{setPreviewLine(e.target.value);setPreviewPage(1)}}><option value="">Todas</option>{[1,2,3,4].map(l=><option key={l} value={l}>Linha {l}</option>)}</select></label></div>
-      <div className="overflow-x-auto"><table aria-label="Prévia de necessidades por subgrupo" className="w-full min-w-[1520px] text-left text-xs"><thead className="bg-[#121e30] text-[10px] uppercase tracking-wider text-slate-400"><tr>{["Linha / subgrupo","Estoque inicial","Venda ABC prevista 90d","CMV ABC previsto 90d","Curva A","Peso sazonal · 4 janelas","Meta DDE · 3 meses","Necessidade mês 1","Necessidade mês 2","Necessidade mês 3","Fonte / pendência"].map(t=><th key={t} className="px-4 py-3">{t}</th>)}</tr></thead><tbody className="divide-y divide-white/[.08]">{previewPaged.items.map(row=><tr key={`${row.line}\0${row.name}`}><td className="max-w-64 px-4 py-3"><span className="block text-[10px] text-cyan-200">Linha {row.line}</span><strong className="text-slate-100">{row.name}</strong></td><td className="px-4 py-3 tabular-nums">{money.format(row.stockCost)}</td><td className="px-4 py-3 tabular-nums">{row.projectedSales90d===null?"—":money.format(row.projectedSales90d)}</td><td className="px-4 py-3 tabular-nums">{row.projectedCmv90d===null?"—":money.format(row.projectedCmv90d)}</td><td className="px-4 py-3 tabular-nums">{row.curveAShare===null?"—":percentage.format(row.curveAShare)}</td><td className="px-4 py-3 text-cyan-200">{row.seasonalWeights?row.seasonalWeights.map(w=>percentage.format(w)).join(" / "):"—"}</td><td className="px-4 py-3">{row.targets.length===3?row.targets.map(t=>`${Math.round(t.days*10)/10} d`).join(" / "):"—"}</td>{[0,1,2].map(index=><td key={index} className="px-4 py-3 text-right font-semibold tabular-nums">{row.months?money.format(row.months[index].need):"—"}</td>)}<td className="max-w-40 px-4 py-3 text-[11px]">{row.issue?<span className="text-amber-200">{row.issue}</span>:row.targets.some(t=>t.source==="linha")?<span className="text-amber-100">Meta geral da linha aplicada</span>:<span className="text-emerald-200">Metas do Plano de Estoque</span>}</td></tr>)}</tbody></table></div>
+      <div className="overflow-x-auto">
+        <table aria-label="Prévia de necessidades por subgrupo" className="w-full min-w-[1600px] text-left text-xs">
+          <thead className="bg-[#121e30] text-[10px] uppercase tracking-wider text-slate-400"><tr>
+            {["Linha / subgrupo","Tipo OTB","Estoque inicial","Venda ABC prevista 90d","CMV ABC previsto 90d","Curva A","Peso sazonal · 4 janelas","Meta DDE · 3 meses","Necessidade mês 1","Necessidade mês 2","Necessidade mês 3","Fonte / pendência"].map(t=><th key={t} className="px-4 py-3">{t}</th>)}
+          </tr></thead>
+          <tbody className="divide-y divide-white/[.08]">{previewPaged.items.map(row=><tr key={`${row.line}\0${row.name}`}>
+            <td className="max-w-64 px-4 py-3"><span className="block text-[10px] text-cyan-200">Linha {row.line}</span><strong className="text-slate-100">{row.name}</strong></td>
+            <td className="px-4 py-3"><span className={row.kind==="S"?"text-emerald-200":"text-amber-200"}>{kindLabels[row.kind]} · {row.kind}</span></td>
+            <td className="px-4 py-3 tabular-nums">{money.format(row.stockCost)}</td>
+            <td className="px-4 py-3 tabular-nums">{row.projectedSales90d===null?"—":money.format(row.projectedSales90d)}</td>
+            <td className="px-4 py-3 tabular-nums">{row.projectedCmv90d===null?"—":money.format(row.projectedCmv90d)}</td>
+            <td className="px-4 py-3 tabular-nums">{row.curveAShare===null?"—":percentage.format(row.curveAShare)}</td>
+            <td className="px-4 py-3 text-cyan-200">{row.seasonalWeights?row.seasonalWeights.map(w=>percentage.format(w)).join(" / "):"—"}</td>
+            <td className="px-4 py-3">{row.targets.length===3?row.targets.map(t=>`${Math.round(t.days*10)/10} d`).join(" / "):"—"}</td>
+            {[0,1,2].map(index=><td key={index} className="px-4 py-3 text-right font-semibold tabular-nums">{row.months?money.format(row.months[index].need):"—"}</td>)}
+            <td className="max-w-40 px-4 py-3 text-[11px]">{row.issue?<span className="text-amber-200">{row.issue}</span>:row.kind!=="S"?<span className="text-amber-200">Sem compra de mercadoria</span>:row.targets.some(t=>t.source==="linha")?<span className="text-amber-100">Meta geral da linha aplicada</span>:<span className="text-emerald-200">Metas do Plano de Estoque</span>}</td>
+          </tr>)}</tbody>
+        </table>
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-5 py-4 text-xs text-slate-400"><span>{previewPaged.from}–{previewPaged.to} de {previewPaged.total} subgrupos · calculados somente na memória</span><div className="flex items-center gap-3"><button type="button" disabled={previewPaged.page<=1} onClick={()=>setPreviewPage(p=>p-1)} className="rounded-lg border border-cyan-300/20 px-3 py-2 font-bold text-cyan-200 disabled:opacity-35">Anterior</button><span>{previewPaged.page}/{previewPaged.totalPages}</span><button type="button" disabled={previewPaged.page>=previewPaged.totalPages} onClick={()=>setPreviewPage(p=>p+1)} className="rounded-lg border border-cyan-300/20 px-3 py-2 font-bold text-cyan-200 disabled:opacity-35">Próximo</button></div></div>
     </section>}
 

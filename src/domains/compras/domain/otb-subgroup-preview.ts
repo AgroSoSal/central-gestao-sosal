@@ -8,9 +8,10 @@
 
 import { calculateOtbSeasonalWeights, type OtbHistoricalGroup,
   type OtbSeasonalWindows } from "./otb-seasonal-weights"
+import { classifyOtbSubgroup237, type OtbSubgroupKind237 } from "./otb-subgroup-kind-237"
 
 export type PreviewStockSubgroup = {line:number;subgroup:string;stockCost:number;cmv90d:number|null;
-  projectedSales90d?:number;projectedCmv90d?:number;curveASales90d?:number}
+  kind?:OtbSubgroupKind237;projectedSales90d?:number;projectedCmv90d?:number;curveASales90d?:number}
 export type PreviewDdePlan = {grupo_subgrupo:string;competencia:string;dde_meta:number|string|null}
 export type PreviewSubgroupInput = {
   months: readonly [string,string,string]
@@ -29,7 +30,7 @@ export type PreviewSubgroupMonth = {
   month:string;openingStock:number;forecastCost:number;targetStock:number;need:number;closingStock:number
 }
 export type PreviewSubgroupRow = {
-  line:number;name:string;stockCost:number;cmv90d:number|null;share:number|null
+  line:number;name:string;kind:OtbSubgroupKind237;stockCost:number;cmv90d:number|null;share:number|null
   projectedSales90d:number|null;projectedCmv90d:number|null;curveAShare:number|null
   targets:PreviewTarget[];months:PreviewSubgroupMonth[]|null;issue:string|null
   seasonalWeights:OtbSeasonalWindows|null
@@ -143,8 +144,9 @@ export function buildOtbSubgroupPreview(input:PreviewSubgroupInput):OtbSubgroupP
     const lineCmv=completeCmv?groups.reduce((sum,g)=>sum+g.cmv90d!,0):0
     const lineAbcSales=hasAbc?groups.reduce((sum,g)=>sum+g.projectedSales90d!,0):0
     for(const group of groups){
+      const kind=group.kind??classifyOtbSubgroup237(group.subgroup)
       const targets:PreviewTarget[]=[]
-      let issue:string|null=hasAbc?
+      let issue:string|null=kind==="N"?"Subgrupo sem classificação S/P/M da Zacarini.":hasAbc?
         lineAbcSales<=0?"Vendas projetadas ABC zeradas na linha.":null:
         !completeCmv||lineCmv<=0?"CMV histórico incompleto na linha.":null
       if(hasAbc&&group.projectedSales90d===0&&group.projectedCmv90d!>0){
@@ -173,14 +175,16 @@ export function buildOtbSubgroupPreview(input:PreviewSubgroupInput):OtbSubgroupP
             monthlySource[forecastIndex+offset][line-1]*(seasonalWeights?.[i+1]??share)*factor,0)
           const nextDays=[1,2,3].reduce((sum,offset)=>sum+monthDays(input.referenceMonths[forecastIndex+offset]),0)
           const targetStock=targets[i].days*nextCosts/nextDays
-          const need=Math.max(0,cost+targetStock-opening)
+          // OTB!S/AB/AK compra somente os grupos C='S'. Produção própria
+          // e núcleo/premix têm consumo, mas não geram compras de mercadoria.
+          const need=kind==="S"?Math.max(0,cost+targetStock-opening):0
           const closingStock=Math.max(0,opening+need-cost)
           if(![cost,targetStock,need,closingStock].every(Number.isFinite)){issue="Projeção numérica fora dos limites.";break}
           months.push({month:input.months[i],openingStock:opening,forecastCost:cost,targetStock,need,closingStock})
           opening=closingStock
         }
       }
-      rows.push({line,name:group.subgroup,stockCost:group.stockCost,cmv90d:group.cmv90d,share,
+      rows.push({line,name:group.subgroup,kind,stockCost:group.stockCost,cmv90d:group.cmv90d,share,
         projectedSales90d:hasAbc?group.projectedSales90d!:null,
         projectedCmv90d:hasAbc?group.projectedCmv90d!:null,
         curveAShare:hasAbc&&group.projectedSales90d!>0&&group.curveASales90d!==undefined?

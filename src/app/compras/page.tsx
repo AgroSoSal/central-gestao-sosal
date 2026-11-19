@@ -4,7 +4,7 @@ import { Suspense, type ReactNode } from "react"
 import {
   AlertCircle, ArrowUpRight, Boxes, ChevronLeft, ChevronRight, ClipboardList,
   Clock3, Search, ShieldCheck, ShoppingCart, Wallet, CalendarDays,
-  Activity, SlidersHorizontal, Database, Sparkles, ClipboardPenLine, Truck, ReceiptText, ChartNoAxesCombined,
+  Activity, SlidersHorizontal, Database, Sparkles, ClipboardPenLine, Truck, ReceiptText, ChartNoAxesCombined, Factory, TrendingDown,
 } from "lucide-react"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { ComprasLogin, ComprasSair } from "@/components/compras/compras-auth"
@@ -262,6 +262,19 @@ export async function ComprasContent({ searchParams }: Props) {
         <Metric label="Última importação" value={dateTimeBR(summary?.ultima_importacao)} footnote="Horário de Campo Grande (MS)" icon={Clock3} delay={350} />
       </section>
 
+      <section className="erp-surface rounded-[24px] p-5 sm:p-7" aria-label="Planejamento e liquidação">
+        <div className="mb-4"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-cyan-400">Zacarini 2.3.7 · Produtos e estoque</p><h2 className="mt-2 text-xl font-semibold text-white">Planejamento, giro e produção</h2><p className="mt-1 text-xs leading-6 text-slate-400">Dados por SKU e filial do Supabase. Indicadores de liquidação são estimativos e não liberam orçamento ou pedido.</p></div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {[
+            {href:"/compras/plano-estoque", label:"Plano de estoque", icon:CalendarDays},
+            {href:"/compras/estoque-parado", label:"Estoque parado", icon:TrendingDown},
+            {href:"/compras/liquidacao-lojas", label:"Liquidação lojas", icon:Boxes},
+            {href:"/compras/liquidacao-linhas", label:"Liquidação linhas", icon:SlidersHorizontal},
+            {href:"/compras/producao-propria", label:"Produção própria", icon:Factory},
+          ].map(link=><Link key={link.href} href={link.href} className="flex min-h-20 items-center gap-3 rounded-xl border border-cyan-300/15 bg-cyan-400/5 px-4 py-3 text-xs font-bold text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-400/10"><link.icon size={18} className="shrink-0 text-cyan-300"/>{link.label}<ArrowUpRight size={13} className="ml-auto text-slate-400"/></Link>)}
+        </div>
+      </section>
+
       <section className="erp-surface erp-reveal overflow-hidden rounded-[24px]" style={{ "--reveal-delay": "400ms" } as React.CSSProperties}>
         <div className="border-b border-[#25354e] p-5 sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -270,7 +283,7 @@ export async function ComprasContent({ searchParams }: Props) {
               <h2 className="text-xl font-semibold tracking-tight text-white">Consulta de pedidos</h2>
               <p className="mt-1.5 text-sm text-slate-400">Confira pedidos, entradas de NFs, quantidades e valores ainda pendentes.</p>
             </div>
-            <div className="flex flex-wrap gap-2"><Link href="/compras/atendimento" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 text-xs font-bold text-white transition hover:brightness-110"><ShoppingCart size={15} /> Atendimento Fornecedor</Link>
+            <div className="flex flex-wrap gap-2"><Link href="/compras/cobertura" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-amber-300/30 bg-amber-300/10 px-5 text-xs font-bold text-amber-100 transition hover:bg-amber-300/15"><ClipboardList size={16} /> Cobertura Zacarini 2.3.7</Link><Link href="/compras/atendimento" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 text-xs font-bold text-white transition hover:brightness-110"><ShoppingCart size={15} /> Atendimento Fornecedor</Link>
               <Link href="/compras/otb" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-5 text-sm font-bold text-cyan-200 transition hover:bg-cyan-400/20"><ChartNoAxesCombined size={17} /> OTB · Planejamento</Link><Link href={forecastHref} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-5 text-sm font-bold text-cyan-200 transition hover:bg-cyan-400/20"><ReceiptText size={17} /> Previsão de pagamentos</Link><Link href={followUpHref} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-5 text-sm font-bold text-cyan-200 transition hover:bg-cyan-400/20"><Truck size={17} /> Follow-up de entregas</Link><Link href={manageHref} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 text-sm font-bold text-white shadow-[0_12px_30px_-15px_rgba(6,182,212,.9)] transition hover:-translate-y-0.5 hover:shadow-[0_15px_35px_-12px_rgba(6,182,212,.65)]"><ClipboardPenLine size={17} /> Gerenciar pedidos <ArrowUpRight size={15} /></Link></div>
           </div>
 

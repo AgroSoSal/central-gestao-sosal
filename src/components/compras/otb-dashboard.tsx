@@ -12,6 +12,7 @@ import type { OtbResult, OtbSubgroupMonth } from "@/domains/compras/domain/otb-c
 import type { OtbHistoricalSourceStatus } from "@/domains/compras/domain/otb-historical-source"
 import type { OtbStockPosition } from "@/domains/compras/domain/otb-position-source"
 import type { OtbPurchaseSourceStatus } from "@/domains/compras/domain/otb-source-status"
+import { pageOtbPositions } from "@/domains/compras/domain/otb-position-paging"
 
 type Props = {
   email: string
@@ -74,6 +75,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
   const [search, setSearch] = useState("")
   const [positionLine, setPositionLine] = useState("")
   const [positionSearch, setPositionSearch] = useState("")
+  const [positionPage, setPositionPage] = useState(1)
 
   const month = result?.months[monthIndex]
   const lines = useMemo(() => [...new Set(month?.subgroups.map((item) => item.line) ?? [])].sort((a, b) => a.localeCompare(b, "pt-BR")), [month])
@@ -86,6 +88,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
     (!positionLine || String(entry.line) === positionLine)
     && (!positionSearch.trim() || entry.subgroup.toLocaleLowerCase("pt-BR").includes(positionSearch.trim().toLocaleLowerCase("pt-BR")))
   ).sort((a, b) => Math.abs(b.stockCost) - Math.abs(a.stockCost)), [stockPosition, positionLine, positionSearch])
+  const positionsPage = pageOtbPositions(filteredPositions, positionPage)
 
   return <main className="mx-auto max-w-[1520px] space-y-6 pb-14 text-slate-100">
     <header className="erp-reveal flex flex-wrap items-center justify-between gap-4">
@@ -132,7 +135,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-4 text-xs font-bold text-emerald-200"><Database size={16} /> Somente Supabase</span>
-          <Link href="/compras/otb/premissas" className="inline-flex h-11 items-center rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 text-xs font-bold text-white shadow-lg shadow-cyan-900/40 transition hover:brightness-110">Cadastrar premissas</Link>
+          <Link href="/compras/cobertura" className="inline-flex h-11 items-center rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 text-xs font-bold text-white shadow-lg shadow-cyan-900/40 transition hover:brightness-110">Conferir o que falta</Link>
         </div>
       </div>
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#2c455e] bg-[#071625]/50 px-4 py-3" aria-label="Conexão de pedidos com Supabase">
@@ -176,10 +179,10 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
           </div>
           <div className="flex flex-wrap items-end gap-4 p-5 sm:p-7">
             <label className="min-w-[240px] flex-1 text-xs font-semibold text-slate-300">Buscar subgrupo
-              <input className="erp-field mt-2 w-full px-3" type="search" value={positionSearch} onChange={(event) => setPositionSearch(event.target.value)} placeholder="Produto, família ou subgrupo" />
+              <input className="erp-field mt-2 w-full px-3" type="search" value={positionSearch} onChange={(event) => { setPositionSearch(event.target.value); setPositionPage(1) }} placeholder="Família ou subgrupo" />
             </label>
             <label className="min-w-[180px] text-xs font-semibold text-slate-300">Linha
-              <select className="erp-field mt-2 w-full px-3" value={positionLine} onChange={(event) => setPositionLine(event.target.value)}>
+              <select className="erp-field mt-2 w-full px-3" value={positionLine} onChange={(event) => { setPositionLine(event.target.value); setPositionPage(1) }}>
                 <option value="">Todas as linhas</option>
                 {[1, 2, 3, 4, 0, -1].map((line) => <option key={line} value={String(line)}>{line === -1 ? "Fora da OTB" : line === 0 ? "Sem linha" : `Linha ${line}`}</option>)}
               </select>
@@ -188,7 +191,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
           </div>
           <div className="overflow-x-auto"><table className="erp-table w-full min-w-[850px] text-left text-xs">
             <thead className="bg-[#121e30] text-[10px] uppercase tracking-wide text-slate-400"><tr><th className="p-4">Linha</th><th className="p-4">Grupo / Subgrupo</th><th className="p-4 text-right">SKUs</th><th className="p-4 text-right">Estoque a custo</th><th className="p-4 text-right">CMV 90 dias</th><th className="p-4 text-right">DDE observado</th></tr></thead>
-            <tbody className="divide-y divide-[#1c2b40]">{filteredPositions.slice(0, 50).map((entry) => <tr key={`${entry.line}|${entry.subgroup}`}>
+            <tbody className="divide-y divide-[#1c2b40]">{positionsPage.items.map((entry) => <tr key={`${entry.line}|${entry.subgroup}`}>
               <td className="p-4 font-bold text-cyan-300">{entry.line === -1 ? "Fora" : entry.line === 0 ? "Pendente" : entry.line}</td>
               <td className="max-w-[440px] p-4 text-slate-100">{entry.subgroup}</td>
               <td className="p-4 text-right tabular-nums">{integer.format(entry.skuCount)}</td>
@@ -197,7 +200,14 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
               <td className="p-4 text-right tabular-nums">{entry.observedDde === null ? "—" : `${integer.format(Math.round(entry.observedDde))} dias`}</td>
             </tr>)}</tbody>
           </table></div>
-          <p className="px-5 py-4 text-[11px] text-slate-500">Exibindo até 50 subgrupos por vez, filtráveis por linha ou nome. Nenhuma alteração é realizada no estoque.</p>
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 text-xs text-slate-400">
+            <p>Exibindo {positionsPage.from}–{positionsPage.to} de {positionsPage.total} subgrupos filtrados. Todos os registros podem ser consultados; nenhum saldo foi alterado.</p>
+            <div className="flex items-center gap-3" aria-label="Paginação dos subgrupos">
+              <button type="button" disabled={positionsPage.page <= 1} onClick={() => setPositionPage((page) => page - 1)} className="rounded-lg border border-cyan-300/20 px-3 py-2 font-semibold text-cyan-200 disabled:cursor-not-allowed disabled:opacity-35">Anterior</button>
+              <span className="whitespace-nowrap">{positionsPage.page} / {positionsPage.totalPages}</span>
+              <button type="button" disabled={positionsPage.page >= positionsPage.totalPages} onClick={() => setPositionPage((page) => page + 1)} className="rounded-lg border border-cyan-300/20 px-3 py-2 font-semibold text-cyan-200 disabled:cursor-not-allowed disabled:opacity-35">Próxima</button>
+            </div>
+          </div>
         </>}
     </section>
 
@@ -211,15 +221,17 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
         <div className="flex items-start gap-4">
           <AlertCircle size={24} className="mt-0.5 shrink-0 text-amber-300" />
           <div>
-            <h2 className="text-lg font-bold text-amber-100">OTB ainda não disponível para decisão de compra</h2>
-            <p className="mt-2 max-w-4xl text-sm leading-7 text-amber-100/75">A regra de cálculo já está implementada e testada. Ainda falta homologar as premissas financeiras, a necessidade de matéria-prima e os saldos por subgrupo. Nenhum valor histórico será apresentado como orçamento atual.</p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <h2 className="text-lg font-bold text-amber-100">Posição operacional disponível · autorização de compras ainda pendente</h2>
+            <p className="mt-2 max-w-4xl text-sm leading-7 text-amber-100/75">Continue consultando pedidos, fazendo Follow-up e negociando rascunhos. A verba oficial exige projeção financeira homologada, necessidade de matéria-prima e saldo por subgrupo. A atualização dos extratos bancários poderá ser feita depois; não criaremos verba fictícia neste intervalo.</p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {[
-                ["01", "Projeção 12M", "Teto de pior caso mensal"],
-                ["02", "Estoque e CMV", "DDE-alvo e previsão por subgrupo"],
-                ["03", "Pedidos gravados", "Saldo e excessos conciliados"],
-              ].map(([number, title, note]) => <div key={number} className="rounded-xl border border-amber-300/10 bg-black/10 px-4 py-4"><p className="font-mono text-xs text-amber-300/80">{number}</p><p className="mt-2 text-sm font-bold text-slate-100">{title}</p><p className="mt-1 text-xs text-slate-400">{note}</p></div>)}
+                { number: "01", title: "Projeção 12M", ready: false, note: "Pior caso de caixa, despesas e recebimentos a homologar" },
+                { number: "02", title: "Estoque e CMV", ready: stockPosition.status === "conectado", note: stockPosition.status === "conectado" ? "Posição observada conectada; DDE-alvo e previsão ainda pendentes" : "Posição da fonte indisponível" },
+                { number: "03", title: "Carteira de pedidos", ready: purchaseSource.status === "conectado", note: purchaseSource.status === "conectado" ? "Resumo conectado; faltam saldos gravados por subgrupo" : "Resumo da carteira indisponível" },
+                { number: "04", title: "Produção e MP", ready: false, note: "Necessidade futura da matéria-prima não homologada" },
+              ].map(({ number, title, ready, note }) => <div key={number} className="rounded-xl border border-amber-300/10 bg-black/10 px-4 py-4"><div className="flex items-center justify-between gap-2"><p className="font-mono text-xs text-amber-300/80">{number}</p><span className={`text-[10px] font-bold ${ready ? "text-emerald-300" : "text-amber-200"}`}>{ready ? "Fonte conectada" : "Pendente"}</span></div><p className="mt-2 text-sm font-bold text-slate-100">{title}</p><p className="mt-1 text-xs leading-5 text-slate-400">{note}</p></div>)}
             </div>
+            <Link href="/compras/cobertura" className="mt-5 inline-flex items-center gap-2 text-xs font-bold text-cyan-200 hover:text-cyan-100">Ver comparação completa com a Zacarini <ArrowUpRight size={14} /></Link>
           </div>
         </div>
       </section>

@@ -15,9 +15,15 @@ type Position = { filial: string; estoque_custo: number | string | null; cmv_90d
   carteira_vencida: number | string | null; percentual_vencido: number | string | null }
 type Stock = { linha: number; estoque_custo: number | string | null; cmv_90d: number | string | null;
   grupo_subgrupo: string; sku_count: number | string | null; ultima_atualizacao: string | null }
+type PendingOrdersQuality = { itens_pendentes: number | string; pedidos_pendentes: number | string;
+  valor_pendente: number | string; itens_sem_grupo: number | string; valor_sem_grupo: number | string;
+  itens_sem_previsao: number | string; itens_sem_condicao: number | string;
+  itens_com_previsao_futura: number | string; data_pedido_mais_antigo: string | null;
+  ultima_conciliacao: string | null }
 type Props = { month: string; today: string; email: string; referenceRows: DashboardReferenceRow[]; salesRows: DashboardSalesRow[];
   shopPositions: Position[]; stockRows: Stock[]; bankRows: BankPositionRow[];
   contractedWeeks: ContractedWeek[]; contractedMonths: ContractedMonth[];
+  pendingOrdersQuality?: PendingOrdersQuality | null;
   errors: Record<string, string | null> }
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })
@@ -66,7 +72,7 @@ function Indicator({ label, value, target, note }: { label: string; value: strin
 }
 
 export function ComprasExecutiveDashboard({ month, today, email, referenceRows, salesRows, shopPositions,
-  stockRows, bankRows, contractedWeeks, contractedMonths, errors }: Props) {
+  stockRows, bankRows, contractedWeeks, contractedMonths, pendingOrdersQuality, errors }: Props) {
   const date = `${month}-01`
   const totals = summarizeDashboardSales(salesRows)
   const activeTargets = [...Array.from({ length: 4 }, (_, i) => dashboardReference(referenceRows, `meta_linha_${i + 1}`, date)),
@@ -156,11 +162,12 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
     </Section>
 
     <Section id="caixa" title="Caixa: 13 semanas e Projeção 12M" detail="Simulação operacional pelas premissas da Zacarini 2.3.7 e dados atuais do Supabase, sem conexão com a planilha. Ainda não é orçamento aprovado nem caixa conciliado.">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
           ["Menor saldo · 13 semanas com compras novas", forecast.state === "simulado" ? forecast.minimum13WithPurchases : null],
           ["Menor saldo · 13 semanas sem compras novas", forecast.state === "simulado" ? forecast.minimum13WithoutPurchases : null],
           ["Menor saldo · Projeção 12M", forecast.state === "simulado" ? forecast.minimum12 : null],
+          ["Menor saldo · Pior caso correto 12M", forecast.state === "simulado" ? forecast.minimumWorst12 : null],
           ["Saldo final · Projeção 12M", forecast.state === "simulado" ? forecast.final12 : null],
         ].map(([label,value]) =>
           <div key={String(label)} className="rounded-2xl border border-amber-300/15 bg-amber-400/[.025] p-5"><p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-3 text-2xl font-bold tabular-nums">{brl(typeof value === "number" ? value : null)}</p><p className="mt-2 text-[11px] text-amber-200">{forecast.state === "simulado" ? "Estimativa não homologada · não libera compras" : "Sem premissas completas para simular"}</p></div>)}
@@ -169,6 +176,19 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
         <p className="font-bold">{forecast.state === "simulado" ? "Simulação calculada, ainda não homologada" : "Projeção indisponível"}</p>
         <ul className="mt-1 list-inside list-disc">{(forecast.state === "simulado" ? forecast.warnings : forecast.reasons).map(message => <li key={message}>{message}</li>)}</ul>
       </div>
+      {pendingOrdersQuality && <div className="mt-4 rounded-2xl border border-amber-300/20 bg-[#181a25] px-5 py-4">
+        <h3 className="text-sm font-bold text-amber-100">Pedidos pendentes sem previsão validada</h3>
+        <p className="mt-2 text-xs leading-6 text-slate-300">A Zacarini considera a chegada prevista dos pedidos antes de calcular compras novas, usando um prazo padrão de sete dias. A carteira conciliada do Supabase contém pedidos de períodos anteriores e requer previsão de entrega por item; aplicar os sete dias a todos distorceria o estoque e o caixa.</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Itens com saldo pendente",decimal.format(number(pendingOrdersQuality.itens_pendentes) ?? 0)],
+            ["Valor ainda pendente",brl(number(pendingOrdersQuality.valor_pendente))],
+            ["Itens sem previsão informada",decimal.format(number(pendingOrdersQuality.itens_sem_previsao) ?? 0)],
+            ["Sem linha 1–4 identificada",brl(number(pendingOrdersQuality.valor_sem_grupo))],
+          ].map(([label,value]) => <div key={label} className="rounded-xl border border-amber-200/10 bg-[#0b1524] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-2 text-lg font-bold tabular-nums text-white">{value}</p></div>)}
+        </div>
+        <p className="mt-3 text-[11px] leading-5 text-amber-200">{decimal.format(number(pendingOrdersQuality.itens_com_previsao_futura) ?? 0)} itens com entrega futura informada · última conciliação {pendingOrdersQuality.ultima_conciliacao?.slice(0,10) ?? "não informada"}. Essas entradas não foram consideradas como estoque disponível nem como verba aprovada.</p>
+      </div>}
       <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-400/[.045] p-5">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-cyan-100">Carteira financeira identificada</h3><p className="mt-1 text-[11px] leading-5 text-slate-400">Saldos bancários e títulos existentes são informações diferentes. Não somamos os dois como se fossem a Projeção 12M da planilha.</p></div><span className="rounded-full border border-amber-400/20 px-3 py-1 text-[10px] font-bold text-amber-200">Parcial · não libera compras</span></div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -263,12 +283,13 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
             null, dashboardReference(referenceRows, `dde_alvo_linha_${id}`, null).valor] }
         })} />
         <GroupedBarsChart title="Estoque parado por loja" subtitle="Aguardando série comparável com os critérios da referência" labels={["Parado (R$)"]} unit="money" rows={shops.map((s, i) => ({ label: ["Anast.", "Band.", "Campo G.", "Coxim", "Pedro G.", "Rio V."][i], values: [null] }))} />
-        <ProjectionChart title="Projeção 12M — saldo no fim do mês" subtitle="Planos 90%, 100% e histórico da versão 2.3.7 · cenários simulados e não homologados" legends={["Plano 90%", "Plano 100%", "Histórico", "Piso mínimo"]} axisLabels={["M1", "M3", "M5", "M7", "M9", "M11", "M12"]}
+        <ProjectionChart title="Projeção 12M — saldo no fim do mês" subtitle="Planos 90%, 100%, histórico e pior caso correto (sem recebimento do extra de Saúde, com custos mantidos) · não homologados" legends={["Plano 90%", "Plano 100%", "Histórico", "Piso mínimo", "Pior caso correto"]} axisLabels={["M1", "M3", "M5", "M7", "M9", "M11", "M12"]}
           series={forecast.state === "simulado" ? [
             {label:"Plano 90%",values:forecast.monthly.noventa},
             {label:"Plano 100%",values:forecast.monthly.plano},
             {label:"Histórico",values:forecast.monthly.historico},
             {label:"Piso de segurança",values:Array(12).fill(forecast.safetyFloor)},
+            {label:"Pior caso correto",values:forecast.monthlyWorst},
           ] : undefined} />
         <GroupedBarsChart title="Títulos previstos por mês (12 meses)" subtitle="Recebíveis e fornecedores de contratos registrados; exclui vendas e compras novas." labels={["Recebíveis", "Fornecedores"]} unit="money" rows={monthlyContracts} />
         <ProjectionChart title="Verba do comprador: já gravado × saldo" subtitle="Orçamento de compra por linha após conciliação financeira" legends={["Verba liberada", "Pedidos gravados", "Saldo"]} type="barras" />

@@ -23,7 +23,8 @@ export type CashForecastResult =
   | { state: "simulado"; warnings: string[]; authorizesPurchases: false;
     monthLabels: string[]; weekly: WeekSeries; monthly: ScenarioSeries;
     minimum13WithPurchases: number; minimum13WithoutPurchases: number;
-    minimum12: number; final12: number; safetyFloor: number;
+    minimum12: number; minimumWorst12: number; monthlyWorst: number[];
+    final12: number; safetyFloor: number;
     monthlyNewPurchases: ScenarioSeries }
 
 const DAY = 86400000
@@ -63,8 +64,9 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
   const lookup = (code: string, month: string | null = null) => dashboardReference(references, code, month).valor
   const required = (code: string) => lookup(code)
   const config: Record<string, number> = {}
-  for (const code of ["minimo_caixa", "vendas_a_vista", "recuperacao_vencidos_semana", "folha_mensal",
-    "encargos_mensais", "decimo_terceiro_2026", "despesas_pct", "impostos_pct",
+  for (const code of ["minimo_caixa", "vendas_a_vista", "fator_vendas_previstas", "recuperacao_vencidos_semana", "folha_mensal",
+    "encargos_mensais", "decimo_terceiro_2026", "salarios_base_2026",
+    "decimo_terceiro_parcela_1", "decimo_terceiro_parcela_2", "despesas_pct", "impostos_pct",
     ...Array.from({length:4}, (_,i) => `curva_recebimento_faixa_${i+1}`),
     ...Array.from({length:4}, (_,i) => `atraso_recebimento_semanas_${i+1}`),
     ...Array.from({length:4}, (_,i) => `prazo_pagamento_linha_${i+1}`),
@@ -73,10 +75,14 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
     if (value === null || !Number.isFinite(value) || value < 0) return unavailable(`Premissa ${code} não encontrada na versão 2.3.7.`)
     config[code] = value
   }
-  if (config.vendas_a_vista > 1 || config.recuperacao_vencidos_semana > 1 ||
+  if (config.vendas_a_vista > 1 || config.fator_vendas_previstas > 1 || config.recuperacao_vencidos_semana > 1 ||
     Math.abs([1,2,3,4].reduce((sum,i) => sum + config[`curva_recebimento_faixa_${i}`], 0) - 1) > 0.00001 ||
     [1,2,3,4].some(i => !Number.isInteger(config[`atraso_recebimento_semanas_${i}`]) || !Number.isInteger(config[`prazo_pagamento_linha_${i}`]))) {
     return unavailable("Percentuais e prazos da curva de recebimento ou dos pagamentos inválidos.")
+  }
+  if (Math.abs(config.folha_mensal-config.salarios_base_2026-config.encargos_mensais)>0.02 ||
+    Math.abs(config.decimo_terceiro_2026-config.decimo_terceiro_parcela_1-config.decimo_terceiro_parcela_2)>0.02) {
+    return unavailable("As parcelas de folha e 13º não reconciliam com os totais da Zacarini.")
   }
 
   const baseMonthMs = dateMs(startMonth(todayMs))
@@ -109,12 +115,49 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
   const endMs = addMonths(baseMonthMs,12)
   const dayCount = Math.round((endMs-todayMs)/DAY)
   if (dayCount < 182) return unavailable("A referência precisa cobrir integralmente 26 semanas futuras.")
+  // Fluxo B33/B34/B225: mês comercial de 26 a 25, determinado pelo MEIO da semana.
+  // Não é a mesma série de faturamento em meses calendário usada na Projeção 12M.
+  const weeklyInvoices: number[] = []
+  for (let week=0;week<26;week++) {
+    const midpoint = todayMs+(week*7+3)*DAY
+    const commercialBasis = midpoint-25*DAY
+    const commercialMonth = isoDate(addMonths(dateMs(startMonth(commercialBasis)),1))
+    const target = lookup("fluxo_meta_comercial_mes",commercialMonth)
+    const healthExtra = lookup("fluxo_extra_saude_mes",commercialMonth)
+    if (target === null || target < 0 || healthExtra === null || healthExtra < 0) {
+      return unavailable(`Meta comercial ou ajuste de Saúde incompleto em ${commercialMonth}.`)
+    }
+    weeklyInvoices.push((target*config.fator_vendas_previstas+healthExtra)*7/monthLength(commercialBasis))
+  }
 
   const weekly = {} as WeekSeries
   const monthly = {} as ScenarioSeries
   const monthlyNewPurchases = {} as ScenarioSeries
   const calendarMonths = months.map(m => m.month)
   const floor = config.minimo_caixa
+  // Projeção 12M!C801:C807 (PIOR CASO CORRETO): o plano de compras se mantém,
+  // mas deixam de entrar as cobranças projetadas da venda EXTRA de Saúde.
+  // Aplica-se a mesma curva de recebimentos ao extra para não excluir toda a
+  // receita na data do faturamento (parte a prazo vence nos meses seguintes).
+  const receiptsOf = (invoices: readonly number[]) => {
+    const receipts = new Array<number>(invoices.length).fill(0)
+    for (let day=0;day<invoices.length;day++) {
+      const invoice = invoices[day]
+      receipts[day] += invoice*config.vendas_a_vista
+      for (let band=1;band<=4;band++) {
+        const dueDay = day + config[`atraso_recebimento_semanas_${band}`]*7
+        if (dueDay<invoices.length) receipts[dueDay] += invoice*(1-config.vendas_a_vista)*config[`curva_recebimento_faixa_${band}`]
+      }
+    }
+    return receipts
+  }
+  const healthExtraDaily: number[] = []
+  for (let day=0;day<dayCount;day++) {
+    const ms = todayMs+day*DAY
+    const extra = lookup("fluxo_extra_saude_mes",startMonth(ms))
+    if (extra === null || extra < 0) return unavailable(`Venda extra de Saúde incompleta em ${startMonth(ms)}.`)
+    healthExtraDaily.push(extra/monthLength(ms))
+  }
   for (const scenario of CASH_SCENARIOS) {
     const invoiceByDay = new Array<number>(dayCount).fill(0)
     const monthOfDay = new Array<number>(dayCount).fill(0)
@@ -125,15 +168,9 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
       monthOfDay[day] = m
       invoiceByDay[day] = months[m].invoicing[scenario]/monthLength(ms)
     }
-    const receipts = new Array<number>(dayCount).fill(0)
-    for (let day=0;day<dayCount;day++) {
-      const invoice = invoiceByDay[day]
-      receipts[day] += invoice*config.vendas_a_vista
-      for (let band=1;band<=4;band++) {
-        const dueDay = day + config[`atraso_recebimento_semanas_${band}`]*7
-        if (dueDay<dayCount) receipts[dueDay] += invoice*(1-config.vendas_a_vista)*config[`curva_recebimento_faixa_${band}`]
-      }
-    }
+    const weeklyInvoiceByDay = Array.from({length:182},(_,day)=>weeklyInvoices[Math.floor(day/7)]/7)
+    const monthlyReceipts = receiptsOf(invoiceByDay)
+    const weeklyReceipts = receiptsOf(weeklyInvoiceByDay)
 
     // O estoque inicial é o SISCOM atual (não o estoque histórico do arquivo Excel).
     // Faz o DDE convergir linearmente até o alvo, segundo as linhas 98-127 da Projeção 12M.
@@ -187,15 +224,18 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
           ar = contracts.monthlyReceivables[month]/activeDays
           ap = contracts.monthlyPayables[month]/activeDays
         }
-        const invoicing = invoiceByDay[day]
-        const recovered = overdue*config.recuperacao_vencidos_semana/7 *
-          Math.pow(1-config.recuperacao_vencidos_semana,Math.floor(day/7))
-        let personnel = 0
-        if (dayInMonth(ms) === 5) personnel += config.folha_mensal
-        if (dayInMonth(ms) === 20) personnel += config.encargos_mensais
+        const invoicing = source === "weekly" ? weeklyInvoiceByDay[day] : invoiceByDay[day]
+        const newReceipts = source === "weekly" ? weeklyReceipts[day] : monthlyReceipts[day]
+        // Fluxo B38: valor FIXO por semana (não decai geometricamente).
+        const recovered = overdue*config.recuperacao_vencidos_semana/7
+        // Fluxo B52/B53: salários apenas no dia 5, demais gastos de pessoal
+        // distribuídos a cada semana como encargo mensal × 12 ÷ 52.
+        let personnel = config.encargos_mensais*12/(52*7)
+        if (dayInMonth(ms) === 5) personnel += config.salarios_base_2026
         const iso = isoDate(ms)
-        if (iso === "2026-11-30" || iso === "2026-12-18") personnel += config.decimo_terceiro_2026/2
-        balance += ar+receipts[day]+recovered-ap-
+        if (iso === "2026-11-30") personnel += config.decimo_terceiro_parcela_1
+        if (iso === "2026-12-18") personnel += config.decimo_terceiro_parcela_2
+        balance += ar+newReceipts+recovered-ap-
           invoicing*(config.despesas_pct+config.impostos_pct)-personnel-(buy?purchasePayments[day]:0)
         if ((day+1)%7===0 && source==="weekly") weeklyEnds.push(balance)
         if ((day+1===dayCount || monthOfDay[day+1]!==month) && source==="monthly") monthlyEnds.push(balance)
@@ -205,6 +245,17 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
     weekly[scenario] = { withPurchases: simulate("weekly",true), withoutPurchases: simulate("weekly",false) }
     monthly[scenario] = simulate("monthly",true)
   }
+  const missingReceipts = receiptsOf(healthExtraDaily)
+  let lostCollections = 0
+  const monthlyWorst: number[] = []
+  for (let day=0, m=0;day<dayCount;day++) {
+    lostCollections += missingReceipts[day]
+    const currentMonth = startMonth(todayMs+day*DAY)
+    if (day===dayCount-1 || startMonth(todayMs+(day+1)*DAY)!==currentMonth) {
+      monthlyWorst.push(monthly.noventa[m]-lostCollections)
+      m++
+    }
+  }
   const warnings = [
     "Simulação de referência: compras e caixa NÃO homologados; nenhuma verba é liberada.",
     "Saldo-base bancário de " + contracts.base + " não reconciliado até a data da projeção; mudanças posteriores podem alterar todo o fluxo.",
@@ -213,9 +264,10 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
   ]
   return {
     state: "simulado", authorizesPurchases: false, warnings, monthLabels: calendarMonths,
-    weekly, monthly, monthlyNewPurchases, safetyFloor: floor,
+    weekly, monthly, monthlyWorst, monthlyNewPurchases, safetyFloor: floor,
     minimum13WithPurchases: Math.min(...weekly.noventa.withPurchases.slice(0,13)),
     minimum13WithoutPurchases: Math.min(...weekly.noventa.withoutPurchases.slice(0,13)),
-    minimum12: Math.min(...monthly.noventa), final12: monthly.noventa[11],
+    minimum12: Math.min(...monthly.noventa), minimumWorst12: Math.min(...monthlyWorst),
+    final12: monthly.noventa[11],
   }
 }

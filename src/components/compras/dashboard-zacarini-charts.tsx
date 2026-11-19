@@ -4,7 +4,7 @@ type GaugeProps = { label: string; value: number | null; headline: string; detai
 type BarRow = { label: string; values: (number | null)[] }
 type GroupedBarsProps = { title: string; subtitle: string; labels: string[]; rows: BarRow[]; unit: "money" | "days" }
 
-const palette = ["#33c9f4", "#c4b5fd", "#eab308", "#34d399"]
+const palette = ["#33c9f4", "#c4b5fd", "#eab308", "#34d399", "#fb7185"]
 const compactMoney = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 })
 const compactDays = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 })
 

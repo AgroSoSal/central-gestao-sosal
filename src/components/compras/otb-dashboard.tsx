@@ -152,12 +152,12 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
         {historicalSource.status === "conectado" ? <div className="flex flex-wrap items-center gap-3 text-xs text-emerald-200">
           <span className="inline-flex items-center gap-1.5 font-bold"><CheckCircle2 size={14} /> Leitura conectada</span>
           <span className="text-slate-300">{integer.format(historicalSource.monthCount)} competências · até {monthLabel(historicalSource.lastMonth)}</span>
-          <span className="text-slate-400">{integer.format(historicalSource.totalRecords)} registros de origem</span>
+          <span className="text-slate-400">{integer.format(historicalSource.totalRecords)} itens de vendas e saídas</span>
         </div> : <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-200"><AlertCircle size={14} /> Histórico indisponível — sem valores presumidos</span>}
       </div>
       {historicalSource.status === "conectado" && <div role="status" className={`mt-3 rounded-xl border px-4 py-3 text-xs leading-6 ${historicalSource.completeLast12Months ? "border-cyan-300/20 bg-cyan-400/5 text-cyan-100" : "border-amber-300/25 bg-amber-400/10 text-amber-100"}`}>
-        {historicalSource.unmappedRecords > 0 && <strong className="mr-2">Atenção: {integer.format(historicalSource.unmappedRecords)} registros sem linha 1–4.</strong>}
-        {historicalSource.excludedRecords > 0 && <strong className="mr-2">{integer.format(historicalSource.excludedRecords)} registros de serviços classificados fora da OTB.</strong>}
+        {historicalSource.unmappedRecords > 0 && <strong className="mr-2">Atenção: {integer.format(historicalSource.unmappedRecords)} itens sem linha 1–4.</strong>}
+        {historicalSource.excludedRecords > 0 && <strong className="mr-2">{integer.format(historicalSource.excludedRecords)} itens de serviços classificados fora da OTB.</strong>}
         {historicalSource.completeLast12Months
           ? "As últimas 12 competências possuem vendas e saídas classificadas. Ainda faltam premissas financeiras e fluxo de caixa futuro para liberar a OTB."
           : "Histórico ainda não homologado para previsão automática: confira competências ausentes e classificações de produtos. As travas financeiras continuam bloqueadas."}

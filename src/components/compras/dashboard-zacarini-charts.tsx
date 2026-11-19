@@ -82,19 +82,34 @@ export function GroupedBarsChart({ title, subtitle, labels, rows, unit }: Groupe
 }
 
 /** O esqueleto da projeção é intencional; extrato observado nunca vira previsão. */
-export function ProjectionChart({ title, subtitle, legends, type = "linha", axisLabels }: {
-  title: string; subtitle: string; legends: string[]; type?: "linha" | "barras"; axisLabels?: string[]
+export function ProjectionChart({ title, subtitle, legends, type = "linha", axisLabels, series }: {
+  title: string; subtitle: string; legends: string[]; type?: "linha" | "barras"; axisLabels?: string[];
+  series?: { label: string; values: (number | null)[] }[]
 }) {
+  const validSeries = (series ?? []).filter(s => s.values.length > 0 && s.values.every(n => n !== null && Number.isFinite(n)))
+  const all = validSeries.flatMap(s => s.values as number[])
+  const hasData = type === "linha" && all.length > 0
+  const lower = hasData ? Math.min(...all) : 0
+  const upper = hasData ? Math.max(...all) : 1
+  const padding = Math.max((upper - lower) * .12, 1)
+  const min = lower - padding
+  const max = upper + padding
+  const yOf = (v: number) => 224 - (v - min) / (max - min) * 194
+  const xOf = (i: number, n: number) => 48 + i * 546 / Math.max(1, n - 1)
   return <article className="rounded-2xl border border-slate-700/50 bg-gradient-to-b from-[#101c2c] to-[#0b1422] p-5 shadow-[inset_0_1px_rgba(255,255,255,.04)]">
     <div><h3 className="flex items-center gap-2 text-sm font-bold text-slate-100">{type === "linha" ? <LineChart size={16} className="text-cyan-300" /> : <Target size={16} className="text-cyan-300" />}{title}</h3><p className="mt-1.5 text-[11px] leading-5 text-slate-400">{subtitle}</p></div>
     <div className="relative mt-4">
-      <svg role="img" aria-label={`${title}: sem dados homologados`} viewBox="0 0 620 285" className="w-full">
-        {Array.from({ length: 5 }, (_, i) => <line key={i} x1="48" x2="594" y1={30 + i * 48} y2={30 + i * 48} stroke="#334155" strokeDasharray="4 5" opacity=".55" />)}
+      <svg role="img" aria-label={`${title}: ${hasData ? "séries financeiras parciais" : "sem dados homologados"}`} viewBox="0 0 620 285" className="w-full">
+        {Array.from({ length: 5 }, (_, i) => <g key={i}><line x1="48" x2="594" y1={30 + i * 48} y2={30 + i * 48} stroke="#334155" strokeDasharray="4 5" opacity=".55" />{hasData&&<text x="42" y={34+i*48} fill="#94a3b8" fontSize="10" textAnchor="end">{compactMoney.format((max-(max-min)*i/4)/1000000)} mi</text>}</g>)}
         <line x1="48" x2="48" y1="30" y2="224" stroke="#475569"/><line x1="48" x2="594" y1="224" y2="224" stroke="#475569"/>
+        {validSeries.map((s, si) => <g key={s.label}>
+          <polyline points={(s.values as number[]).map((v,i)=>`${xOf(i,s.values.length)},${yOf(v)}`).join(" ")} fill="none" stroke={palette[si % palette.length]} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+          {(s.values as number[]).map((v, i) => <circle key={i} cx={xOf(i,s.values.length)} cy={yOf(v)} r="2.4" fill={palette[si % palette.length]}><title>{`${s.label}: ${new Intl.NumberFormat("pt-BR", { style:"currency",currency:"BRL" }).format(v)}`}</title></circle>)}
+        </g>)}
         {(axisLabels ?? (type === "linha" ? ["S1", "S5", "S9", "S13", "S17", "S21", "S26"] : ["Nut.", "Saúde", "Outros", "Past."])).map((label, i, all) =>
-          <text key={`${label}-${i}`} x={60 + i * 526 / Math.max(1, all.length - 1)} y="243" textAnchor="middle" fill="#64748b" fontSize="11">{label}</text>)}
+          <text key={`${label}-${i}`} x={48 + i * 546 / Math.max(1, all.length - 1)} y="243" textAnchor="middle" fill="#94a3b8" fontSize="11">{label}</text>)}
       </svg>
-      <div className="absolute inset-x-[12%] top-[27%] flex flex-col items-center gap-3 rounded-xl border border-amber-400/20 bg-[#111a2b]/95 px-4 py-5 text-center shadow-lg"><CircleHelp size={23} className="text-amber-300"/><span className="text-xs font-semibold text-amber-100">Aguardando cenário homologado</span><span className="text-[11px] leading-5 text-slate-400">Sem simular valores que o banco ainda não possui</span></div>
+      {!hasData&&<div className="absolute inset-x-[12%] top-[27%] flex flex-col items-center gap-3 rounded-xl border border-amber-400/20 bg-[#111a2b]/95 px-4 py-5 text-center shadow-lg"><CircleHelp size={23} className="text-amber-300"/><span className="text-xs font-semibold text-amber-100">Aguardando cenário homologado</span><span className="text-[11px] leading-5 text-slate-400">Sem simular valores que o banco ainda não possui</span></div>}
     </div>
     <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 border-t border-slate-700/40 pt-4">{legends.map((label, i) => <span key={label} className="flex items-center gap-2 text-[11px] text-slate-400"><span className="h-1 w-5 rounded-full" style={{ backgroundColor: palette[i % palette.length] }} />{label}</span>)}</div>
   </article>

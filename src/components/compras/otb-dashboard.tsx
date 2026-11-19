@@ -13,6 +13,8 @@ import type { OtbHistoricalSourceStatus } from "@/domains/compras/domain/otb-his
 import type { OtbStockPosition } from "@/domains/compras/domain/otb-position-source"
 import type { OtbPurchaseSourceStatus } from "@/domains/compras/domain/otb-source-status"
 import { pageOtbPositions } from "@/domains/compras/domain/otb-position-paging"
+import type { OtbSubgroupPreview } from "@/domains/compras/domain/otb-subgroup-preview"
+import type { OtbSeasonalHistory } from "@/domains/compras/domain/otb-seasonal-source"
 
 type Props = {
   email: string
@@ -21,6 +23,12 @@ type Props = {
   stockPosition: OtbStockPosition
   /** Reposição calculada pelo cenário 90%: apenas simulação, sem teto nem aprovação. */
   indicativeMonths?: {month:string;amount:number}[] | null
+  /** Por que a simulação não foi calculada, sem mascarar falhas de dados. */
+  forecastIssues?: readonly string[]
+  /** Prévia de estoque por subgrupo. Não é cenário oficial nem autorização. */
+  subgroupPreview?: OtbSubgroupPreview | null
+  /** Vendas entregues das quatro janelas da aba fx_VendaSubgrupo. */
+  seasonalHistory?: OtbSeasonalHistory
   /** Resultado de fonte oficial, validado NO SERVIDOR. Nunca arquivo no navegador. */
   officialScenario?: OtbResult | null
 }
@@ -69,7 +77,7 @@ function Metric({ label, value, sub, icon }: { label: string; value: string; sub
   </div>
 }
 
-export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, indicativeMonths, officialScenario }: Props) {
+export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, indicativeMonths, forecastIssues, subgroupPreview, seasonalHistory, officialScenario }: Props) {
   const result = officialScenario ?? null
   const [monthIndex, setMonthIndex] = useState(0)
   const [lineFilter, setLineFilter] = useState("")
@@ -78,6 +86,10 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
   const [positionLine, setPositionLine] = useState("")
   const [positionSearch, setPositionSearch] = useState("")
   const [positionPage, setPositionPage] = useState(1)
+  const [previewLine, setPreviewLine] = useState("")
+  const [previewPage, setPreviewPage] = useState(1)
+  const [seasonalLine,setSeasonalLine] = useState("")
+  const [seasonalPage,setSeasonalPage] = useState(1)
 
   const month = result?.months[monthIndex]
   const lines = useMemo(() => [...new Set(month?.subgroups.map((item) => item.line) ?? [])].sort((a, b) => a.localeCompare(b, "pt-BR")), [month])
@@ -91,6 +103,13 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
     && (!positionSearch.trim() || entry.subgroup.toLocaleLowerCase("pt-BR").includes(positionSearch.trim().toLocaleLowerCase("pt-BR")))
   ).sort((a, b) => Math.abs(b.stockCost) - Math.abs(a.stockCost)), [stockPosition, positionLine, positionSearch])
   const positionsPage = pageOtbPositions(filteredPositions, positionPage)
+  const filteredPreview = useMemo(() => subgroupPreview?.state==="calculado"
+    ? subgroupPreview.rows.filter(row=>!previewLine||String(row.line)===previewLine)
+    :[],[subgroupPreview,previewLine])
+  const previewPaged = pageOtbPositions(filteredPreview,previewPage,30)
+  const seasonalRows=seasonalHistory?.state==="conectado"?seasonalHistory.groups.filter(r=>
+    !seasonalLine||String(r.line)===seasonalLine):[]
+  const seasonalPaged=pageOtbPositions(seasonalRows,seasonalPage,25)
 
   return <main className="mx-auto max-w-[1520px] space-y-6 pb-14 text-slate-100">
     <header className="erp-reveal flex flex-wrap items-center justify-between gap-4">
@@ -215,10 +234,57 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
         </>}
     </section>
 
+    {seasonalHistory?.state==="indisponivel"&&<section role="status" className="rounded-2xl border border-amber-300/25 bg-amber-500/[.06] p-5 text-xs leading-6 text-amber-100">
+      <strong>Vendas sazonais da OTB indisponíveis.</strong> {seasonalHistory.reason} A simulação, quando disponível, utiliza somente a participação histórica no CMV de 90 dias. Não libera compras.
+    </section>}
+
+    {seasonalHistory?.state==="conectado"&&<section className="erp-surface overflow-hidden rounded-[24px]" aria-label="Sazonalidade por subgrupo">
+      <div className="flex flex-wrap items-start justify-between gap-4 p-5 sm:p-7">
+        <div><p className="text-[10px] font-bold uppercase tracking-[.17em] text-cyan-300">fx_VendaSubgrupo · Supabase / saída entregue</p>
+          <h2 className="mt-2 text-xl font-bold">Sazonalidade por subgrupo</h2>
+          <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-300">Quatro janelas móveis do ano anterior, consolidadas entre filiais como na Zacarini 2.3.7. São vendas reais, não compras, nem a venda futura OTB!D. Esta leitura não libera compras.</p>
+        </div>
+        <span className="rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 text-[11px] font-bold text-emerald-200">{integer.format(seasonalHistory.groups.length)} subgrupos · fonte conectada</span>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-5 py-3">
+        <span className="text-xs text-slate-400">Competência de referência: {monthLabel(seasonalHistory.month)}</span>
+        <label className="text-xs text-slate-300">Linha <select value={seasonalLine} onChange={event=>{setSeasonalLine(event.target.value);setSeasonalPage(1)}} className="erp-field ml-2 w-40 px-3"><option value="">Todas</option>{[1,2,3,4].map(line=><option key={line} value={line}>Linha {line}</option>)}</select></label>
+      </div>
+      <div className="overflow-x-auto"><table aria-label="Vendas entregues por subgrupo nas quatro janelas sazonais" className="w-full min-w-[1000px] text-left text-xs">
+        <thead className="bg-[#121e30] text-[10px] uppercase tracking-wider text-slate-400"><tr><th className="px-4 py-3">Linha / subgrupo</th>{seasonalHistory.windowMonths.map(month=><th key={month} className="px-4 py-3 text-right">{month}</th>)}</tr></thead>
+        <tbody className="divide-y divide-white/10">{seasonalPaged.items.map(group=><tr key={`${group.line}\0${group.name}`}><td className="max-w-[380px] px-4 py-3"><span className="block text-[10px] text-cyan-300">Linha {group.line}</span><strong className="text-slate-100">{group.name}</strong></td>{group.sales.map((value,index)=><td key={index} className="px-4 py-3 text-right tabular-nums">{money.format(value)}</td>)}</tr>)}</tbody>
+      </table></div>
+      <div className="flex items-center justify-between gap-3 border-t border-white/10 px-5 py-4 text-xs text-slate-400"><span>{seasonalPaged.from}–{seasonalPaged.to} de {seasonalPaged.total} subgrupos</span><div className="flex items-center gap-3"><button type="button" disabled={seasonalPaged.page<=1} onClick={()=>setSeasonalPage(p=>p-1)} className="rounded-lg border border-cyan-300/20 px-3 py-2 text-cyan-200 disabled:opacity-35">Anterior</button><span>{seasonalPaged.page}/{seasonalPaged.totalPages}</span><button type="button" disabled={seasonalPaged.page>=seasonalPaged.totalPages} onClick={()=>setSeasonalPage(p=>p+1)} className="rounded-lg border border-cyan-300/20 px-3 py-2 text-cyan-200 disabled:opacity-35">Próximo</button></div></div>
+    </section>}
+
+    {!indicativeMonths&&!!forecastIssues?.length&&<section role="status" className="rounded-2xl border border-amber-300/25 bg-amber-500/[.06] p-5 text-xs text-amber-100">
+      <p className="font-bold">A prévia de reposição não foi calculada</p>
+      <ul className="mt-2 list-disc space-y-1 pl-5">{forecastIssues.map((issue,index)=><li key={index}>{issue}</li>)}</ul>
+      <p className="mt-2 text-amber-200">Nenhum valor substituto foi presumido.</p>
+    </section>}
+
     {indicativeMonths && <section className="rounded-[24px] border border-cyan-300/20 bg-cyan-400/[.035] p-6 sm:p-7" aria-label="Prévia operacional dos três meses de compras">
       <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[.17em] text-cyan-300">OTB!B7 · três meses à frente</p><h2 className="mt-2 text-lg font-bold">Reposição prevista antes da trava financeira</h2><p className="mt-2 max-w-4xl text-xs leading-6 text-slate-400">Cenário de demanda a 90% com estoque atual e DDE por linha. Projeção operacional da Zacarini 2.3.7, recalculada com Supabase. Os pedidos já emitidos ainda não têm entregas confirmadas por item; esses volumes não são verba autorizada.</p></div><span className="rounded-lg border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-[10px] font-bold text-amber-200">Simulado · não libera compras</span></div>
       <div className="mt-5 grid gap-3 sm:grid-cols-3">{indicativeMonths.map((item,i)=><div key={item.month} className="rounded-xl border border-cyan-300/15 bg-[#0b1626] p-5"><p className="text-[10px] font-bold uppercase text-slate-400">Mês {i+1} · {monthLabel(item.month)}</p><p className="mt-3 text-2xl font-bold tabular-nums text-white">{money.format(item.amount)}</p><p className="mt-2 text-[11px] text-amber-200">Necessidade de reposição simulada, sem conciliar pedidos em trânsito</p></div>)}</div>
       <p className="mt-4 text-xs leading-6 text-amber-100">O teto por mês, a reserva de matéria-prima, o saldo do comprador e o status “LIBERADO” permanecem indisponíveis enquanto a Projeção 12M oficial não estiver homologada. Não gravamos pedidos nem saldos automaticamente.</p>
+    </section>}
+
+    {subgroupPreview?.state==="indisponivel" && <section role="status" className="rounded-2xl border border-amber-300/20 bg-amber-500/[.05] p-5 text-xs leading-6 text-amber-100">
+      A prévia por subgrupo não pôde ser calculada: {subgroupPreview.reason} Não foi estimado valor substituto.
+    </section>}
+    {subgroupPreview?.state==="calculado" && <section className="erp-surface overflow-hidden rounded-[24px]" aria-label="Reposição por subgrupo — simulação">
+      <div className="p-5 sm:p-7"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-[10px] font-extrabold uppercase tracking-[.17em] text-cyan-300">OTB!S/AB/AK · estoque futuro</p>
+        <h2 className="mt-2 text-xl font-bold text-white">Reposição por subgrupo</h2>
+        <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-300">Estoque atual + CMV previsto da Projeção 12M, com <strong>Participação histórica</strong> de CMV como base média provisória e metas DDE configuradas pelo Alex. {subgroupPreview.seasonality==="venda_entregue"?"As quatro janelas de vendas entregues redistribuem os meses pela regra sazonal BH/BJ/BP da Zacarini 2.3.7.":"A sazonalidade entregue não pôde ser aplicada; usa-se a distribuição CMV 90d."} Ainda falta a venda projetada por SKU de OTB!D, pedidos em trânsito e verba homologada. Não é o cálculo definitivo da OTB.</p>
+      </div><span className="rounded-lg border border-amber-300/25 bg-amber-300/10 px-3 py-2 text-[10px] font-bold text-amber-200">Sem autorização de compras</span></div>
+      <div className="mt-5 overflow-x-auto"><table aria-label="Necessidade simulada por linha" className="w-full min-w-[680px] text-left text-xs"><thead className="bg-[#121e30] text-[10px] uppercase tracking-wider text-slate-400"><tr><th className="px-4 py-3">Linha</th>{subgroupPreview.months.map(m=><th key={m} className="px-4 py-3 text-right">{monthLabel(m)}</th>)}<th className="px-4 py-3">Cobertura</th></tr></thead><tbody className="divide-y divide-white/10">
+        {[1,2,3,4].map(line=>{const amount=subgroupPreview.totals[line];const entries=subgroupPreview.rows.filter(r=>r.line===line);const ready=entries.filter(r=>r.months!==null).length;return <tr key={line}><td className="px-4 py-3 font-bold text-cyan-200">Linha {line}</td>{[0,1,2].map(i=><td key={i} className="px-4 py-3 text-right font-semibold tabular-nums">{amount?.[i]===null||amount?.[i]===undefined?"—":money.format(amount[i]!)}</td>)}<td className="px-4 py-3 text-amber-100">{ready}/{entries.length} subgrupos</td></tr>})}
+      </tbody></table></div>
+      <p className="mt-3 text-[11px] leading-5 text-amber-100">As necessidades não deduzem pedidos em trânsito sem confirmação, matéria-prima, estoque a liquidar ou compras novas do mês corrente. A participação média usa CMV 90d, ainda não OTB!D por SKU. Não podem ser convertidas em teto de caixa ou OTB liberada. {subgroupPreview.reconciledPlanGroups.length} nome(s) reconciliados pela substituição inequívoca de acentos perdidos na extração; {subgroupPreview.unmatchedPlanGroups.length} sem correspondência segura.</p>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-5 py-4"><h3 className="text-sm font-bold text-slate-100">Simulação SKU agregada por subgrupo</h3><label className="text-xs text-slate-300">Filtrar linha <select className="erp-field ml-2 w-40 px-3" value={previewLine} onChange={e=>{setPreviewLine(e.target.value);setPreviewPage(1)}}><option value="">Todas</option>{[1,2,3,4].map(l=><option key={l} value={l}>Linha {l}</option>)}</select></label></div>
+      <div className="overflow-x-auto"><table aria-label="Prévia de necessidades por subgrupo" className="w-full min-w-[1320px] text-left text-xs"><thead className="bg-[#121e30] text-[10px] uppercase tracking-wider text-slate-400"><tr>{["Linha / subgrupo","Estoque inicial","CMV últimos 90d","Peso sazonal · 4 janelas","Meta DDE · 3 meses","Necessidade mês 1","Necessidade mês 2","Necessidade mês 3","Fonte / pendência"].map(t=><th key={t} className="px-4 py-3">{t}</th>)}</tr></thead><tbody className="divide-y divide-white/[.08]">{previewPaged.items.map(row=><tr key={`${row.line}\0${row.name}`}><td className="max-w-64 px-4 py-3"><span className="block text-[10px] text-cyan-200">Linha {row.line}</span><strong className="text-slate-100">{row.name}</strong></td><td className="px-4 py-3 tabular-nums">{money.format(row.stockCost)}</td><td className="px-4 py-3 tabular-nums">{row.cmv90d===null?"—":money.format(row.cmv90d)}</td><td className="px-4 py-3 text-cyan-200">{row.seasonalWeights?row.seasonalWeights.map(w=>percentage.format(w)).join(" / "):"—"}</td><td className="px-4 py-3">{row.targets.length===3?row.targets.map(t=>`${Math.round(t.days*10)/10} d`).join(" / "):"—"}</td>{[0,1,2].map(index=><td key={index} className="px-4 py-3 text-right font-semibold tabular-nums">{row.months?money.format(row.months[index].need):"—"}</td>)}<td className="max-w-40 px-4 py-3 text-[11px]">{row.issue?<span className="text-amber-200">{row.issue}</span>:row.targets.some(t=>t.source==="linha")?<span className="text-amber-100">Meta geral da linha aplicada</span>:<span className="text-emerald-200">Metas do Plano de Estoque</span>}</td></tr>)}</tbody></table></div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-5 py-4 text-xs text-slate-400"><span>{previewPaged.from}–{previewPaged.to} de {previewPaged.total} subgrupos · calculados somente na memória</span><div className="flex items-center gap-3"><button type="button" disabled={previewPaged.page<=1} onClick={()=>setPreviewPage(p=>p-1)} className="rounded-lg border border-cyan-300/20 px-3 py-2 font-bold text-cyan-200 disabled:opacity-35">Anterior</button><span>{previewPaged.page}/{previewPaged.totalPages}</span><button type="button" disabled={previewPaged.page>=previewPaged.totalPages} onClick={()=>setPreviewPage(p=>p+1)} className="rounded-lg border border-cyan-300/20 px-3 py-2 font-bold text-cyan-200 disabled:opacity-35">Próximo</button></div></div>
     </section>}
 
     {!month ? <>

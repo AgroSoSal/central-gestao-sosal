@@ -13,7 +13,10 @@ import { buildPartialCashSeries, type ContractedWeek } from "@/domains/compras/d
 import { buildZacariniCashForecast } from "@/domains/compras/domain/zacarini-cash-forecast"
 import { resolveReceivablesRecovery, type RecoverableReceivablesLine } from "@/domains/compras/domain/receivables-recovery-237"
 import { nextOtbPurchaseNeeds } from "@/domains/compras/domain/otb-indicative-months"
-import type { DashboardReferenceRow } from "@/domains/compras/domain/dashboard-zacarini-237"
+import { dashboardReference, type DashboardReferenceRow } from "@/domains/compras/domain/dashboard-zacarini-237"
+import { buildOtbSubgroupPreview, type OtbSubgroupPreview } from "@/domains/compras/domain/otb-subgroup-preview"
+import { interpretOtbSeasonalHistory } from "@/domains/compras/domain/otb-seasonal-source"
+import { fetchOtbSubgroupPlans } from "@/domains/compras/domain/otb-subgroup-plan-source"
 import type { BankPositionRow, ContractedMonth } from "@/domains/compras/domain/otb-bank-readiness"
 
 export default function ComprasOtbPage() {
@@ -106,6 +109,48 @@ export async function OtbContent() {
   const indicativeMonths = forecast.state === "simulado" ?
     nextOtbPurchaseNeeds(todayISO,forecast.monthLabels,forecast.monthlyNewPurchases.noventa) : null
 
+  // OTB!B7: competência seguinte ao mês-base. A RPC entrega apenas quatro
+  // janelas consolidadas de SAÍDA; não consulta diretamente vendas no navegador.
+  const seasonalMonth=indicativeMonths?.[0]?.month??new Date(Date.UTC(Number(today("year")),Number(today("month")),1))
+    .toISOString().slice(0,10)
+  const seasonalResponse=await supabase.rpc("fn_otb_venda_sazonal_237",{p_mes_otb:seasonalMonth})
+  const seasonalHistory=interpretOtbSeasonalHistory(seasonalResponse.data,seasonalResponse.error,seasonalMonth)
+
+  let subgroupPreview:OtbSubgroupPreview|null=null
+  if(indicativeMonths?.length===3&&forecast.state==="simulado"){
+    if(stockPosition.status!=="conectado"||config.error){
+      subgroupPreview={state:"indisponivel",reason:"Posição de estoque ou parâmetros de planejamento indisponíveis.",authorizesPurchases:false}
+    }else{
+      const nextMonths=indicativeMonths.map(item=>item.month) as [string,string,string]
+      const planSource=await fetchOtbSubgroupPlans(nextMonths,async competencia=>
+        supabase.rpc("fn_compras_plano_estoque_237",{
+          p_busca:null,p_competencia:competencia,p_pagina:1,p_tamanho:100,
+        }))
+      if(planSource.state==="indisponivel"){
+        subgroupPreview={state:"indisponivel",reason:planSource.reason,authorizesPurchases:false}
+      }else{
+        const references=(config.data??[]) as DashboardReferenceRow[]
+        const fallbackDde:Record<number,number>={}
+        for(let line=1;line<=4;line++){
+          const target=dashboardReference(references,`dde_alvo_linha_${line}`,null).valor
+          if(target!==null&&target>=0)fallbackDde[line]=target
+        }
+        subgroupPreview=buildOtbSubgroupPreview({
+          months:nextMonths,referenceMonths:forecast.monthLabels,
+          projectedCmv:forecast.monthlyCmvByLine.noventa,
+          positions:stockPosition.subgroups.filter(row=>row.line>=1&&row.line<=4).map(row=>({
+            line:row.line,subgroup:row.subgroup,stockCost:row.stockCost,cmv90d:row.cmv90d,
+          })),
+          plans:planSource.plans,fallbackDde,
+          historicalSales:seasonalHistory.state==="conectado"?seasonalHistory.groups:undefined,
+        })
+      }
+    }
+  }
+
   return <OtbDashboard email={user.email ?? ""} purchaseSource={purchaseSource} historicalSource={historicalSource}
-    stockPosition={stockPosition} indicativeMonths={indicativeMonths} />
+    stockPosition={stockPosition} indicativeMonths={indicativeMonths} subgroupPreview={subgroupPreview}
+    seasonalHistory={seasonalHistory}
+    forecastIssues={forecast.state==="indisponivel"?forecast.reasons:
+      indicativeMonths?[]:["A referência da Projeção 12M não contém os três meses seguintes completos."]} />
 }

@@ -9,6 +9,12 @@ import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { interpretOtbHistoricalSource, lastClosedMonthInCampoGrande } from "@/domains/compras/domain/otb-historical-source"
 import { interpretOtbStockPosition } from "@/domains/compras/domain/otb-position-source"
 import { interpretOtbPurchaseSource } from "@/domains/compras/domain/otb-source-status"
+import { buildPartialCashSeries, type ContractedWeek } from "@/domains/compras/domain/dashboard-cash-contracts"
+import { buildZacariniCashForecast } from "@/domains/compras/domain/zacarini-cash-forecast"
+import { resolveReceivablesRecovery, type RecoverableReceivablesLine } from "@/domains/compras/domain/receivables-recovery-237"
+import { nextOtbPurchaseNeeds } from "@/domains/compras/domain/otb-indicative-months"
+import type { DashboardReferenceRow } from "@/domains/compras/domain/dashboard-zacarini-237"
+import type { BankPositionRow, ContractedMonth } from "@/domains/compras/domain/otb-bank-readiness"
 
 export default function ComprasOtbPage() {
   return <Suspense fallback={<LoadingState label="Autenticando acesso ao OTB..." />}><OtbContent /></Suspense>
@@ -56,7 +62,7 @@ export async function OtbContent() {
 
   // Duas fontes agregadas, somente leitura, verificadas pelo banco como Master.
   // O histórico NÃO contém fluxo de caixa futuro nem substitui a Projeção 12M.
-  const [summary, historical, stock] = await Promise.all([
+  const [summary, historical, stock, config, bank, weeks, months, recovery] = await Promise.all([
     supabase.rpc("fn_listar_pedidos_compra", {
     p_busca: null,
     p_loja: null,
@@ -67,10 +73,39 @@ export async function OtbContent() {
     }),
     supabase.rpc("fn_otb_historico_mensal", { p_inicio: firstMonth, p_fim: lastClosedMonth }),
     supabase.rpc("fn_otb_posicao_subgrupos", { p_data_base: todayISO }),
+    supabase.rpc("fn_compras_dashboard_config_237"),
+    supabase.rpc("fn_otb_extratos_posicao_237"),
+    supabase.rpc("fn_compras_dashboard_agenda_26s_237", { p_inicio: todayISO }),
+    supabase.rpc("fn_otb_agenda_contratada_12m_237", { p_inicio: `${todayISO.slice(0,7)}-01` }),
+    supabase.rpc("fn_compras_dashboard_receber_recuperavel_237", { p_data_base: todayISO }),
   ])
   const purchaseSource = interpretOtbPurchaseSource(summary.data, summary.error)
   const historicalSource = interpretOtbHistoricalSource(historical.data, historical.error, lastClosedMonth)
   const stockPosition = interpretOtbStockPosition(stock.data, stock.error)
 
-  return <OtbDashboard email={user.email ?? ""} purchaseSource={purchaseSource} historicalSource={historicalSource} stockPosition={stockPosition} />
+  // Mesmo cenário operacional simulado da dashboard, sem teto oficial nem
+  // autorizar compra. OTB!B7 inicia no mês SEGUINTE ao fluxo.
+  const partialCash = buildPartialCashSeries(bank.error ? [] : (bank.data ?? []) as BankPositionRow[],
+    weeks.error ? [] : (weeks.data ?? []) as ContractedWeek[],
+    months.error ? [] : (months.data ?? []) as ContractedMonth[], todayISO)
+  const stocks = new Map<number,{linha:number;estoque:number;cmv90:number;incompleto:boolean}>()
+  if (stockPosition.status === "conectado") for (const row of stockPosition.subgroups) {
+    if (row.line < 1 || row.line > 4) continue
+    const group = stocks.get(row.line) ?? {linha:row.line,estoque:0,cmv90:0,incompleto:false}
+    group.estoque += row.stockCost
+    if (row.cmv90d===null) group.incompleto=true
+    else group.cmv90+=row.cmv90d
+    stocks.set(row.line,group)
+  }
+  const recovered = recovery.error ? null : resolveReceivablesRecovery((recovery.data ?? []) as RecoverableReceivablesLine[])
+  const forecast = buildZacariniCashForecast({
+    today:todayISO, references:config.error ? [] : (config.data ?? []) as DashboardReferenceRow[],
+    contracts:partialCash, overdue:recovered?.eligible ?? null,
+    stock:[...stocks.values()].filter(x=>!x.incompleto).map(x=>({linha:x.linha,estoque:x.estoque,cmv90:x.cmv90})),
+  })
+  const indicativeMonths = forecast.state === "simulado" ?
+    nextOtbPurchaseNeeds(todayISO,forecast.monthLabels,forecast.monthlyNewPurchases.noventa) : null
+
+  return <OtbDashboard email={user.email ?? ""} purchaseSource={purchaseSource} historicalSource={historicalSource}
+    stockPosition={stockPosition} indicativeMonths={indicativeMonths} />
 }

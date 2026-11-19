@@ -1,5 +1,5 @@
 /**
- * OTB de três meses conforme Gestão Zacarini 2.2.24 (aba OTB).
+ * OTB de três meses conforme Gestão Zacarini 2.3.7 (aba OTB).
  *
  * Os valores de entrada são calculados pelas fontes de estoque, vendas sazonais
  * e Projeção 12M. Este serviço NÃO inventa essas fontes, nem grava compras.
@@ -140,7 +140,7 @@ export function calculateOtb(input: OtbInput): OtbResult {
   requireTriple(input.cashCaps, "teto de caixa", 0)
   requireTriple(input.mpNeeds, "necessidade de matéria-prima", 0)
   requireNumber(input.buyerShare, "parcela do comprador", 0, 1)
-  if (Math.abs(input.buyerShare - 0.85) > 1e-9) throw new RangeError("OTB: regra fixa de 85% comprador / 15% diretoria violada.")
+  if (Math.abs(input.buyerShare - 0.9) > 1e-9) throw new RangeError("OTB: regra de OTB!R24 (90% comprador / 10% diretoria) violada.")
   if (!Array.isArray(input.subgroups)) throw new RangeError("OTB: subgrupos não disponíveis.")
 
   const seen = new Set<string>()

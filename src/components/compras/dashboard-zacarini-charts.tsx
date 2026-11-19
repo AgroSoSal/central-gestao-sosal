@@ -4,7 +4,7 @@ type GaugeProps = { label: string; value: number | null; headline: string; detai
 type BarRow = { label: string; values: (number | null)[] }
 type GroupedBarsProps = { title: string; subtitle: string; labels: string[]; rows: BarRow[]; unit: "money" | "days" }
 
-const palette = ["#33c9f4", "#c4b5fd", "#eab308"]
+const palette = ["#33c9f4", "#c4b5fd", "#eab308", "#34d399"]
 const compactMoney = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 })
 const compactDays = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 })
 
@@ -99,7 +99,7 @@ export function ProjectionChart({ title, subtitle, legends, type = "linha", axis
   return <article className="rounded-2xl border border-slate-700/50 bg-gradient-to-b from-[#101c2c] to-[#0b1422] p-5 shadow-[inset_0_1px_rgba(255,255,255,.04)]">
     <div><h3 className="flex items-center gap-2 text-sm font-bold text-slate-100">{type === "linha" ? <LineChart size={16} className="text-cyan-300" /> : <Target size={16} className="text-cyan-300" />}{title}</h3><p className="mt-1.5 text-[11px] leading-5 text-slate-400">{subtitle}</p></div>
     <div className="relative mt-4">
-      <svg role="img" aria-label={`${title}: ${hasData ? "séries financeiras parciais" : "sem dados homologados"}`} viewBox="0 0 620 285" className="w-full">
+      <svg role="img" aria-label={`${title}: ${hasData ? "séries financeiras simuladas" : "sem dados suficientes"}`} viewBox="0 0 620 285" className="w-full">
         {Array.from({ length: 5 }, (_, i) => <g key={i}><line x1="48" x2="594" y1={30 + i * 48} y2={30 + i * 48} stroke="#334155" strokeDasharray="4 5" opacity=".55" />{hasData&&<text x="42" y={34+i*48} fill="#94a3b8" fontSize="10" textAnchor="end">{compactMoney.format((max-(max-min)*i/4)/1000000)} mi</text>}</g>)}
         <line x1="48" x2="48" y1="30" y2="224" stroke="#475569"/><line x1="48" x2="594" y1="224" y2="224" stroke="#475569"/>
         {validSeries.map((s, si) => <g key={s.label}>
@@ -109,7 +109,7 @@ export function ProjectionChart({ title, subtitle, legends, type = "linha", axis
         {(axisLabels ?? (type === "linha" ? ["S1", "S5", "S9", "S13", "S17", "S21", "S26"] : ["Nut.", "Saúde", "Outros", "Past."])).map((label, i, all) =>
           <text key={`${label}-${i}`} x={48 + i * 546 / Math.max(1, all.length - 1)} y="243" textAnchor="middle" fill="#94a3b8" fontSize="11">{label}</text>)}
       </svg>
-      {!hasData&&<div className="absolute inset-x-[12%] top-[27%] flex flex-col items-center gap-3 rounded-xl border border-amber-400/20 bg-[#111a2b]/95 px-4 py-5 text-center shadow-lg"><CircleHelp size={23} className="text-amber-300"/><span className="text-xs font-semibold text-amber-100">Aguardando cenário homologado</span><span className="text-[11px] leading-5 text-slate-400">Sem simular valores que o banco ainda não possui</span></div>}
+      {!hasData&&<div className="absolute inset-x-[12%] top-[27%] flex flex-col items-center gap-3 rounded-xl border border-amber-400/20 bg-[#111a2b]/95 px-4 py-5 text-center shadow-lg"><CircleHelp size={23} className="text-amber-300"/><span className="text-xs font-semibold text-amber-100">Série financeira indisponível</span><span className="text-[11px] leading-5 text-slate-400">Premissas e fontes precisam estar completas</span></div>}
     </div>
     <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 border-t border-slate-700/40 pt-4">{legends.map((label, i) => <span key={label} className="flex items-center gap-2 text-[11px] text-slate-400"><span className="h-1 w-5 rounded-full" style={{ backgroundColor: palette[i % palette.length] }} />{label}</span>)}</div>
   </article>

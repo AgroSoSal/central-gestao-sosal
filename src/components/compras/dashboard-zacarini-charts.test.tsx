@@ -24,7 +24,7 @@ describe("gráficos do Dashboard Zacarini", () => {
 
   it("reserva o gráfico de projeção sem fabricar uma curva", () => {
     const html = renderToStaticMarkup(<ProjectionChart title="Caixa 12M" subtitle="Sem homologação" legends={["Base", "Estresse"]} />)
-    expect(html).toContain("Aguardando cenário homologado")
+    expect(html).toContain("Série financeira indisponível")
     expect(html).not.toContain("<polyline")
     expect(html).toContain("Base")
   })

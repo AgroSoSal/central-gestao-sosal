@@ -7,6 +7,7 @@ import { GroupedBarsChart, PerformanceGauge, ProjectionChart } from "@/component
 import { DASHBOARD_BLOCKS, dashboardReference, metricWithTarget, summarizeDashboardSales,
   type DashboardReferenceRow, type DashboardSalesRow } from "@/domains/compras/domain/dashboard-zacarini-237"
 import { buildPartialCashSeries, type ContractedWeek } from "@/domains/compras/domain/dashboard-cash-contracts"
+import { buildZacariniCashForecast } from "@/domains/compras/domain/zacarini-cash-forecast"
 import type { BankPositionRow, ContractedMonth } from "@/domains/compras/domain/otb-bank-readiness"
 
 type Position = { filial: string; estoque_custo: number | string | null; cmv_90d: number | string | null;
@@ -76,16 +77,20 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
     { valor: targetMonth, estado: haveAllTargets ? "referencia" : "indisponivel", origem: "Dashboard · metas de linha" })
 
   const stockByLine = new Map<number, { estoque: number; cmv: number; itens: number }>()
+  const incompleteStockLines = new Set<number>()
   if (!errors.estoque) for (const row of stockRows) {
     if (!lines[row.linha]) continue
+    const value = number(row.estoque_custo)
+    const cost = number(row.cmv_90d)
+    if (value === null || cost === null) incompleteStockLines.add(row.linha)
     const item = stockByLine.get(row.linha) ?? { estoque: 0, cmv: 0, itens: 0 }
-    item.estoque += number(row.estoque_custo) ?? 0
-    item.cmv += number(row.cmv_90d) ?? 0
+    item.estoque += value ?? 0
+    item.cmv += cost ?? 0
     item.itens += number(row.sku_count) ?? 0
     stockByLine.set(row.linha, item)
   }
-  const stockValue = !errors.estoque && stockRows.length > 0 ? [...stockByLine.values()].reduce((s, l) => s + l.estoque, 0) : null
-  const cmv90 = !errors.estoque && stockRows.length > 0 ? [...stockByLine.values()].reduce((s, l) => s + l.cmv, 0) : null
+  const stockValue = !errors.estoque && stockRows.length > 0 && incompleteStockLines.size === 0 ? [...stockByLine.values()].reduce((s, l) => s + l.estoque, 0) : null
+  const cmv90 = !errors.estoque && stockRows.length > 0 && incompleteStockLines.size === 0 ? [...stockByLine.values()].reduce((s, l) => s + l.cmv, 0) : null
   const dde = stockValue !== null && cmv90 !== null && cmv90 > 0 ? stockValue * 90 / cmv90 : null
   const stockTarget = dashboardReference(referenceRows, "dde_alvo_rede", null)
 
@@ -96,6 +101,13 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
   const banksReconciled = bankWithBalances.length > 0 && bankWithBalances.every(b => b.conciliado === true)
   const partialCash = buildPartialCashSeries(errors.extratos ? [] : bankRows,
     errors.agenda26s ? [] : contractedWeeks, errors.agenda12m ? [] : contractedMonths, today)
+  const forecast = buildZacariniCashForecast({
+    today, references: errors.premissas ? [] : referenceRows, contracts: partialCash,
+    stock: errors.estoque ? [] : [1,2,3,4].filter(line => stockByLine.has(line) && !incompleteStockLines.has(line)).map(line => ({
+      linha: line, estoque: stockByLine.get(line)!.estoque, cmv90: stockByLine.get(line)!.cmv,
+    })),
+    overdue,
+  })
   const weeklyContracts = partialCash.state === "parcial"
     ? Array.from({ length: 13 }, (_, i) => ({ label: `S${i+1}`, values: [partialCash.weeklyReceivables[i], partialCash.weeklyPayables[i]] })) : []
   const monthlyContracts = partialCash.state === "parcial"
@@ -143,10 +155,19 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
       </div>
     </Section>
 
-    <Section id="caixa" title="Caixa: 13 semanas e Projeção 12M" detail="Mantém os mesmos indicadores prospectivos da planilha. Extratos importados mostram posição bancária observada; não substituem cenários de caixa projetados.">
+    <Section id="caixa" title="Caixa: 13 semanas e Projeção 12M" detail="Simulação operacional pelas premissas da Zacarini 2.3.7 e dados atuais do Supabase, sem conexão com a planilha. Ainda não é orçamento aprovado nem caixa conciliado.">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {["Menor saldo · 13 semanas com OTB", "Menor saldo · 13 semanas sem compras", "Menor saldo · Projeção 12M", "Saldo final · Projeção 12M"].map(label =>
-          <div key={label} className="rounded-2xl border border-amber-300/15 bg-amber-400/[.025] p-5"><p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-3 text-2xl font-bold">—</p><p className="mt-2 text-[11px] text-amber-200">Cenário homologado ainda não disponível</p></div>)}
+        {[
+          ["Menor saldo · 13 semanas com compras novas", forecast.state === "simulado" ? forecast.minimum13WithPurchases : null],
+          ["Menor saldo · 13 semanas sem compras novas", forecast.state === "simulado" ? forecast.minimum13WithoutPurchases : null],
+          ["Menor saldo · Projeção 12M", forecast.state === "simulado" ? forecast.minimum12 : null],
+          ["Saldo final · Projeção 12M", forecast.state === "simulado" ? forecast.final12 : null],
+        ].map(([label,value]) =>
+          <div key={String(label)} className="rounded-2xl border border-amber-300/15 bg-amber-400/[.025] p-5"><p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</p><p className="mt-3 text-2xl font-bold tabular-nums">{brl(typeof value === "number" ? value : null)}</p><p className="mt-2 text-[11px] text-amber-200">{forecast.state === "simulado" ? "Estimativa não homologada · não libera compras" : "Sem premissas completas para simular"}</p></div>)}
+      </div>
+      <div className="mt-4 rounded-xl border border-amber-300/20 bg-amber-500/[.04] px-5 py-4 text-xs leading-6 text-amber-100">
+        <p className="font-bold">{forecast.state === "simulado" ? "Simulação calculada, ainda não homologada" : "Projeção indisponível"}</p>
+        <ul className="mt-1 list-inside list-disc">{(forecast.state === "simulado" ? forecast.warnings : forecast.reasons).map(message => <li key={message}>{message}</li>)}</ul>
       </div>
       <div className="mt-5 rounded-2xl border border-cyan-300/20 bg-cyan-400/[.045] p-5">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-cyan-100">Carteira financeira identificada</h3><p className="mt-1 text-[11px] leading-5 text-slate-400">Saldos bancários e títulos existentes são informações diferentes. Não somamos os dois como se fossem a Projeção 12M da planilha.</p></div><span className="rounded-full border border-amber-400/20 px-3 py-1 text-[10px] font-bold text-amber-200">Parcial · não libera compras</span></div>
@@ -224,7 +245,12 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
 
     <Section id="graficos" title="Galeria de gráficos — mesma organização do Excel" detail="Seis gráficos maiores: duas linhas e quatro barras, acompanhando os cinco velocímetros do topo. As séries disponíveis vêm apenas do Supabase.">
       <div className="grid gap-5 lg:grid-cols-2">
-        <ProjectionChart title="Saldo de caixa semanal × mínimo (26 semanas)" subtitle="O cálculo real com OTB, sem compras e piso mínimo depende das operações futuras." legends={["Com OTB", "Sem compras", "Mínimo de segurança"]} />
+        <ProjectionChart title="Saldo de caixa semanal × mínimo (26 semanas)" subtitle="Simulação com reposições por DDE, sem compras novas e piso de segurança · não homologada" legends={["Com novas compras", "Sem novas compras", "Mínimo de segurança"]}
+          series={forecast.state === "simulado" ? [
+            {label:"Com novas compras",values:forecast.weekly.noventa.withPurchases},
+            {label:"Sem novas compras",values:forecast.weekly.noventa.withoutPurchases},
+            {label:"Piso de segurança",values:Array(26).fill(forecast.safetyFloor)},
+          ] : undefined} />
         <GroupedBarsChart title="Títulos previstos por semana (13 semanas)" subtitle="Entradas e pagamentos contratados na carteira do Supabase; não é saldo de caixa." labels={["Recebíveis", "Fornecedores"]} unit="money" rows={weeklyContracts} />
         <GroupedBarsChart title="Venda × meta do mês por loja" subtitle={`${dateLabel} · realizado SISCOM × referência do Alex`} labels={["Meta do mês", "Vendido"]} unit="money" rows={shops.map((s, i) => ({
           label: ["Anast.", "Band.", "Campo G.", "Coxim", "Pedro G.", "Rio V."][i],
@@ -237,11 +263,17 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
             null, dashboardReference(referenceRows, `dde_alvo_linha_${id}`, null).valor] }
         })} />
         <GroupedBarsChart title="Estoque parado por loja" subtitle="Aguardando série comparável com os critérios da referência" labels={["Parado (R$)"]} unit="money" rows={shops.map((s, i) => ({ label: ["Anast.", "Band.", "Campo G.", "Coxim", "Pedro G.", "Rio V."][i], values: [null] }))} />
-        <ProjectionChart title="Projeção 12M — saldo no fim do mês" subtitle="Cenários base, conservador e estressado ainda não computados; sem saldo final fictício." legends={["Base", "Conservador", "Estressado", "Piso mínimo"]} axisLabels={["M1", "M3", "M5", "M7", "M9", "M11", "M12"]} />
+        <ProjectionChart title="Projeção 12M — saldo no fim do mês" subtitle="Planos 90%, 100% e histórico da versão 2.3.7 · cenários simulados e não homologados" legends={["Plano 90%", "Plano 100%", "Histórico", "Piso mínimo"]} axisLabels={["M1", "M3", "M5", "M7", "M9", "M11", "M12"]}
+          series={forecast.state === "simulado" ? [
+            {label:"Plano 90%",values:forecast.monthly.noventa},
+            {label:"Plano 100%",values:forecast.monthly.plano},
+            {label:"Histórico",values:forecast.monthly.historico},
+            {label:"Piso de segurança",values:Array(12).fill(forecast.safetyFloor)},
+          ] : undefined} />
         <GroupedBarsChart title="Títulos previstos por mês (12 meses)" subtitle="Recebíveis e fornecedores de contratos registrados; exclui vendas e compras novas." labels={["Recebíveis", "Fornecedores"]} unit="money" rows={monthlyContracts} />
         <ProjectionChart title="Verba do comprador: já gravado × saldo" subtitle="Orçamento de compra por linha após conciliação financeira" legends={["Verba liberada", "Pedidos gravados", "Saldo"]} type="barras" />
       </div>
-      <p className="mt-5 rounded-xl border border-amber-300/15 bg-amber-400/5 px-4 py-3 text-xs leading-6 text-amber-100">Os gráficos de títulos são informativos: mostram vencimentos contratados, sem somar saldos bancários antigos à carteira futura. As linhas de caixa da planilha serão preenchidas quando as premissas operacionais e os cenários forem implementados e validados; nenhuma série parcial é apresentada como autorização OTB.</p>
+      <p className="mt-5 rounded-xl border border-amber-300/15 bg-amber-400/5 px-4 py-3 text-xs leading-6 text-amber-100">Os gráficos separam a carteira contratada das estimativas futuras. A projeção utiliza parâmetros históricos do Alex e dados operacionais atuais, mas falta homologar a conciliação, pedidos a chegar e demais movimentos financeiros. Nenhuma série simulada constitui autorização de OTB.</p>
     </Section>
 
     <section className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[.04] p-5 text-xs leading-6 text-slate-300">

@@ -22,6 +22,18 @@ test("sem CMV registrado mantém DDE indisponível em vez de zero", () => {
   assert.equal(result.subgroups[0].observedDde, null)
 })
 
+test("subgrupo vazio do código zero não derruba a posição de estoque inteira", () => {
+  const result = interpretOtbStockPosition([
+    row,
+    { ...row, linha: 0, grupo_subgrupo: "", estoque_custo: "0", cmv_90d: "930", sku_count: 0 },
+  ], null)
+  assert.equal(result.status, "conectado")
+  assert.equal(result.stockCost, 65000.55)
+  assert.equal(result.cmv90d, 45930)
+  assert.equal(result.subgroups[1].subgroup, "SEM SUBGRUPO")
+  assert.equal(result.subgroups[1].observedDde, 0)
+})
+
 test("rejeita saída parcial, duplicada, categoria inválida e resposta sem fonte", () => {
   assert.equal(interpretOtbStockPosition([row, row], null).status, "indisponivel")
   assert.equal(interpretOtbStockPosition([{ ...row, linha: 9 }], null).status, "indisponivel")

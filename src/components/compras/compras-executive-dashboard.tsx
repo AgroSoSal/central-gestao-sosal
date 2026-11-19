@@ -8,6 +8,7 @@ import { DASHBOARD_BLOCKS, dashboardReference, metricWithTarget, summarizeDashbo
   type DashboardReferenceRow, type DashboardSalesRow } from "@/domains/compras/domain/dashboard-zacarini-237"
 import { buildPartialCashSeries, type ContractedWeek } from "@/domains/compras/domain/dashboard-cash-contracts"
 import { buildZacariniCashForecast } from "@/domains/compras/domain/zacarini-cash-forecast"
+import { resolveReceivablesRecovery, type RecoverableReceivablesLine } from "@/domains/compras/domain/receivables-recovery-237"
 import type { BankPositionRow, ContractedMonth } from "@/domains/compras/domain/otb-bank-readiness"
 
 type Position = { filial: string; estoque_custo: number | string | null; cmv_90d: number | string | null;
@@ -23,6 +24,7 @@ type PendingOrdersQuality = { itens_pendentes: number | string; pedidos_pendente
 type Props = { month: string; today: string; email: string; referenceRows: DashboardReferenceRow[]; salesRows: DashboardSalesRow[];
   shopPositions: Position[]; stockRows: Stock[]; bankRows: BankPositionRow[];
   contractedWeeks: ContractedWeek[]; contractedMonths: ContractedMonth[];
+  recoveryRows: RecoverableReceivablesLine[];
   pendingOrdersQuality?: PendingOrdersQuality | null;
   errors: Record<string, string | null> }
 
@@ -72,7 +74,7 @@ function Indicator({ label, value, target, note }: { label: string; value: strin
 }
 
 export function ComprasExecutiveDashboard({ month, today, email, referenceRows, salesRows, shopPositions,
-  stockRows, bankRows, contractedWeeks, contractedMonths, pendingOrdersQuality, errors }: Props) {
+  stockRows, bankRows, contractedWeeks, contractedMonths, recoveryRows, pendingOrdersQuality, errors }: Props) {
   const date = `${month}-01`
   const totals = summarizeDashboardSales(salesRows)
   const activeTargets = [...Array.from({ length: 4 }, (_, i) => dashboardReference(referenceRows, `meta_linha_${i + 1}`, date)),
@@ -101,8 +103,10 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
   const stockTarget = dashboardReference(referenceRows, "dde_alvo_rede", null)
 
   const positionMap = new Map(shopPositions.map(p => [p.filial, p]))
-  const overdue = !errors.posicao && shopPositions.length > 0
-    ? shopPositions.reduce((sum, p) => sum + (number(p.carteira_vencida) ?? 0), 0) : null
+  // Receber Vencidos!G13: apenas títulos cobrados nas classes 1/2/3, pelo
+  // valor ORIGINAL (vlr_titulo), não pelo líquido com juros de décadas.
+  const recovery = errors.receberRecuperavel ? null : resolveReceivablesRecovery(recoveryRows)
+  const overdue = recovery?.eligible ?? null
   const bankWithBalances = !errors.extratos ? bankRows.filter(b => number(b.ultimo_saldo) !== null) : []
   const banksReconciled = bankWithBalances.length > 0 && bankWithBalances.every(b => b.conciliado === true)
   const partialCash = buildPartialCashSeries(errors.extratos ? [] : bankRows,
@@ -219,7 +223,8 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Indicator label="DDE da rede · estoque" value={days(dde)} note={`Alvo de referência: ${days(stockTarget.valor)} · base de CMV 90 dias`} />
         <Indicator label="Estoque a custo" value={brl(stockValue)} note="Posição observada no Supabase por subgrupo." />
-        <Indicator label="Carteira vencida" value={brl(overdue)} note="Títulos em aberto com vencimento anterior à data atual." />
+        <Indicator label="Carteira vencida · valor original" value={brl(recovery?.overduePrincipal)} note="Soma do principal dos títulos vencidos, sem juros acumulados." />
+        <Indicator label="Vencidos recuperáveis no fluxo" value={brl(overdue)} note="Classes cobrança normal, intensiva e Kohl, até cinco anos; exclui grupo, jurídico e perdas, como na Zacarini." />
         <Indicator label="Estoque parado" value="—" note="Critério completo de giro e idade não homologado nesta visão." />
         <Indicator label="Prazo médio de recebimento" value="—" note="Prazo efetivo ainda sem fonte homologada." />
         <Indicator label="Serviço da dívida e verba comprador" value="—" note="Obrigações futuras e orçamento de compra não homologados." />
@@ -250,7 +255,7 @@ export function ComprasExecutiveDashboard({ month, today, email, referenceRows, 
           const actual = errors.vendas ? null : totals.lojas[s.id]?.vendidoMes ?? 0
           const marge = errors.vendas ? null : totals.lojas[s.id]?.margemBruta ?? null
           const p = errors.posicao ? undefined : positionMap.get(s.id)
-          const late = number(p?.percentual_vencido)
+          const late = recovery?.byBranch[s.id]?.overdueShare ?? null
           const ratio = metricWithTarget(actual, ref).percentual
           return <tr key={s.id} className="hover:bg-cyan-300/[.035]"><td className="px-3 py-4"><strong className="block text-white">{s.nome}</strong><span className="text-[10px] text-slate-400">{assigned?.texto ?? "Gerente não configurado"}</span></td><td className="px-3 py-4">{brl(ref.valor)}</td><td className="px-3 py-4 font-semibold text-white">{brl(actual)}</td><td className="px-3 py-4">{pct(ratio)}</td><td className="px-3 py-4 text-slate-500">—</td><td className="px-3 py-4">{pct(marge)}</td><td className="px-3 py-4">{brl(number(p?.estoque_custo))}</td><td className="px-3 py-4">{days(number(p?.dde_observado))}</td><td className="px-3 py-4">{pct(late)}</td><td className="px-3 py-4">—</td><td className="px-3 py-4 text-amber-200">Conferir giro e metas</td></tr>
         })}</tbody></table></div>

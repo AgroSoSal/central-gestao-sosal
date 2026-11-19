@@ -1,7 +1,12 @@
 -- Gestão Zacarini 2.3.7 / Liq_Base, Liq_Rede, Estoque Parado e Liquidação Lojas/Linhas.
 -- Leitura paginada Master, sem tocar nas fontes RPA/SISCOM.
--- Previsão: aproxima a seleção _Base/_Comparavel do Excel com evidência de
--- vendas comparáveis; expõe base de dados e NÃO constitui verba homologada.
+-- Previsão: replica os marcadores da planilha ABCEstoque_DDE!E5:G10:
+-- comparáveis S: Bandeirantes, Campo Grande, Pedro Gomes e Rio Verde.
+-- Coxim: não comparável para crescimento, mas usa Ano passado como base.
+-- Anastácio: Últimos 90d como base, sem projeção de ano passado.
+-- O fator por SKU prevalece sobre o fator do subgrupo; sem histórico, 1.
+-- B13:B14 = crescimento mínimo 0 / máximo 4, B7 = 90 dias.
+-- Esta leitura operacional NÃO constitui verba homologada.
 create or replace function public.fn_compras_liquidacao_237(
   p_escopo text default 'lojas',
   p_filial text default null,
@@ -56,7 +61,7 @@ begin
            sum(a.qtde_90d) as atual, sum(a.qtde_base_aa) as anterior
     from painel.mv_abc_janelas a
     join painel.produtos p on p.produto_cod = a.produto_cod
-    where a.qtde_base_aa > 0 and a.qtde_prox_aa > 0
+    where a.loja in ('Bandeirantes','Campo Grande','Pedro Gomes','Rio Verde')
     group by a.produto_cod, p.grupo_subgrupo
   ),
   crescimento_grupo as (
@@ -77,8 +82,10 @@ begin
            coalesce(p.marca,'') as marca, p.linha,
            e.qtde as qtd, e.valor as valor,
            coalesce(a.qtde_90d,0::numeric) as vendidos,
-           coalesce(a.qtde_prox_aa,0::numeric) as proximo_aa,
-           coalesce(a.qtde_base_aa,0::numeric) as base_aa,
+           case when e.filial = 'AN' then 0::numeric
+             else coalesce(a.qtde_prox_aa,0::numeric) end as proximo_aa,
+           case when e.filial = 'AN' then coalesce(a.qtde_90d,0::numeric)
+             else 0::numeric end as novos_90d,
            coalesce(cs.fator, cg.fator, 1::numeric) as fator,
            a.data_fim as data_hist,
            case
@@ -100,11 +107,11 @@ begin
   ),
   projeções as (
     select l.*,
-      greatest(l.vendidos, case when l.base_aa > 0 and l.proximo_aa > 0
-        then l.proximo_aa * l.fator else 0::numeric end) as previsto,
-      case when l.base_aa > 0 and l.proximo_aa > 0
-        then 'Sazonal comparável / maior que últimos 90d'
-        else 'Últimos 90 dias (sem comparável)' end as metodo
+      greatest(l.vendidos, l.proximo_aa * l.fator + l.novos_90d) as previsto,
+      case when l.filial = 'AN'
+        then 'Últimos 90d / loja nova (Excel _Base)'
+        else 'Ano passado × crescimento SKU/subgrupo / piso 90d (Excel _Base)'
+      end as metodo
     from estoque_lojas l
   ),
   conjunto as (

@@ -83,6 +83,23 @@ describe("projeção de caixa Zacarini 2.3.7", () => {
     expect(result.warnings.join(" ")).toMatch(/concilia|homolog/i)
   })
 
+  it("expõe os quatro componentes mensais de CMV e reposição para a OTB sem duplicar o total",()=>{
+    const f=fixtures(3000)
+    const result=buildZacariniCashForecast({today:start,references:f.rows,contracts:f.partial,
+      stock:[1,2,3,4].map(linha=>({linha,estoque:0,cmv90:150})),overdue:0})
+    expect(result.state).toBe("simulado")
+    if(result.state!=="simulado")return
+    expect(result.monthlyCmvByLine.noventa).toHaveLength(12)
+    expect(result.monthlyNewPurchasesByLine.noventa).toHaveLength(12)
+    for(let month=0;month<12;month++){
+      expect(result.monthlyCmvByLine.noventa[month]).toEqual([50,50,50,50])
+      expect(result.monthlyNewPurchasesByLine.noventa[month]).toHaveLength(4)
+      expect(result.monthlyNewPurchasesByLine.noventa[month].reduce((a,b)=>a+b,0))
+        .toBeCloseTo(result.monthlyNewPurchases.noventa[month],6)
+    }
+    expect(result.authorizesPurchases).toBe(false)
+  })
+
   it("repete a recuperação de vencidos em valor fixo a cada semana, como Fluxo B38", () => {
     const f = fixtures(0)
     const result = buildZacariniCashForecast({ today:start, references:f.rows, contracts:f.partial,

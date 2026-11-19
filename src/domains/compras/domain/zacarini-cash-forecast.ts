@@ -17,6 +17,7 @@ export type CashForecastInput = {
 }
 
 type ScenarioSeries = Record<CashScenario, number[]>
+type LineSeries = Record<CashScenario, number[][]>
 type WeekSeries = Record<CashScenario, { withPurchases: number[]; withoutPurchases: number[] }>
 export type CashForecastResult =
   | { state: "indisponivel"; reasons: string[]; authorizesPurchases: false }
@@ -25,7 +26,11 @@ export type CashForecastResult =
     minimum13WithPurchases: number; minimum13WithoutPurchases: number;
     minimum12: number; minimumWorst12: number; monthlyWorst: number[];
     final12: number; safetyFloor: number;
-    monthlyNewPurchases: ScenarioSeries }
+    monthlyNewPurchases: ScenarioSeries;
+    /** CMV por competência e linha 1–4; entrada da prévia da OTB. */
+    monthlyCmvByLine: LineSeries;
+    /** Reposição por competência e linha 1–4, sem entradas pendentes confirmadas. */
+    monthlyNewPurchasesByLine: LineSeries }
 
 const DAY = 86400000
 const dateMs = (iso: string) => Date.parse(`${iso}T00:00:00.000Z`)
@@ -133,6 +138,8 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
   const weekly = {} as WeekSeries
   const monthly = {} as ScenarioSeries
   const monthlyNewPurchases = {} as ScenarioSeries
+  const monthlyCmvByLine = {} as LineSeries
+  const monthlyNewPurchasesByLine = {} as LineSeries
   const calendarMonths = months.map(m => m.month)
   const floor = config.minimo_caixa
   // Projeção 12M!C801:C807 (PIOR CASO CORRETO): o plano de compras se mantém,
@@ -181,6 +188,7 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
     })
     const purchasePayments = new Array<number>(dayCount).fill(0)
     const purchases = new Array<number>(12).fill(0)
+    const purchasesByLine = Array.from({length:12},()=>[0,0,0,0])
     for (let m=0;m<12;m++) {
       const ms = addMonths(baseMonthMs,m)
       const activeStart = Math.max(ms,todayMs)
@@ -200,12 +208,15 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
         const toOrder = Math.max(0,cost+targetStock-inventory[l-1])
         inventory[l-1] = Math.max(0,inventory[l-1]+toOrder-cost)
         purchases[m] += toOrder
+        purchasesByLine[m][l-1] = toOrder
         const delay = config[`prazo_pagamento_linha_${l}`]
         const dueIndex = Math.round((activeStart+delay*DAY-todayMs)/DAY)
         if (dueIndex>=0 && dueIndex<dayCount) purchasePayments[dueIndex] += toOrder
       }
     }
     monthlyNewPurchases[scenario] = purchases
+    monthlyNewPurchasesByLine[scenario] = purchasesByLine
+    monthlyCmvByLine[scenario] = months.map(m => [...m.cmv[scenario]])
 
     const simulate = (source: "weekly"|"monthly", buy: boolean) => {
       let balance = contracts.openingCash!
@@ -264,7 +275,8 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
   ]
   return {
     state: "simulado", authorizesPurchases: false, warnings, monthLabels: calendarMonths,
-    weekly, monthly, monthlyWorst, monthlyNewPurchases, safetyFloor: floor,
+    weekly, monthly, monthlyWorst, monthlyNewPurchases, monthlyCmvByLine,
+    monthlyNewPurchasesByLine, safetyFloor: floor,
     minimum13WithPurchases: Math.min(...weekly.noventa.withPurchases.slice(0,13)),
     minimum13WithoutPurchases: Math.min(...weekly.noventa.withoutPurchases.slice(0,13)),
     minimum12: Math.min(...monthly.noventa), minimumWorst12: Math.min(...monthlyWorst),

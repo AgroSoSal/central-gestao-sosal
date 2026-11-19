@@ -1,7 +1,8 @@
 -- Projeção ABC de 90 dias conforme ABCEstoque_DDE, versão 2.3.7.
 -- Somente leitura: painel.mv_abc_janelas e painel.produtos. Não usa Excel em execução.
--- As 60 premissas por SKU abaixo são uma transcrição VERSIONADA da aba
--- Produção Própria, nunca uma homologação de preço/custo ou autorização de compra.
+-- Os custos próprios são lidos de compras_dashboard_config_237: valores
+-- versionados da aba Produção Própria, sem acesso ao Excel em execução.
+-- Premissas de referência não homologam preço/custo nem autorizam compra.
 -- Coxim: base ano passado, mas não comparável para crescimento.
 -- Anastácio: base últimos 90 dias, não comparável.
 -- Bandeirantes/Campo Grande/Pedro Gomes/Rio Verde: comparáveis.
@@ -29,21 +30,16 @@ begin
   end if;
 
   return query
-  with custo_proprio(produto_cod,custo_extra_unidade) as (
-    values
-      ('373',6::numeric),('1288',6),('1700',6),('2088',6),('2089',6),
-      ('2223',0.2),('2531',6),('2532',6),('2798',0.2),('4956',6),
-      ('4970',5),('5388',6),('5389',6),('6892',6),('7339',6),
-      ('7374',6),('7375',6),('7380',6),('7432',6),('7446',6),
-      ('7767',6),('8033',6),('8288',6),('8346',6),('100131',6),
-      ('100133',6),('100694',6),('103236',0.2),('103238',6),('103310',6),
-      ('103354',6),('103410',0.2),('103413',6),('103587',0.2),('103759',0.2),
-      ('103764',0.2),('104647',0.2),('104742',6),('104883',6),('104884',6),
-      ('105279',5),('105285',5),('105301',6),('105790',6),('105831',6),
-      ('106060',6),('106117',6),('106143',6),('106181',0.2),('106272',5),
-      ('20202756',6),('20203102',6),('20203104',6),('20203105',6),
-      ('20203106',6),('20203108',1),('20203113',1),('20203116',1),
-      ('20203117',6),('20204601',6)
+  with custo_proprio as (
+    select c.dimensao as produto_cod, c.valor as custo_extra_unidade
+    from public.compras_dashboard_config_237 c
+    where c.grupo = 'producao_referencia'
+      and c.codigo = 'producao_custo_extra_un_' || c.dimensao
+      and c.competencia is null
+      and c.versao = '2.3.7'
+      and c.situacao in ('referencia','homologado')
+      and c.origem_aba = 'Produção Própria'
+      and c.valor >= 0
   ), fonte as (
     select a.produto_cod, a.grupo_subgrupo, a.loja,a.qtde_90d,a.venda_90d,
       a.custo_90d,a.qtde_base_aa,a.qtde_prox_aa,a.venda_prox_aa,

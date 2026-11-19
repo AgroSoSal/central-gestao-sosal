@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react"
 import { Calculator, ClipboardCopy, Save } from "lucide-react"
 import { calculateOwnProductionCost } from "@/domains/compras/domain/stock-liquidation"
+import type { OwnProductionReference237 } from "@/domains/compras/domain/own-production-reference-237"
 import { saveOwnProductionDraft, type OwnProductionSaveState } from "@/app/compras/producao-propria/actions"
 
 type Product = {produto_cod:string;descricao:string;grupo_subgrupo:string;marca:string;qtde_estoque:number|string|null;valor_estoque:number|string|null}
@@ -12,7 +13,7 @@ const qty=new Intl.NumberFormat("pt-BR",{maximumFractionDigits:2})
 function number(input:string):number|null {if(input.trim()==="")return null;const n=Number(input.replace(",","."));return Number.isFinite(n)&&n>=0?n:null}
 
 const idle:OwnProductionSaveState={status:"idle",message:""}
-export function OwnProductionCalculator({products,drafts=[],savingEnabled=true}:{products:Product[];drafts?:Draft[];savingEnabled?:boolean}) {
+export function OwnProductionCalculator({products,drafts=[],references=[],savingEnabled=true}:{products:Product[];drafts?:Draft[];references?:OwnProductionReference237[];savingEnabled?:boolean}) {
   const initialDraft=drafts.find(x=>x.produto_cod===products[0]?.produto_cod)
   const [saveState,saveAction,isSaving]=useActionState(saveOwnProductionDraft,idle)
   const [productCode,setProductCode]=useState(products[0]?.produto_cod??"")
@@ -24,6 +25,7 @@ export function OwnProductionCalculator({products,drafts=[],savingEnabled=true}:
   const [copied,setCopied]=useState(false)
   const product=products.find(p=>p.produto_cod===productCode)??products[0]
   const savedDraft=drafts.find(x=>x.produto_cod===product?.produto_cod)
+  const reference=references.find(x=>x.produto_cod===product?.produto_cod)
   const unitIndustrial=calculateOwnProductionCost(number(weight),number(industrial))
   const unitFreight=freight.trim()?calculateOwnProductionCost(number(weight),number(freight)):0
   const extra=unitIndustrial!==null&&unitFreight!==null?unitIndustrial+unitFreight:null
@@ -60,6 +62,7 @@ export function OwnProductionCalculator({products,drafts=[],savingEnabled=true}:
         <textarea name="observacao" maxLength={500} value={notes} onChange={e=>setNotes(e.target.value)} rows={2} placeholder="Fonte do peso, negociação, fornecedor e responsável pela conferência" className="erp-field mt-2 w-full p-3"/>
       </label>
       <p className="mt-3 text-xs text-slate-400">{savedDraft?`Rascunho cadastrado em ${new Date(savedDraft.atualizado_em).toLocaleString("pt-BR")}. Se alterar e salvar, será criada outra versão auditada.`:"Produto sem parâmetros técnicos cadastrados."}</p>
+      {reference&&<div role="note" className="mt-4 rounded-xl border border-cyan-400/25 bg-cyan-400/5 p-4 text-xs leading-6 text-cyan-100"><strong>Referência do Alex · Gestão Zacarini 2.3.7:</strong> {qty.format(reference.peso_kg)} kg/unidade · custo adicional conjunto de industrialização e frete: <strong>{currency.format(reference.custo_extra_unidade)}/unidade</strong>. Origem: Produção Própria!{reference.origem_peso}/{reference.origem_custo}. <span className="text-amber-200">Valor histórico de referência, não homologado e não preenchido automaticamente como custo técnico.</span></div>}
       <div className="mt-6 grid gap-3 md:grid-cols-3">
         <div className="rounded-xl border border-cyan-300/20 bg-cyan-400/5 p-5"><p className="text-[11px] uppercase tracking-wider text-slate-400">Industrialização/un</p><p className="mt-3 text-2xl font-bold text-cyan-200">{unitIndustrial===null?"—":currency.format(unitIndustrial)}</p></div>
         <div className="rounded-xl border border-cyan-300/20 bg-cyan-400/5 p-5"><p className="text-[11px] uppercase tracking-wider text-slate-400">Custo extra total/un</p><p className="mt-3 text-2xl font-bold text-white">{extra===null?"—":currency.format(extra)}</p></div>

@@ -59,7 +59,7 @@ export function interpretOtbStockPosition(data: unknown, error: unknown): OtbSto
     const count = decimal(r.sku_count)
     const date = r.ultima_atualizacao
     if (typeof line !== "number" || !Number.isInteger(line) || line < -1 || line > 4
-      || typeof subgroup !== "string" || !subgroup.trim() || subgroup.length > 250
+      || typeof subgroup !== "string" || subgroup.length > 250
       || stock === null || count === null || !Number.isSafeInteger(count) || count < 0
       || (cost === null && r.cmv_90d !== null)
       || typeof date !== "string" || !Number.isFinite(new Date(date).getTime())) return unavailable
@@ -74,7 +74,9 @@ export function interpretOtbStockPosition(data: unknown, error: unknown): OtbSto
     if (cost === null) incompleteCmv = true
     else cmv90d += cost
     subgroups.push({
-      line, subgroup, stockCost: stock, cmv90d: cost, skuCount: count,
+      // O SISCOM registra saídas do código 0 com grupo_subgrupo vazio.
+      // Identificar a origem sem ocultar seus valores nem invalidar toda a foto.
+      line, subgroup: subgroup.trim() || "SEM SUBGRUPO", stockCost: stock, cmv90d: cost, skuCount: count,
       observedDde: cost !== null && cost > 0 ? (stock / cost) * 90 : null,
     })
   }

@@ -31,11 +31,19 @@ describe("dashboard de caixa", () => {
         data_saldo_base:"2026-11-11",saldo_base:1000,data_arquivo:"2026-11-18",
         diferenca_arquivo:0,conciliado:false }]}
       contractedWeeks={weeks} contractedMonths={months} errors={{}}
+      pendingOrdersQuality={{ itens_pendentes:4864, pedidos_pendentes:1200,
+        valor_pendente:62563205.79, itens_sem_grupo:1043, valor_sem_grupo:4239210.41,
+        itens_sem_previsao:4864, itens_sem_condicao:1140, itens_com_previsao_futura:0,
+        data_pedido_mais_antigo:"2025-01-02", ultima_conciliacao:"2026-11-19T14:22:05Z" }}
     />)
     expect(html).toContain("Títulos a receber · 13 semanas")
     expect(html).toContain("Fornecedores a pagar · 13 semanas")
     expect(html).toContain("Títulos a receber · 12 meses")
     expect(html).not.toContain("Saldo final · títulos 12M")
     expect(html).not.toContain("Menor saldo · títulos 12M")
+    expect(html).toContain("Menor saldo · Pior caso correto 12M")
+    expect(html).toContain("Pedidos pendentes sem previsão validada")
+    expect(html).toContain("4.864")
+    expect(html).toContain("62.563.206")
   })
 })

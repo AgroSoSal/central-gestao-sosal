@@ -46,7 +46,7 @@ async function Content({ searchParams }: Props) {
     ? params.mes : now.month
   const competencia = `${month}-01`
 
-  const [config, sales, position, stock, bank, weeks, months] = await Promise.all([
+  const [config, sales, position, stock, bank, weeks, months, ordersQuality] = await Promise.all([
     supabase.rpc("fn_compras_dashboard_config_237"),
     supabase.rpc("fn_compras_dashboard_vendas_237", { p_competencia: competencia }),
     supabase.rpc("fn_compras_dashboard_posicao_237"),
@@ -54,6 +54,7 @@ async function Content({ searchParams }: Props) {
     supabase.rpc("fn_otb_extratos_posicao_237"),
     supabase.rpc("fn_compras_dashboard_agenda_26s_237", { p_inicio: now.today }),
     supabase.rpc("fn_otb_agenda_contratada_12m_237", { p_inicio: `${now.month}-01` }),
+    supabase.rpc("fn_compras_dashboard_pedidos_qualidade_237"),
   ])
 
   return <ComprasExecutiveDashboard
@@ -67,12 +68,14 @@ async function Content({ searchParams }: Props) {
     today={now.today}
     contractedWeeks={weeks.error ? [] : (weeks.data ?? []) as ContractedWeek[]}
     contractedMonths={months.error ? [] : (months.data ?? []) as ContractedMonth[]}
+    pendingOrdersQuality={ordersQuality.error ? null : (ordersQuality.data?.[0] ?? null)}
     errors={{
       premissas: config.error?.message ?? null, vendas: sales.error?.message ?? null,
       posicao: position.error?.message ?? null, estoque: stock.error?.message ?? null,
       extratos: bank.error?.message ?? null,
       agenda26s: weeks.error?.message ?? null,
       agenda12m: months.error?.message ?? null,
+      pedidosPendentes: ordersQuality.error?.message ?? null,
     }}
   />
 }

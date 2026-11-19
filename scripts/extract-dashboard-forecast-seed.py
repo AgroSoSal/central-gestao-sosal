@@ -6,7 +6,7 @@ premissas (situacao='referencia'), nunca valores aprovados ou caixa calculado.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
@@ -53,6 +53,9 @@ def seed(book: Path) -> str:
     for code, cell, unit in [
         ("folha_mensal", "B12", "R$"), ("encargos_mensais", "B15", "R$"),
         ("decimo_terceiro_2026", "B18", "R$"),
+        ("salarios_base_2026", "B75", "R$"),
+        ("decimo_terceiro_parcela_1", "B78", "R$"),
+        ("decimo_terceiro_parcela_2", "B79", "R$"),
         ("despesas_pct", "B114", "fração"), ("impostos_pct", "B115", "fração"),
     ]:
         add(code, weekly[cell], "Fluxo de Caixa", cell, unit=unit)
@@ -67,6 +70,28 @@ def seed(book: Path) -> str:
                                   ("atraso_recebimento_semanas", "I", "semanas")]:
             cell = f"{col}{row}"
             add(f"{prefix}_{band}", weekly[cell], "Fluxo de Caixa", cell, unit=unit)
+
+    # Fluxo B33: metas por MÊS COMERCIAL (dia 26 a 25). O mês comercial
+    # é escolhido pelo meio da semana menos 25 dias; não é o mês calendário.
+    commercial_targets: dict[str, tuple[float, str]] = {}
+    for col in [*(chr(i) for i in range(ord("B"), ord("Z") + 1)), "AA"]:
+        base = date(1899, 12, 30) + timedelta(days=int(weekly[f"{col}28"]))
+        basis = base + timedelta(days=3 - 25)
+        month_key = month(basis.year, basis.month + 1)
+        value = weekly[f"{col}33"]
+        if month_key in commercial_targets:
+            assert abs(commercial_targets[month_key][0] - value) < 0.01
+        else:
+            commercial_targets[month_key] = (value, f"{col}33")
+    for competence, (value, cell) in commercial_targets.items():
+        add("fluxo_meta_comercial_mes", value, "Fluxo de Caixa", cell, competence=competence)
+    for index, col in enumerate("EFGHIJKLMNOP"):
+        cell = f"{col}499"
+        add("fluxo_extra_saude_mes", premises[cell], "Premissas 12M", cell,
+            competence=month(2026, 11 + index))
+    # Checagem independente contra o valor cacheado de Fluxo de Caixa!B34.
+    november_week = commercial_targets["2026-11-01"][0]
+    assert abs((november_week * weekly["B8"] + premises["E499"]) * 7 / 31 - weekly["B34"]) < .02
 
     scenario_rows = {
         "noventa": (81, 83), "plano": (181, 183), "historico": (281, 283),
@@ -86,7 +111,7 @@ def seed(book: Path) -> str:
             add(f"proj_cmv_base_linha_{line}", twelve[cell], "Projeção 12M", cell,
                 competence=competence, dimension=str(line))
 
-    assert len(rows) == 5 + 4 + 8 + 12 * (3 * 5 + 4)
+    assert len(rows) == 8 + 4 + 8 + 12 * (3 * 5 + 4) + len(commercial_targets) + 12
     return """-- Importação única da Gestão Zacarini 2.3.7, não uma ligação com Excel.
 -- Só inputs e curvas (NUNCA saldos finais calculados). Situação: referência.
 -- Não sobrescrever ajustes já existentes no Supabase.

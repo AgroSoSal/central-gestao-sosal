@@ -34,6 +34,25 @@ export const DASHBOARD_BLOCKS: readonly { id: DashboardBlockId; titulo: string; 
   { id: "graficos", titulo: "Tendências de caixa, vendas, margens e resultados", indicadores: ["saldo_13_semanas", "cenarios_12m", "vendas_meta", "margens", "ebitda", "lucro_liquido"] },
 ] as const
 
+/** Inventario extraido de xl/drawings/drawing1.xml (aba Dashboard, 2.3.7).
+ *  Inclui as visualizacoes ainda sem serie financeira homologada.
+ */
+export const DASHBOARD_CHARTS = [
+  { id: "saldo_26_semanas", type: "linha", titulo: "Saldo de caixa semanal × mínimo (26 semanas)" },
+  { id: "vendas_por_loja", type: "barras", titulo: "Venda × meta do mês por loja" },
+  { id: "dde_por_linha", type: "barras", titulo: "DDE por linha: hoje × plano × meta final" },
+  { id: "estoque_parado_por_loja", type: "barras", titulo: "Estoque parado por loja" },
+  { id: "vendas_mes", type: "velocimetro", titulo: "Vendas do mês" },
+  { id: "vendas_ano", type: "velocimetro", titulo: "Vendas no ano" },
+  { id: "margem_bruta", type: "velocimetro", titulo: "Margem bruta" },
+  { id: "margem_ebitda", type: "velocimetro", titulo: "Margem EBITDA" },
+  { id: "lucro_liquido", type: "velocimetro", titulo: "Lucro líquido" },
+  { id: "saldo_12m", type: "linha", titulo: "Projeção 12M: saldo no fim do mês" },
+  { id: "verba_comprador", type: "barras", titulo: "Verba do comprador: já gravado × saldo" },
+].map(chart => ({ ...chart, origem_versao: "2.3.7" })) as readonly {
+  id: string; type: "linha" | "barras" | "velocimetro"; titulo: string; origem_versao: string
+}[]
+
 const absent: ReferenceValue = { valor: null, estado: "indisponivel", origem: null }
 
 export function dashboardReference(rows: readonly DashboardReferenceRow[], codigo: string, competencia: string | null): ReferenceValue {

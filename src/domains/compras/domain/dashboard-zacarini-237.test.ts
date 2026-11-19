@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   DASHBOARD_BLOCKS,
+  DASHBOARD_CHARTS,
   dashboardReference,
   metricWithTarget,
   summarizeDashboardSales,
@@ -15,6 +16,17 @@ const base: DashboardReferenceRow = {
 }
 
 describe("Dashboard Zacarini 2.3.7", () => {
+  it("mantém os onze gráficos e cinco velocímetros exatamente na ordem da aba", () => {
+    expect(DASHBOARD_CHARTS.map(c => [c.id, c.type])).toEqual([
+      ["saldo_26_semanas", "linha"], ["vendas_por_loja", "barras"],
+      ["dde_por_linha", "barras"], ["estoque_parado_por_loja", "barras"],
+      ["vendas_mes", "velocimetro"], ["vendas_ano", "velocimetro"],
+      ["margem_bruta", "velocimetro"], ["margem_ebitda", "velocimetro"],
+      ["lucro_liquido", "velocimetro"],
+      ["saldo_12m", "linha"], ["verba_comprador", "barras"],
+    ])
+    expect(DASHBOARD_CHARTS.every(c => c.origem_versao === "2.3.7")).toBe(true)
+  })
   it("cobre todos os blocos visíveis da aba Dashboard, inclusive DRE e lojas", () => {
     expect(DASHBOARD_BLOCKS.map((block) => block.id)).toEqual([
       "velocimetros", "caixa", "indicadores", "linhas", "lojas", "dre", "graficos",

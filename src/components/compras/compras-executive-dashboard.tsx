@@ -1,8 +1,9 @@
 import Link from "next/link"
-import { Activity, AlertTriangle, ArrowLeft, ArrowUpRight, BarChart3, CalendarDays,
+import { AlertTriangle, ArrowLeft, ArrowUpRight, CalendarDays,
   ChartNoAxesCombined, CheckCircle2, CircleHelp, Database, Landmark,
   ShieldCheck } from "lucide-react"
 import { ComprasSair } from "@/components/compras/compras-auth"
+import { GroupedBarsChart, PerformanceGauge, ProjectionChart } from "@/components/compras/dashboard-zacarini-charts"
 import { DASHBOARD_BLOCKS, dashboardReference, metricWithTarget, summarizeDashboardSales,
   type DashboardReferenceRow, type DashboardSalesRow } from "@/domains/compras/domain/dashboard-zacarini-237"
 
@@ -11,12 +12,10 @@ type Position = { filial: string; estoque_custo: number | string | null; cmv_90d
   carteira_vencida: number | string | null; percentual_vencido: number | string | null }
 type Stock = { linha: number; estoque_custo: number | string | null; cmv_90d: number | string | null;
   grupo_subgrupo: string; sku_count: number | string | null; ultima_atualizacao: string | null }
-type History = { mes: string; visao: string; linha: number; venda_bruta: number | string | null;
-  cmv: number | string | null; lucro: number | string | null }
 type Bank = { conta_ref: string; filial: string; banco: string; data_ultimo_saldo: string | null;
   ultimo_saldo: number | string | null; data_corte_comum: string | null; conciliado: boolean | null }
 type Props = { month: string; email: string; referenceRows: DashboardReferenceRow[]; salesRows: DashboardSalesRow[];
-  shopPositions: Position[]; stockRows: Stock[]; historicalRows: History[]; bankRows: Bank[];
+  shopPositions: Position[]; stockRows: Stock[]; bankRows: Bank[];
   errors: Record<string, string | null> }
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })
@@ -65,7 +64,7 @@ function Indicator({ label, value, target, note }: { label: string; value: strin
 }
 
 export function ComprasExecutiveDashboard({ month, email, referenceRows, salesRows, shopPositions,
-  stockRows, historicalRows, bankRows, errors }: Props) {
+  stockRows, bankRows, errors }: Props) {
   const date = `${month}-01`
   const totals = summarizeDashboardSales(salesRows)
   const activeTargets = [...Array.from({ length: 4 }, (_, i) => dashboardReference(referenceRows, `meta_linha_${i + 1}`, date)),
@@ -94,16 +93,6 @@ export function ComprasExecutiveDashboard({ month, email, referenceRows, salesRo
     ? shopPositions.reduce((sum, p) => sum + (number(p.carteira_vencida) ?? 0), 0) : null
   const bankWithBalances = !errors.extratos ? bankRows.filter(b => number(b.ultimo_saldo) !== null) : []
   const banksReconciled = bankWithBalances.length > 0 && bankWithBalances.every(b => b.conciliado === true)
-
-  const months = new Map<string, number>()
-  if (!errors.historico) for (const row of historicalRows) {
-    if (row.visao !== "vendido" || !/^\d{4}-\d{2}/.test(row.mes)) continue
-    const key = row.mes.slice(0, 7)
-    const val = number(row.venda_bruta)
-    if (val !== null) months.set(key, (months.get(key) ?? 0) + val)
-  }
-  const trend = [...months.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-8)
-  const maxTrend = Math.max(1, ...trend.map(([, value]) => value))
 
   const dateLabel = new Date(`${date}T12:00:00Z`).toLocaleDateString("pt-BR", { timeZone: "UTC", month: "long", year: "numeric" })
 
@@ -134,12 +123,12 @@ export function ComprasExecutiveDashboard({ month, email, referenceRows, salesRo
     {(Object.values(errors).some(Boolean) || referenceRows.length === 0) && <div role="alert" className="rounded-2xl border border-amber-300/25 bg-amber-950/20 p-5 text-sm leading-6 text-amber-100"><AlertTriangle size={18} className="mb-2" /> Algumas fontes ainda não retornaram dados para a dashboard. A tela mantém os blocos correspondentes, mas não presume metas, saldos ou margens. {referenceRows.length === 0 && "As premissas versionadas ainda não estão disponíveis na configuração do Supabase."}</div>}
 
     <Section id="velocimetros" detail={`Desempenho referente a ${dateLabel}; metas importadas como referência não equivalem a orçamento homologado.`}>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <Indicator label="Vendas do mês × meta" value={errors.vendas ? "—" : brl(totals.vendidoMes)} target={salesRatio.percentual} note={`Meta de referência: ${brl(targetMonth)} · atingimento ${pct(salesRatio.percentual)}`} />
-        <Indicator label="Vendas no ano" value={errors.vendas ? "—" : brl(totals.vendidoAno)} note="Meta anual homologada não encontrada; % da meta indisponível." />
-        <Indicator label="Margem bruta · saídas" value={errors.vendas ? "—" : pct(totals.margemBruta)} note="Lucro líquido de saída ÷ faturamento de saída, visão operacional." />
-        <Indicator label="Margem EBITDA" value="—" note="DRE orçado e realizado homologado ainda indisponível." />
-        <Indicator label="Lucro líquido" value="—" note="Resultado líquido oficial ainda indisponível." />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <PerformanceGauge label="Vendas do mês" value={salesRatio.percentual} headline={pct(salesRatio.percentual)} detail={`${brl(errors.vendas ? null : totals.vendidoMes)} de ${brl(targetMonth)} · meta de referência`} />
+        <PerformanceGauge label="Vendas no ano" value={null} headline={errors.vendas ? "—" : brl(totals.vendidoAno)} detail="Meta anual validada indisponível; não exibir % inventado." />
+        <PerformanceGauge label="Margem bruta" value={null} headline={errors.vendas ? "—" : pct(totals.margemBruta)} detail="Margem observada nas saídas. Comparação com meta pendente." />
+        <PerformanceGauge label="Margem EBITDA" value={null} headline="—" detail="Percentual orçado × realizado aguarda DRE homologada." />
+        <PerformanceGauge label="Lucro líquido" value={null} headline="—" detail="Resultado ÷ orçamento aguarda fechamento oficial." />
       </div>
     </Section>
 
@@ -209,13 +198,24 @@ export function ComprasExecutiveDashboard({ month, email, referenceRows, salesRo
       <div className="mt-4 text-xs text-amber-200"><Missing reason="Orçamento e resultado contábil homologados pendentes" /></div>
     </Section>
 
-    <Section id="graficos" title="Gráficos — vendas, margens e projeções" detail="Vendas mensais reais por competência. Projeções de caixa, EBITDA e lucro aguardam fonte financeira oficial; nenhuma curva foi estimada a partir do Excel.">
+    <Section id="graficos" title="Galeria de gráficos — mesma organização do Excel" detail="Seis gráficos maiores: duas linhas e quatro barras, acompanhando os cinco velocímetros do topo. As séries disponíveis vêm apenas do Supabase.">
       <div className="grid gap-5 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-700/50 bg-[#0b1524] p-5"><h3 className="flex items-center gap-2 text-sm font-bold"><BarChart3 size={17} className="text-cyan-300" /> Vendas mensais · Supabase</h3>
-          {trend.length ? <div className="mt-7 flex h-52 items-end gap-3">{trend.map(([key, val]) => <div className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2" key={key}><span className="text-[10px] font-semibold text-slate-300 opacity-0 transition group-hover:opacity-100">{brl(val)}</span><div className="w-full max-w-16 rounded-t-lg bg-gradient-to-t from-blue-600 to-cyan-400" style={{ height: `${Math.max(2, val / maxTrend * 160)}px` }} title={`${key}: ${brl(val)}`} /><span className="text-[10px] text-slate-400">{key.slice(5)}/{key.slice(2,4)}</span></div>)}</div> : <p className="mt-7 text-xs text-amber-200">Histórico indisponível para o período.</p>}
-        </div>
-        <div className="rounded-2xl border border-slate-700/50 bg-[#0b1524] p-5"><h3 className="flex items-center gap-2 text-sm font-bold"><Activity size={17} className="text-cyan-300" /> Cenários de caixa 13 semanas e 12M</h3><div className="mt-7 flex h-52 flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-amber-300/20 bg-amber-400/[.025] px-8 text-center"><CircleHelp size={28} className="text-amber-300"/><p className="max-w-sm text-xs leading-6 text-slate-300">Cenários projetados ainda não homologados no Supabase. A curva será exibida quando houver dados reais de planejamento, sem vínculo com o arquivo Excel.</p></div></div>
+        <ProjectionChart title="Saldo de caixa semanal × mínimo (26 semanas)" subtitle="Três cenários: com OTB, sem compras e piso mínimo" legends={["Com OTB", "Sem compras", "Mínimo de segurança"]} />
+        <GroupedBarsChart title="Venda × meta do mês por loja" subtitle={`${dateLabel} · realizado SISCOM × referência do Alex`} labels={["Meta do mês", "Vendido"]} unit="money" rows={shops.map((s, i) => ({
+          label: ["Anast.", "Band.", "Campo G.", "Coxim", "Pedro G.", "Rio V."][i],
+          values: [dashboardReference(referenceRows, `meta_loja_${s.id}`, date).valor,
+            errors.vendas ? null : totals.lojas[s.id]?.vendidoMes ?? 0],
+        }))} />
+        <GroupedBarsChart title="DDE por linha: hoje × plano × meta final" subtitle="Comparação da posição de estoque a custo com a meta DDE da versão 2.3.7" labels={["DDE hoje", "Plano do mês", "Meta final"]} unit="days" rows={[1,2,3,4].map(id => {
+          const stock = stockByLine.get(id)
+          return { label: lines[id], values: [stock && stock.cmv > 0 ? stock.estoque * 90 / stock.cmv : null,
+            null, dashboardReference(referenceRows, `dde_alvo_linha_${id}`, null).valor] }
+        })} />
+        <GroupedBarsChart title="Estoque parado por loja" subtitle="Aguardando série comparável com os critérios da referência" labels={["Parado (R$)"]} unit="money" rows={shops.map((s, i) => ({ label: ["Anast.", "Band.", "Campo G.", "Coxim", "Pedro G.", "Rio V."][i], values: [null] }))} />
+        <ProjectionChart title="Projeção 12M — saldo no fim do mês" subtitle="Comparação dos cenários de caixa por mês" legends={["Base", "Conservador", "Estressado", "Piso mínimo"]} axisLabels={["M1", "M3", "M5", "M7", "M9", "M11", "M12"]} />
+        <ProjectionChart title="Verba do comprador: já gravado × saldo" subtitle="Orçamento de compra por linha após conciliação financeira" legends={["Verba liberada", "Pedidos gravados", "Saldo"]} type="barras" />
       </div>
+      <p className="mt-5 rounded-xl border border-amber-300/15 bg-amber-400/5 px-4 py-3 text-xs leading-6 text-amber-100">Os gráficos sem dados homologados não exibem curvas nem colunas estimadas. Isso preserva a disposição da planilha sem transformar histórico em projeção ou autorização de compra.</p>
     </Section>
 
     <section className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[.04] p-5 text-xs leading-6 text-slate-300">

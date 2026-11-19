@@ -14,6 +14,28 @@ const base={months:futureMonths,referenceMonths,projectedCmv,
 }
 
 describe("prévia da OTB por subgrupo independente da planilha",()=>{
+  it("usa OTB!D/E/F projetados por SKU, vendas entregues e pesos BH/BI para custo futuro",()=>{
+    const preview=buildOtbSubgroupPreview({...base,
+      projectedDeliveries:referenceMonths.map(()=>[200,400,600,800]),
+      positions:[
+        {...base.positions[0],projectedSales90d:600,projectedCmv90d:480,curveASales90d:500},
+        {...base.positions[1],projectedSales90d:400,projectedCmv90d:200,curveASales90d:200},
+      ],
+      historicalSales:[
+        {line:1,name:"1.LINHA / A",sales:[70000,3000,70000,10000]},
+        {line:1,name:"1.LINHA / B",sales:[30000,97000,30000,90000]},
+      ],
+    })
+    expect(preview.state).toBe("calculado")
+    if(preview.state!=="calculado")return
+    const a=preview.rows[0]
+    expect(preview.seasonality).toBe("venda_abc_237")
+    expect(a.share).toBeCloseTo(.6)
+    expect(a.seasonalWeights![0]).toBeCloseTo(.7)
+    expect(a.months![0].forecastCost).toBeCloseTo(200*.7*.8)
+    expect(a.months![0].targetStock).toBeCloseTo(200*(.6/(.6+.97))*.8*10/30)
+    expect(preview.authorizesPurchases).toBe(false)
+  })
   it("aplica as quatro janelas de venda entregue da Zacarini quando a fonte Master está disponível",()=>{
     const preview=buildOtbSubgroupPreview({...base,historicalSales:[
       {line:1,name:"1.LINHA / A",sales:[70000,3000,70000,10000]},

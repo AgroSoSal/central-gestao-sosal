@@ -1,19 +1,22 @@
 /** Necessidade de reposição física por subgrupo (prévia, nunca liberação financeira).
  * Equação OTB!S48/AB48/AK48 = MÁX(0, CMV previsto + estoque-alvo - estoque inicial).
  * A curva de venda entregue vem das quatro janelas fx_VendaSubgrupo da 2.3.7.
- * Até obter OTB!D por SKU, sua parcela média G usa CMV observado como PROXY,
- * sem transformar a prévia em verba ou cenário oficial.
+ * Quando a ABC de SKU está disponível, usa OTB!D/E/F para as vendas e CMV
+ * projetados e o custo previsto é entrega da linha × BH/BI/BJ × F.
+ * Sem fonte ABC a prévia permanece explicitamente PROXY, nunca verba.
  */
 
 import { calculateOtbSeasonalWeights, type OtbHistoricalGroup,
   type OtbSeasonalWindows } from "./otb-seasonal-weights"
 
-export type PreviewStockSubgroup = {line:number;subgroup:string;stockCost:number;cmv90d:number|null}
+export type PreviewStockSubgroup = {line:number;subgroup:string;stockCost:number;cmv90d:number|null;
+  projectedSales90d?:number;projectedCmv90d?:number;curveASales90d?:number}
 export type PreviewDdePlan = {grupo_subgrupo:string;competencia:string;dde_meta:number|string|null}
 export type PreviewSubgroupInput = {
   months: readonly [string,string,string]
   referenceMonths: readonly string[]
   projectedCmv: readonly (readonly number[])[]
+  projectedDeliveries?: readonly (readonly number[])[]
   positions: readonly PreviewStockSubgroup[]
   plans: readonly PreviewDdePlan[]
   fallbackDde: Readonly<Record<number,number>>
@@ -27,6 +30,7 @@ export type PreviewSubgroupMonth = {
 }
 export type PreviewSubgroupRow = {
   line:number;name:string;stockCost:number;cmv90d:number|null;share:number|null
+  projectedSales90d:number|null;projectedCmv90d:number|null;curveAShare:number|null
   targets:PreviewTarget[];months:PreviewSubgroupMonth[]|null;issue:string|null
   seasonalWeights:OtbSeasonalWindows|null
 }
@@ -34,7 +38,7 @@ export type OtbSubgroupPreview =
   | {state:"indisponivel";reason:string;authorizesPurchases:false}
   | {state:"calculado";months:readonly [string,string,string];rows:PreviewSubgroupRow[];
     totals:Record<number,(number|null)[]>;unmatchedPlanGroups:string[];
-    reconciledPlanGroups:string[];seasonality:"venda_entregue"|"cmv_90d";authorizesPurchases:false}
+    reconciledPlanGroups:string[];seasonality:"venda_abc_237"|"venda_entregue"|"cmv_90d";authorizesPurchases:false}
 
 const MONEY_TOLERANCE=1e-6
 /** Exportação legada substituiu cada caractere acentuado por um espaço literal.
@@ -72,6 +76,13 @@ export function buildOtbSubgroupPreview(input:PreviewSubgroupInput):OtbSubgroupP
   if(input.projectedCmv.some(row=>row.length!==4||row.some(value=>!nonnegative(value)))){
     return unavailable("CMV por linha indisponível ou inválido.")
   }
+  if(input.projectedDeliveries && (input.projectedDeliveries.length!==input.referenceMonths.length||
+    input.projectedDeliveries.some(row=>row.length!==4||row.some(value=>!nonnegative(value))))){
+    return unavailable("Vendas entregues projetadas por linha inválidas.")
+  }
+  const hasAbc=!!input.projectedDeliveries&&input.positions.every(row=>
+    row.projectedSales90d!==undefined&&nonnegative(row.projectedSales90d)&&
+    row.projectedCmv90d!==undefined&&nonnegative(row.projectedCmv90d))
   const seen=new Set<string>()
   for(const position of input.positions){
     const key=`${position.line}\0${position.subgroup}`
@@ -107,10 +118,10 @@ export function buildOtbSubgroupPreview(input:PreviewSubgroupInput):OtbSubgroupP
     planByKey.set(key,entries)
   }
   const unmatchedPlanGroups=plannedNames.filter(name=>!canonicalByPlan.has(name)).sort((a,b)=>a.localeCompare(b,"pt-BR"))
-  const seasonality=input.historicalSales===undefined?"cmv_90d":"venda_entregue"
+  const seasonality=input.historicalSales===undefined?"cmv_90d":hasAbc?"venda_abc_237":"venda_entregue"
   const seasonal=input.historicalSales===undefined?null:calculateOtbSeasonalWeights({
     groups:input.positions.map(row=>({line:row.line as 1|2|3|4,name:row.subgroup,
-      projected90Sales:row.cmv90d??0})),
+      projected90Sales:hasAbc?row.projectedSales90d!:row.cmv90d??0})),
     historical:input.historicalSales,
     minimumHistoricalSales:5000,
   })
@@ -130,9 +141,15 @@ export function buildOtbSubgroupPreview(input:PreviewSubgroupInput):OtbSubgroupP
     if(!groups.length){totals[line]=[null,null,null];continue}
     const completeCmv=groups.every(g=>g.cmv90d!==null)
     const lineCmv=completeCmv?groups.reduce((sum,g)=>sum+g.cmv90d!,0):0
+    const lineAbcSales=hasAbc?groups.reduce((sum,g)=>sum+g.projectedSales90d!,0):0
     for(const group of groups){
       const targets:PreviewTarget[]=[]
-      let issue:string|null=!completeCmv||lineCmv<=0?"CMV histórico incompleto na linha.":null
+      let issue:string|null=hasAbc?
+        lineAbcSales<=0?"Vendas projetadas ABC zeradas na linha.":null:
+        !completeCmv||lineCmv<=0?"CMV histórico incompleto na linha.":null
+      if(hasAbc&&group.projectedSales90d===0&&group.projectedCmv90d!>0){
+        issue="Custo ABC positivo sem venda projetada do subgrupo."
+      }
       for(const month of input.months){
         const values=planByKey.get(`${group.subgroup}\0${month}`)??[]
         const fallback=parsedDays(input.fallbackDde[line])
@@ -141,15 +158,19 @@ export function buildOtbSubgroupPreview(input:PreviewSubgroupInput):OtbSubgroupP
         if(days===null)issue=issue??"Meta DDE ausente para uma competência."
         else targets.push({days,source:values.length===1?"plano":"linha"})
       }
-      const share=issue===null?group.cmv90d!/lineCmv:null
+      const share=issue===null?hasAbc?group.projectedSales90d!/lineAbcSales:group.cmv90d!/lineCmv:null
       const seasonalWeights=bySeasonalGroup.get(`${line}\0${group.subgroup}`)??null
       let opening=group.stockCost
       const months:PreviewSubgroupMonth[]=[]
       if(share!==null&&targets.length===3){
         for(let i=0;i<3;i++){
           const forecastIndex=indexes[i]
-          const cost=input.projectedCmv[forecastIndex][line-1]*(seasonalWeights?.[i]??share)
-          const nextCosts=[1,2,3].reduce((sum,offset)=>sum+input.projectedCmv[forecastIndex+offset][line-1]*(seasonalWeights?.[i+1]??share),0)
+          const factor=hasAbc?group.projectedSales90d!>0?
+            group.projectedCmv90d!/group.projectedSales90d!:0:1
+          const monthlySource=hasAbc?input.projectedDeliveries!:input.projectedCmv
+          const cost=monthlySource[forecastIndex][line-1]*(seasonalWeights?.[i]??share)*factor
+          const nextCosts=[1,2,3].reduce((sum,offset)=>sum+
+            monthlySource[forecastIndex+offset][line-1]*(seasonalWeights?.[i+1]??share)*factor,0)
           const nextDays=[1,2,3].reduce((sum,offset)=>sum+monthDays(input.referenceMonths[forecastIndex+offset]),0)
           const targetStock=targets[i].days*nextCosts/nextDays
           const need=Math.max(0,cost+targetStock-opening)
@@ -160,6 +181,10 @@ export function buildOtbSubgroupPreview(input:PreviewSubgroupInput):OtbSubgroupP
         }
       }
       rows.push({line,name:group.subgroup,stockCost:group.stockCost,cmv90d:group.cmv90d,share,
+        projectedSales90d:hasAbc?group.projectedSales90d!:null,
+        projectedCmv90d:hasAbc?group.projectedCmv90d!:null,
+        curveAShare:hasAbc&&group.projectedSales90d!>0&&group.curveASales90d!==undefined?
+          group.curveASales90d/group.projectedSales90d!:null,
         targets,months:issue===null&&months.length===3?months:null,issue,seasonalWeights})
     }
     const current=rows.filter(r=>r.line===line)

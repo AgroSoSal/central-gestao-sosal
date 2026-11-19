@@ -16,6 +16,7 @@ import { nextOtbPurchaseNeeds } from "@/domains/compras/domain/otb-indicative-mo
 import { dashboardReference, type DashboardReferenceRow } from "@/domains/compras/domain/dashboard-zacarini-237"
 import { buildOtbSubgroupPreview, type OtbSubgroupPreview } from "@/domains/compras/domain/otb-subgroup-preview"
 import { interpretOtbSeasonalHistory } from "@/domains/compras/domain/otb-seasonal-source"
+import { interpretOtbAbcProjection } from "@/domains/compras/domain/otb-abc-projection-237"
 import { fetchOtbSubgroupPlans } from "@/domains/compras/domain/otb-subgroup-plan-source"
 import type { BankPositionRow, ContractedMonth } from "@/domains/compras/domain/otb-bank-readiness"
 
@@ -113,8 +114,12 @@ export async function OtbContent() {
   // janelas consolidadas de SAÍDA; não consulta diretamente vendas no navegador.
   const seasonalMonth=indicativeMonths?.[0]?.month??new Date(Date.UTC(Number(today("year")),Number(today("month")),1))
     .toISOString().slice(0,10)
-  const seasonalResponse=await supabase.rpc("fn_otb_venda_sazonal_237",{p_mes_otb:seasonalMonth})
+  const [seasonalResponse,abcResponse]=await Promise.all([
+    supabase.rpc("fn_otb_venda_sazonal_237",{p_mes_otb:seasonalMonth}),
+    supabase.rpc("fn_otb_abc_previsao_237",{p_data_base:todayISO}),
+  ])
   const seasonalHistory=interpretOtbSeasonalHistory(seasonalResponse.data,seasonalResponse.error,seasonalMonth)
+  const abcProjection=interpretOtbAbcProjection(abcResponse.data,abcResponse.error)
 
   let subgroupPreview:OtbSubgroupPreview|null=null
   if(indicativeMonths?.length===3&&forecast.state==="simulado"){
@@ -135,12 +140,35 @@ export async function OtbContent() {
           const target=dashboardReference(references,`dde_alvo_linha_${line}`,null).valor
           if(target!==null&&target>=0)fallbackDde[line]=target
         }
+        const abcByGroup=new Map<string,Extract<typeof abcProjection,{state:"conectado"}>["groups"][number]>(
+          abcProjection.state==="conectado"?
+          abcProjection.groups.map(group=>[`${group.line}\0${group.name}`,group] as const):[])
+        const positions=stockPosition.subgroups.filter(row=>row.line>=1&&row.line<=4).map(row=>{
+          const abc=abcByGroup.get(`${row.line}\0${row.subgroup}`)
+          return {line:row.line,subgroup:row.subgroup,stockCost:row.stockCost,cmv90d:row.cmv90d,
+            ...(abcProjection.state==="conectado"?{
+              projectedSales90d:abc?.projectedSales90??0,
+              projectedCmv90d:abc?.projectedCmv90??0,
+              curveASales90d:abc?.curveASales90??0,
+            }:{}),
+          }
+        })
+        if(abcProjection.state==="conectado"){
+          const stocked=new Set(positions.map(row=>`${row.line}\0${row.subgroup}`))
+          for(const abc of abcProjection.groups){
+            if(stocked.has(`${abc.line}\0${abc.name}`))continue
+            positions.push({line:abc.line,subgroup:abc.name,stockCost:0,cmv90d:0,
+              projectedSales90d:abc.projectedSales90,projectedCmv90d:abc.projectedCmv90,
+              curveASales90d:abc.curveASales90})
+          }
+        }
         subgroupPreview=buildOtbSubgroupPreview({
           months:nextMonths,referenceMonths:forecast.monthLabels,
           projectedCmv:forecast.monthlyCmvByLine.noventa,
-          positions:stockPosition.subgroups.filter(row=>row.line>=1&&row.line<=4).map(row=>({
-            line:row.line,subgroup:row.subgroup,stockCost:row.stockCost,cmv90d:row.cmv90d,
-          })),
+          ...(abcProjection.state==="conectado"?{
+            projectedDeliveries:forecast.monthlyDeliveriesByLine.noventa,
+          }:{}),
+          positions,
           plans:planSource.plans,fallbackDde,
           historicalSales:seasonalHistory.state==="conectado"?seasonalHistory.groups:undefined,
         })
@@ -150,7 +178,7 @@ export async function OtbContent() {
 
   return <OtbDashboard email={user.email ?? ""} purchaseSource={purchaseSource} historicalSource={historicalSource}
     stockPosition={stockPosition} indicativeMonths={indicativeMonths} subgroupPreview={subgroupPreview}
-    seasonalHistory={seasonalHistory}
+    seasonalHistory={seasonalHistory} abcProjection={abcProjection}
     forecastIssues={forecast.state==="indisponivel"?forecast.reasons:
       indicativeMonths?[]:["A referência da Projeção 12M não contém os três meses seguintes completos."]} />
 }

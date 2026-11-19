@@ -90,9 +90,11 @@ describe("projeção de caixa Zacarini 2.3.7", () => {
     expect(result.state).toBe("simulado")
     if(result.state!=="simulado")return
     expect(result.monthlyCmvByLine.noventa).toHaveLength(12)
+    expect(result.monthlyDeliveriesByLine.noventa).toHaveLength(12)
     expect(result.monthlyNewPurchasesByLine.noventa).toHaveLength(12)
     for(let month=0;month<12;month++){
       expect(result.monthlyCmvByLine.noventa[month]).toEqual([50,50,50,50])
+      expect(result.monthlyDeliveriesByLine.noventa[month]).toHaveLength(4)
       expect(result.monthlyNewPurchasesByLine.noventa[month]).toHaveLength(4)
       expect(result.monthlyNewPurchasesByLine.noventa[month].reduce((a,b)=>a+b,0))
         .toBeCloseTo(result.monthlyNewPurchases.noventa[month],6)

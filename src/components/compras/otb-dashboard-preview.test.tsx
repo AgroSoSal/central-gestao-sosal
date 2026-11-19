@@ -26,7 +26,7 @@ describe("OTB — prévia integrada da Projeção 12M e estoque",()=>{
       stockPosition={{status:"indisponivel",snapshotAt:null,stockCost:null,cmv90d:null,stockSkus:null,subgroups:[]}}
       indicativeMonths={[{month:"2026-12-01",amount:70},{month:"2027-01-01",amount:90},{month:"2027-02-01",amount:80}]}
       subgroupPreview={{state:"calculado",authorizesPurchases:false,seasonality:"cmv_90d",months:["2026-12-01","2027-01-01","2027-02-01"],unmatchedPlanGroups:[],reconciledPlanGroups:[],totals:{1:[70,80,90],2:[null,null,null],3:[null,null,null],4:[null,null,null]},rows:[
-        {line:1,name:"1.LINHA / MINERAL",stockCost:10,cmv90d:60,share:1,seasonalWeights:null,targets:[{days:20,source:"plano"},{days:20,source:"plano"},{days:20,source:"linha"}],issue:null,months:[
+        {line:1,name:"1.LINHA / MINERAL",stockCost:10,cmv90d:60,share:1,projectedSales90d:null,projectedCmv90d:null,curveAShare:null,seasonalWeights:null,targets:[{days:20,source:"plano"},{days:20,source:"plano"},{days:20,source:"linha"}],issue:null,months:[
           {month:"2026-12-01",openingStock:10,forecastCost:60,targetStock:20,need:70,closingStock:20},
           {month:"2027-01-01",openingStock:20,forecastCost:80,targetStock:20,need:80,closingStock:20},
           {month:"2027-02-01",openingStock:20,forecastCost:90,targetStock:20,need:90,closingStock:20},
@@ -34,7 +34,7 @@ describe("OTB — prévia integrada da Projeção 12M e estoque",()=>{
       ]}}/>)
     expect(html).toContain("Reposição por subgrupo")
     expect(html).toContain("1.LINHA / MINERAL")
-    expect(html).toContain("Participação histórica")
+    expect(html).toContain("CMV histórico como proxy")
     expect(html).toContain("Sem autorização de compras")
     expect(html).not.toContain("Projeção oficial do Supabase")
   })

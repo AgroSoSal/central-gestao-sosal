@@ -29,6 +29,8 @@ export type CashForecastResult =
     monthlyNewPurchases: ScenarioSeries;
     /** CMV por competência e linha 1–4; entrada da prévia da OTB. */
     monthlyCmvByLine: LineSeries;
+    /** Vendas entregues projetadas por linha: OTB!P/Y/AH aplica BH/BI/BJ sobre esta base. */
+    monthlyDeliveriesByLine: LineSeries;
     /** Reposição por competência e linha 1–4, sem entradas pendentes confirmadas. */
     monthlyNewPurchasesByLine: LineSeries }
 
@@ -139,6 +141,7 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
   const monthly = {} as ScenarioSeries
   const monthlyNewPurchases = {} as ScenarioSeries
   const monthlyCmvByLine = {} as LineSeries
+  const monthlyDeliveriesByLine = {} as LineSeries
   const monthlyNewPurchasesByLine = {} as LineSeries
   const calendarMonths = months.map(m => m.month)
   const floor = config.minimo_caixa
@@ -217,6 +220,7 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
     monthlyNewPurchases[scenario] = purchases
     monthlyNewPurchasesByLine[scenario] = purchasesByLine
     monthlyCmvByLine[scenario] = months.map(m => [...m.cmv[scenario]])
+    monthlyDeliveriesByLine[scenario] = months.map(m => [...m.deliveries[scenario]])
 
     const simulate = (source: "weekly"|"monthly", buy: boolean) => {
       let balance = contracts.openingCash!
@@ -275,7 +279,7 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
   ]
   return {
     state: "simulado", authorizesPurchases: false, warnings, monthLabels: calendarMonths,
-    weekly, monthly, monthlyWorst, monthlyNewPurchases, monthlyCmvByLine,
+    weekly, monthly, monthlyWorst, monthlyNewPurchases, monthlyCmvByLine,monthlyDeliveriesByLine,
     monthlyNewPurchasesByLine, safetyFloor: floor,
     minimum13WithPurchases: Math.min(...weekly.noventa.withPurchases.slice(0,13)),
     minimum13WithoutPurchases: Math.min(...weekly.noventa.withoutPurchases.slice(0,13)),

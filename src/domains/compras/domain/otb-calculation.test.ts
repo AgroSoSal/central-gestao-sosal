@@ -49,6 +49,21 @@ describe("OTB de três meses segundo Gestão Zacarini", () => {
     expect(result.months[0].directorReserve).toBeCloseTo(120, 2)
   })
 
+  it("inclui a matéria-prima S na governança 90/10 conforme OTB!P30 e Verba Comprador!E145", () => {
+    const result = calculateOtb(scenario({
+      cashCaps: [200, 200, 200],
+      mpNeeds: [100, 0, 0],
+      subgroups: [row({ forecastCost: [100, 0, 0] })],
+    }))
+
+    expect(result.months[0].mpReleased).toBe(100)
+    expect(result.months[0].releasedMerchandise).toBe(100)
+    expect(result.months[0].releasedTotal).toBe(200)
+    expect(result.months[0].buyerBudget).toBe(180)
+    expect(result.months[0].directorReserve).toBeCloseTo(20, 2)
+    expect(result.months[1].buyerBudget).toBe(0)
+  })
+
   it("carrega estoque de um mês ao seguinte", () => {
     const result = calculateOtb(scenario({ subgroups: [row({
       openingStock: 100, forecastCost: [60, 70, 80], targetStock: [100, 100, 100],

@@ -48,7 +48,11 @@ export function assessBankPosition(rows: BankPositionRow[], currentDate: string)
       warnings.push(`Base inconsistente para ${row.filial}.`)
     } else total += value
     const diff = row.diferenca_arquivo === null ? null : Number(row.diferenca_arquivo)
-    if (diff !== null && Number.isFinite(diff) && Math.abs(diff) <= 0.01) matched += 1
+    const arquivoCobreBase = !!row.data_arquivo && !!cutoff && Number.isFinite(dateDays(row.data_arquivo))
+      && dateDays(row.data_arquivo) >= dateDays(cutoff)
+      && dateDays(row.data_arquivo) <= dateDays(currentDate)
+    if (!arquivoCobreBase) warnings.push(`Arquivo bancário sem cobertura da data-base para ${row.filial}.`)
+    else if (diff !== null && Number.isFinite(diff) && Math.abs(diff) <= 0.01) matched += 1
     else warnings.push(`Saldo do arquivo sem conferência para ${row.filial}.`)
     if (row.conciliado) reconciled += 1
     if (row.data_ultimo_saldo && dateDays(currentDate) - dateDays(row.data_ultimo_saldo) > 2) stale += 1

@@ -32,3 +32,11 @@
 ## Condição de implementação fiel
 
 Conectar e validar as **demais** fontes numa API de somente leitura protegida por Master. Depois alimentar `calculateOtb` (já conferida com 1.833 comparações da planilha na auditoria anterior) com pedidos por entrega, MP e caixa aprovados. O painel somente pode marcar **OTB liberada** quando os dados e a autorização financeira estiverem homologados. As funções sazonais e ABC são consultas sem DML, autorizadas pelo usuário.
+
+## Bancada opcional de simulação enquanto o banco é atualizado
+
+- Na página `/compras/otb`, o Master pode escolher **Iniciar simulação de teste**. Os três tetos mensais de caixa e as três reservas de matéria-prima são parâmetros editáveis apenas na memória do navegador.
+- O modo reaproveita o mesmo serviço `calculateOtb`, inclusive a prioridade da matéria-prima, a curva A e o rateio global 90% / 10%. **Não há nova regra de aprovação ou escrita no Supabase**.
+- Quando existe prévia por subgrupo calculada no Supabase para os três meses, são utilizados somente os subgrupos com estoque e CMV/DDE válidos. Os registros incompletos são excluídos com contagem visível; a curva A não disponível assume **50% exclusivamente como hipótese de teste**. Pedidos anteriores, pedidos gravados e vendas casadas sem conciliação entram como zero **somente neste teste**.
+- Sem prévia utilizável, a bancada usa cinco subgrupos sintéticos explicitamente chamados `Exemplo`. Os tetos iniciais de R$ 120 mil, R$ 150 mil e R$ 180 mil e MP de R$ 15 mil, R$ 20 mil e R$ 25 mil são ilustrativos. Não pertencem à Zacarini nem correspondem ao orçamento da Só Sal.
+- O modo de teste é opt-in, pode ser encerrado, não possui gravação, pedido, aprovação ou homologação. Os indicadores oficiais continuam indisponíveis até que as fontes próprias tenham seus contratos completos e sejam homologadas. Atualizações futuras do banco alimentam a prévia sem alterar os exemplos ou a separação de estados.

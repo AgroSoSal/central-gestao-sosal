@@ -21,6 +21,14 @@ describe("conferência de extratos para a OTB", () => {
     expect(assessBankPosition([sample[0], { ...sample[0] }],"2026-11-19").state).toBe("divergente")
     expect(assessBankPosition([],"2026-11-19").state).toBe("indisponivel")
   })
+  it("exige arquivo bancário cobrindo a data comum antes de considerar o saldo transportado conferido", () => {
+    const semCobertura = [{ ...sample[0], data_arquivo: "2026-11-09", diferenca_arquivo: 0 }, sample[1]]
+    const avaliacao = assessBankPosition(semCobertura, "2026-11-19")
+    expect(avaliacao.state).toBe("divergente")
+    expect(avaliacao.openingCash).toBeNull()
+    expect(avaliacao.matchedArchives).toBe(1)
+    expect(avaliacao.warnings.join(" ")).toMatch(/arquivo|cobertura/i)
+  })
   it("mantém calendário de contratos informativo, sem autorizar teto", () => {
     const rows = Array.from({ length: 12 }, (_, i) => ({ mes: `2027-${String(i + 1).padStart(2,"0")}-01`, receber_identificado: "100", pagar_identificado: 80, titulos_receber: 2, titulos_pagar: 1, saldo_contratado_identificado: 20, ultima_importacao_pagar: "2026-11-19T12:00:00Z" }))
     expect(summarizeContractedSchedule(rows)).toEqual({ valid: true, receivables: 1200, payables: 960, net: 240 })

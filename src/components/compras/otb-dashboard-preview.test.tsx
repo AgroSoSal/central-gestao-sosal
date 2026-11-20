@@ -1,10 +1,30 @@
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe,expect,it,vi } from "vitest"
 import { OtbDashboard } from "./otb-dashboard"
+import { calculateOtb } from "@/domains/compras/domain/otb-calculation"
 
 vi.mock("@/components/compras/compras-auth",()=>({ComprasSair:()=>null}))
 
 describe("OTB — prévia integrada da Projeção 12M e estoque",()=>{
+  it("distingue a governança 90/10 global da verba final e das linhas sem MP",()=>{
+    const officialScenario = calculateOtb({
+      source:"Cenário de homologação", baseDate:"2026-11-19",
+      months:["2026-12-01","2027-01-01","2027-02-01"],
+      cashCaps:[200,200,200],mpNeeds:[100,0,0],buyerShare:0.9,
+      subgroups:[{line:"Nutrição",name:"Ração",kind:"S",openingStock:0,priorOrders:0,
+        forecastCost:[100,0,0],targetStock:[0,0,0],curveAShare:1,
+        alreadyRecorded:[0,0,0],tiedSalesApproved:[0,0,0]}],
+    })
+    const html=renderToStaticMarkup(<OtbDashboard email="master@sosal.com.br"
+      purchaseSource={{status:"indisponivel",itemCount:null,lastImportedAt:null}}
+      historicalSource={{status:"indisponivel",firstMonth:null,lastMonth:null,monthCount:null,totalRecords:null,excludedRecords:null,unmappedRecords:null,completeLast12Months:false}}
+      stockPosition={{status:"indisponivel",snapshotAt:null,stockCost:null,cmv90d:null,stockSkus:null,subgroups:[]}}
+      officialScenario={officialScenario}/>)
+    expect(html).toContain("Inclui a matéria-prima liberada no rateio global")
+    expect(html).toContain("não é a verba final após os cortes do comprador")
+    expect(html).toContain("matéria-prima não está distribuída por linha nesta tabela")
+  })
+
   it("exibe as quatro janelas reais da venda entregue, separadas da OTB liberada",()=>{
     const html=renderToStaticMarkup(<OtbDashboard email="master@sosal.com.br"
       purchaseSource={{status:"indisponivel",itemCount:null,lastImportedAt:null}}

@@ -1,6 +1,8 @@
-import {describe,expect,it} from "vitest"
-import {render,screen} from "@testing-library/react"
+import {afterEach,describe,expect,it} from "vitest"
+import {cleanup,render,screen} from "@testing-library/react"
 import {StockLiquidationDashboard, type StockLiquidationFilters, type StockLiquidationRow} from "./stock-liquidation-dashboard"
+
+afterEach(cleanup)
 
 const filters:StockLiquidationFilters={busca:"100",filial:"",linha:"",situacao:"todos",dde:60,pagina:1}
 const row:StockLiquidationRow={

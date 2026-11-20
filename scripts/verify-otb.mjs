@@ -4,12 +4,12 @@ import { calculateOtb } from "../src/domains/compras/domain/otb-calculation.ts"
 
 const months = ["2026-12-01", "2027-01-01", "2027-02-01"]
 const base = (overrides = {}) => ({
-  source: "Zacarini 2.2.24 — caso de teste sintético",
+  source: "Zacarini 2.3.7 — caso de teste sintético",
   baseDate: "2026-11-07",
   months,
   cashCaps: [1_000_000, 1_000_000, 1_000_000],
   mpNeeds: [0, 0, 0],
-  buyerShare: 0.85,
+  buyerShare: 0.9,
   subgroups: [],
   ...overrides,
 })
@@ -38,7 +38,19 @@ test("prioriza matéria-prima no teto mensal antes de mercadorias", () => {
   assert.equal(result.months[0].releasedTotal, 70)
 })
 
-test("curva A vem antes de outras curvas e verba 85/15 soma 100%", () => {
+test("inclui a matéria-prima uma vez no rateio global 90/10", () => {
+  const result = calculateOtb(base({
+    cashCaps: [200, 200, 200], mpNeeds: [100, 0, 0],
+    subgroups: [subgroup({ forecastCost: [100, 0, 0] })],
+  }))
+  assert.equal(result.months[0].mpReleased, 100)
+  assert.equal(result.months[0].releasedMerchandise, 100)
+  assert.equal(result.months[0].releasedTotal, 200)
+  assert.equal(result.months[0].buyerBudget, 180)
+  assert.ok(Math.abs(result.months[0].directorReserve - 20) < 0.01)
+})
+
+test("curva A vem antes de outras curvas e verba 90/10 soma 100%", () => {
   const result = calculateOtb(base({
     cashCaps: [1200, 1200, 1200],
     subgroups: [
@@ -49,8 +61,8 @@ test("curva A vem antes de outras curvas e verba 85/15 soma 100%", () => {
   assert.equal(result.months[0].releasedMerchandise, 1200)
   assert.equal(result.months[0].subgroups[0].released, 1000)
   assert.equal(result.months[0].subgroups[1].released, 200)
-  assert.equal(result.months[0].buyerBudget, 1020)
-  assert.ok(Math.abs(result.months[0].directorReserve - 180) < 0.01)
+  assert.equal(result.months[0].buyerBudget, 1080)
+  assert.ok(Math.abs(result.months[0].directorReserve - 120) < 0.01)
 })
 
 test("estoque do mês seguinte considera compras liberadas e custo consumido", () => {
@@ -93,6 +105,6 @@ test("recusa campos ausentes, meses desordenados e percentuais inválidos", () =
   assert.throws(() => calculateOtb(base({ cashCaps: [null, 100, 100] })), /teto/i)
   assert.throws(() => calculateOtb(base({ months: [months[1], months[0], months[2]] })), /meses/i)
   assert.throws(() => calculateOtb(base({ subgroups: [subgroup({ curveAShare: 1.5 })] })), /curva A/i)
-  assert.throws(() => calculateOtb(base({ buyerShare: 0.9 })), /85%/i)
+  assert.throws(() => calculateOtb(base({ buyerShare: 0.85 })), /90%/i)
   assert.throws(() => calculateOtb(base({ baseDate: "2026-02-31" })), /data-base/i)
 })

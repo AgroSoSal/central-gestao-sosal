@@ -17,6 +17,7 @@ import type { OtbSubgroupPreview } from "@/domains/compras/domain/otb-subgroup-p
 import type { OtbSeasonalHistory } from "@/domains/compras/domain/otb-seasonal-source"
 import type { OtbAbcProjection } from "@/domains/compras/domain/otb-abc-projection-237"
 import type { OtbConsignedStock } from "@/domains/compras/domain/otb-consigned-stock-237"
+import { buildOtbTestSimulation } from "@/domains/compras/domain/otb-test-simulation"
 
 type Props = {
   email: string
@@ -37,6 +38,8 @@ type Props = {
   consignedPosition?: OtbConsignedStock
   /** Resultado de fonte oficial, validado NO SERVIDOR. Nunca arquivo no navegador. */
   officialScenario?: OtbResult | null
+  /** Data-base do servidor, para manter a simulação estável e sem dependência do relógio do cliente. */
+  simulationBaseDate?: string
 }
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
 const percentage = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 1 })
@@ -61,13 +64,13 @@ function Balance({ value }: { value: number }) {
   return <span className={value < -0.005 ? "font-bold text-rose-300" : "font-semibold text-emerald-300"}>{money.format(value)}</span>
 }
 
-function Status({ value }: { value: string }) {
+function Status({ value, simulated = false }: { value: string; simulated?: boolean }) {
   const color = value === "LIBERADO" || value === "SEM NECESSIDADE"
     ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
     : value === "TRAVADO" || value === "ESTOUROU"
       ? "border-rose-300/25 bg-rose-400/10 text-rose-200"
       : "border-amber-300/25 bg-amber-400/10 text-amber-200"
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold tracking-wide ${color}`}>{value}</span>
+  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold tracking-wide ${color}`}>{simulated ? `${value} · TESTE` : value}</span>
 }
 
 function Metric({ label, value, sub, icon }: { label: string; value: string; sub: string; icon: ReactNode }) {
@@ -83,8 +86,20 @@ function Metric({ label, value, sub, icon }: { label: string; value: string; sub
   </div>
 }
 
-export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, indicativeMonths, forecastIssues, subgroupPreview, seasonalHistory, abcProjection, consignedPosition, officialScenario }: Props) {
-  const result = officialScenario ?? null
+export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, indicativeMonths, forecastIssues, subgroupPreview, seasonalHistory, abcProjection, consignedPosition, officialScenario, simulationBaseDate }: Props) {
+  const [testActive, setTestActive] = useState(false)
+  const [testCashCaps, setTestCashCaps] = useState<[string, string, string]>(["120000", "150000", "180000"])
+  const [testMpNeeds, setTestMpNeeds] = useState<[string, string, string]>(["15000", "20000", "25000"])
+  const validNumber = (value: string) => value.trim() !== "" && Number.isFinite(Number(value)) && Number(value) >= 0
+  const testValid = testCashCaps.every(validNumber) && testMpNeeds.every(validNumber)
+  const simulation = useMemo(() => testActive && testValid
+    ? buildOtbTestSimulation({
+      baseDate: simulationBaseDate ?? new Date().toISOString().slice(0, 10), preview: subgroupPreview,
+      cashCaps: testCashCaps.map(Number) as [number, number, number],
+      mpNeeds: testMpNeeds.map(Number) as [number, number, number],
+    }) : null,
+  [testActive, testValid, simulationBaseDate, subgroupPreview, testCashCaps, testMpNeeds])
+  const result = testActive ? simulation?.result ?? null : officialScenario ?? null
   const [monthIndex, setMonthIndex] = useState(0)
   const [lineFilter, setLineFilter] = useState("")
   const [kindFilter, setKindFilter] = useState("")
@@ -149,20 +164,64 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
       </div>
     </section>
 
+    <section className="erp-surface rounded-[24px] border border-amber-300/25 p-5 sm:p-7" aria-label="Bancada de simulação da OTB">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="max-w-3xl">
+          <p className="text-[10px] font-bold uppercase tracking-[.17em] text-amber-300">Modo teste · planilha Zacarini 2.3.7</p>
+          <h2 className="mt-2 text-xl font-bold text-white">Teste os cálculos sem atualizar o banco</h2>
+          <p className="mt-2 text-xs leading-6 text-slate-300">Simule as verbas dos próximos três meses, a prioridade da matéria-prima, a curva A e a divisão comprador 90% / diretoria 10%. Os subgrupos com prévia completa no Supabase entram no cálculo; se nenhum estiver pronto, usamos dados de exemplo identificados.</p>
+        </div>
+        <button type="button" onClick={() => { setTestActive(active => !active); setMonthIndex(0) }}
+          className="inline-flex h-11 items-center rounded-xl bg-amber-400 px-5 text-xs font-bold text-slate-950 transition hover:bg-amber-300">
+          {testActive ? "Encerrar simulação" : "Iniciar simulação de teste"}
+        </button>
+      </div>
+      {testActive && <>
+        <div role="status" aria-label="Simulação de teste ativa" className="mt-5 rounded-xl border border-amber-300/40 bg-amber-300/10 px-4 py-3 text-sm leading-6 text-amber-100">
+          <strong>Simulação de teste ativa — não autoriza compras.</strong> {simulation?.origin === "previa_supabase"
+            ? `Prévia do Supabase usada para ${simulation.result.months[0].subgroups.length} subgrupos; ${simulation.excludedGroups} grupo(s) incompleto(s) excluído(s).`
+            : "Cálculo com dados de exemplo, sem ligação com o orçamento real."}
+          {simulation?.origin === "previa_supabase" && simulation.assumedCurveAGroups > 0
+            ? ` Em ${simulation.assumedCurveAGroups} grupo(s), a curva A ausente foi assumida em 50% somente para testar.` : ""}
+          <span className="block text-xs text-amber-200">Tetos e matéria-prima abaixo são digitados para teste. Pedidos anteriores, já gravados e vendas casadas não estão conciliados nesta simulação (valor zero). Nenhum registro é gravado no Supabase.</span>
+        </div>
+        <div className="mt-5 grid gap-4 lg:grid-cols-2" aria-label="Premissas editáveis da simulação">
+          <fieldset className="grid grid-cols-3 gap-3">
+            <legend className="mb-3 text-sm font-bold text-slate-200">Teto mensal de caixa (R$)</legend>
+            {testCashCaps.map((value, index) => <label key={index} className="text-xs text-slate-300">Mês {index + 1}
+              <input aria-label={`Teto de caixa · mês ${index + 1}`} type="number" min="0" step="1000" inputMode="decimal"
+                className="erp-field mt-2 w-full px-3 tabular-nums" value={value}
+                onChange={event => setTestCashCaps(current => current.map((item, i) => i === index ? event.target.value : item) as [string, string, string])} />
+            </label>)}
+          </fieldset>
+          <fieldset className="grid grid-cols-3 gap-3">
+            <legend className="mb-3 text-sm font-bold text-slate-200">Reserva de matéria-prima (R$)</legend>
+            {testMpNeeds.map((value, index) => <label key={index} className="text-xs text-slate-300">Mês {index + 1}
+              <input aria-label={`Matéria-prima · mês ${index + 1}`} type="number" min="0" step="1000" inputMode="decimal"
+                className="erp-field mt-2 w-full px-3 tabular-nums" value={value}
+                onChange={event => setTestMpNeeds(current => current.map((item, i) => i === index ? event.target.value : item) as [string, string, string])} />
+            </label>)}
+          </fieldset>
+        </div>
+        {!testValid && <p role="alert" className="mt-3 text-sm font-semibold text-rose-300">Preencha os seis valores com números maiores ou iguais a zero para recalcular.</p>}
+      </>}
+    </section>
+
     <section className="erp-surface rounded-[24px] p-5 sm:p-7" aria-label="Origem e homologação da OTB">
       <div className="flex flex-wrap items-center justify-between gap-5">
         <div className="max-w-3xl">
           <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.17em] text-cyan-400"><Database size={14} /> Estado da integração</p>
-          <h2 className="mt-2 text-lg font-bold text-white">{result ? "Projeção oficial do Supabase" : indicativeMonths ? "Prévia operacional de reposição calculada" : "Aguardando a Projeção 12M do Supabase"}</h2>
+          <h2 className="mt-2 text-lg font-bold text-white">{testActive ? "OTB em simulação · sem homologação" : result ? "Projeção oficial do Supabase" : indicativeMonths ? "Prévia operacional de reposição calculada" : "Aguardando a Projeção 12M do Supabase"}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-400">
-            {result
+            {testActive ? "Os indicadores completos abaixo são apenas o resultado do motor de cálculo com premissas de teste. Os números não representam teto de caixa real, aprovação financeira nem liberação de pedidos."
+              : result
               ? `Cenário da fonte oficial do Supabase · origem ${result.source} · data-base ${dateBR(result.baseDate)}.`
               : indicativeMonths ? "Os volumes projetados por mês já podem ser consultados usando premissas 2.3.7 e dados atuais. Faltam a previsão de entrada dos pedidos, a matéria-prima e a conciliação do cenário de pior caso para transformar necessidade física em verba de compra."
                 : "O banco atual não oferece uma fonte validada para o teto mensal de pior caso, o DDE projetado e todas as premissas da Projeção 12M. Para evitar valores de compras incorretos, os indicadores ficam indisponíveis até a integração oficial."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <span className="inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-4 text-xs font-bold text-emerald-200"><Database size={16} /> Somente Supabase</span>
+          <span className="inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-4 text-xs font-bold text-emerald-200"><Database size={16} /> {testActive ? "Teste sem gravação" : "Somente Supabase"}</span>
           <Link href="/compras/otb/fluxo-caixa" className="inline-flex h-11 items-center gap-2 rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-4 text-xs font-bold text-cyan-200 hover:bg-cyan-400/20"><Wallet size={16}/> Extratos e fluxo 12M</Link>
           <Link href="/compras/cobertura" className="inline-flex h-11 items-center rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 px-5 text-xs font-bold text-white shadow-lg shadow-cyan-900/40 transition hover:brightness-110">Conferir o que falta</Link>
         </div>
@@ -346,22 +405,24 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
         </div>
       </section>
     </> : <>
-      <div role="status" className="flex flex-wrap items-center gap-2 rounded-xl border border-cyan-300/25 bg-cyan-400/10 px-4 py-3 text-xs leading-5 text-cyan-100"><ShieldCheck size={17} className="shrink-0" /> Cenário recebido exclusivamente da fonte oficial do Supabase. Nenhuma autorização de pedido é gerada automaticamente.</div>
+      <div role="status" className={`flex flex-wrap items-center gap-2 rounded-xl border px-4 py-3 text-xs leading-5 ${testActive ? "border-amber-300/40 bg-amber-400/10 text-amber-100" : "border-cyan-300/25 bg-cyan-400/10 text-cyan-100"}`}>
+        <ShieldCheck size={17} className="shrink-0" /> {testActive ? "RESULTADO SIMULADO: valores demonstrativos, sem orçamento aprovado ou autorização de pedido." : "Cenário recebido exclusivamente da fonte oficial do Supabase. Nenhuma autorização de pedido é gerada automaticamente."}
+      </div>
 
       <section className="erp-surface overflow-hidden rounded-[22px] p-2" aria-label="Selecionar mês da OTB">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {result!.months.map((entry, index) => <button key={entry.month} type="button" aria-pressed={monthIndex === index} onClick={() => { setMonthIndex(index); setLineFilter(""); setKindFilter(""); setSearch("") }} className={`rounded-2xl border px-5 py-4 text-left transition ${monthIndex === index ? "border-cyan-300/40 bg-cyan-400/15 shadow-[inset_0_1px_rgba(255,255,255,.06)]" : "border-transparent hover:border-[#334b68] hover:bg-[#15263b]"}`}>
             <p className="text-[10px] font-bold uppercase tracking-[.16em] text-slate-500">Mês {index + 1}</p>
             <p className={`mt-1 text-base font-bold capitalize ${monthIndex === index ? "text-cyan-200" : "text-slate-200"}`}>{monthLabel(entry.month)}</p>
-            <div className="mt-3"><Status value={entry.cashStatus} /></div>
+            <div className="mt-3"><Status value={entry.cashStatus} simulated={testActive} /></div>
           </button>)}
         </div>
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores de OTB do mês">
-        <Metric label="Teto de caixa" value={money.format(month.cashCap)} sub="Pior caso mensal da fonte informada" icon={<Wallet size={20} />} />
+        <Metric label={testActive ? "Teto digitado (teste)" : "Teto de caixa"} value={money.format(month.cashCap)} sub={testActive ? "Premissa editável, não saldo bancário" : "Pior caso mensal da fonte informada"} icon={<Wallet size={20} />} />
         <Metric label="Necessidade total" value={money.format(month.totalNeed)} sub="Matéria-prima + mercadorias" icon={<Warehouse size={20} />} />
-        <Metric label="Verba liberada" value={money.format(month.releasedTotal)} sub="Distribuição limitada pelo caixa" icon={<CheckCircle2 size={20} />} />
+        <Metric label={testActive ? "Verba calculada (teste)" : "Verba liberada"} value={money.format(month.releasedTotal)} sub={testActive ? "Valor hipotético, sem efeito em pedidos" : "Distribuição limitada pelo caixa"} icon={<CheckCircle2 size={20} />} />
         <Metric label="Saldo de mercadorias" value={money.format(month.freeBalance)} sub="Após pedidos, vendas casadas e excessos" icon={<ClipboardList size={20} />} />
       </section>
 
@@ -392,12 +453,12 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
             <div><dt className="text-xs text-slate-400">Comprador · 90%</dt><dd className="mt-2 text-xl font-bold text-cyan-200 tabular-nums">{money.format(month.buyerBudget)}</dd></div>
             <div><dt className="text-xs text-slate-400">Diretoria · 10%</dt><dd className="mt-2 text-xl font-bold text-violet-200 tabular-nums">{money.format(month.directorReserve)}</dd></div>
           </dl>
-          <p className="mt-5 text-xs text-slate-500">Divisão da verba liberada; não aumenta o limite mensal.</p>
+          <p className="mt-5 text-xs text-slate-500">Inclui a matéria-prima liberada no rateio global. Esta divisão não aumenta o limite mensal e não é a verba final após os cortes do comprador (caixa, DDE e limites por linha).</p>
         </article>
       </section>
 
       <section className="erp-surface overflow-hidden rounded-[24px]">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#25354e] p-5 sm:p-7"><div><p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.17em] text-cyan-300"><Layers3 size={14} /> Visão gerencial</p><h2 className="mt-2 text-xl font-bold">Orçamento por linha</h2><p className="mt-1 text-xs text-slate-400">O saldo da linha já considera excesso; não confundir com o saldo bruto do subgrupo.</p></div><Status value={month.cashStatus} /></div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#25354e] p-5 sm:p-7"><div><p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.17em] text-cyan-300"><Layers3 size={14} /> Visão gerencial</p><h2 className="mt-2 text-xl font-bold">Orçamento por linha</h2><p className="mt-1 text-xs text-slate-400">O saldo da linha já considera excesso; não confundir com o saldo bruto do subgrupo.</p>{month.mpReleased > 0 && <p className="mt-2 text-xs text-amber-200">A matéria-prima não está distribuída por linha nesta tabela, embora componha o rateio global de 90/10. Não use a soma das linhas como verba total aprovada.</p>}</div><Status value={month.cashStatus} simulated={testActive} /></div>
         <div className="overflow-x-auto"><table className="erp-table w-full min-w-[900px] text-left text-xs">
           <thead className="bg-[#121e30] text-[10px] uppercase tracking-wide text-slate-400"><tr><th className="px-5 py-4">Linha</th><th className="px-5 py-4 text-right">Liberado</th><th className="px-5 py-4 text-right">Comprador 90%</th><th className="px-5 py-4 text-right">Diretoria 10%</th><th className="px-5 py-4 text-right">Já gravado</th><th className="px-5 py-4 text-right">Excesso</th><th className="px-5 py-4 text-right">Saldo livre</th></tr></thead>
           <tbody className="divide-y divide-[#1c2b40]">{month.lines.map((line) => <tr key={line.line}><td className="px-5 py-4 font-semibold text-cyan-200">{line.line}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(line.released)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(line.buyerBudget)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(line.directorReserve)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(line.recorded)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(line.excess)}</td><td className="px-5 py-4 text-right tabular-nums"><Balance value={line.freeBalance} /></td></tr>)}
@@ -419,7 +480,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
         </div>
         <div className="overflow-x-auto"><table className="erp-table w-full min-w-[1880px] text-left text-xs">
           <thead className="bg-[#121e30] text-[10px] uppercase tracking-wide text-slate-400"><tr><th className="px-5 py-4">Linha / subgrupo</th><th className="px-5 py-4">Tipo</th><th className="px-5 py-4 text-right">Curva A</th><th className="px-5 py-4 text-right">Estoque inicial</th><th className="px-5 py-4 text-right">CMV previsto</th><th className="px-5 py-4 text-right">Estoque-alvo</th><th className="px-5 py-4 text-right">Necessidade</th><th className="px-5 py-4 text-right">Liberado</th><th className="px-5 py-4 text-right">Gravado</th><th className="px-5 py-4 text-right">Venda casada</th><th className="px-5 py-4 text-right">Excesso</th><th className="px-5 py-4 text-right">Saldo bruto</th><th className="px-5 py-4 text-right">Estoque projetado</th><th className="px-5 py-4">Situação</th></tr></thead>
-          <tbody className="divide-y divide-[#1c2b40]">{filtered.map((item) => <tr key={`${item.line}\0${item.name}`}><td className="max-w-64 px-5 py-4"><p className="text-[10px] font-bold text-cyan-300">{item.line}</p><p className="mt-1 font-semibold text-slate-100">{item.name}</p></td><td className="px-5 py-4 text-slate-300">{kindLabels[item.kind]}</td><td className="px-5 py-4 text-right tabular-nums">{percentage.format(item.curveAShare)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(item.openingStock)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(item.forecastCost)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(item.targetStock)}</td><td className="px-5 py-4 text-right font-semibold tabular-nums">{money.format(item.need)}</td><td className="px-5 py-4 text-right font-semibold text-cyan-200 tabular-nums">{money.format(item.released)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(item.recorded)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(item.tiedSales)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(item.excess)}</td><td className="px-5 py-4 text-right tabular-nums"><Balance value={item.freeBalance} /></td><td className="px-5 py-4 text-right tabular-nums">{money.format(item.closingStock)}</td><td className="px-5 py-4"><Status value={item.status} /></td></tr>)}
+          <tbody className="divide-y divide-[#1c2b40]">{filtered.map((item) => <tr key={`${item.line}\0${item.name}`}><td className="max-w-64 px-5 py-4"><p className="text-[10px] font-bold text-cyan-300">{item.line}</p><p className="mt-1 font-semibold text-slate-100">{item.name}</p></td><td className="px-5 py-4 text-slate-300">{kindLabels[item.kind]}</td><td className="px-5 py-4 text-right tabular-nums">{percentage.format(item.curveAShare)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(item.openingStock)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(item.forecastCost)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(item.targetStock)}</td><td className="px-5 py-4 text-right font-semibold tabular-nums">{money.format(item.need)}</td><td className="px-5 py-4 text-right font-semibold text-cyan-200 tabular-nums">{money.format(item.released)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(item.recorded)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(item.tiedSales)}</td><td className="px-5 py-4 text-right tabular-nums">{money.format(item.excess)}</td><td className="px-5 py-4 text-right tabular-nums"><Balance value={item.freeBalance} /></td><td className="px-5 py-4 text-right tabular-nums">{money.format(item.closingStock)}</td><td className="px-5 py-4"><Status value={item.status} simulated={testActive} /></td></tr>)}
             {!filtered.length && <tr><td colSpan={14} className="px-6 py-10 text-center text-slate-400">Nenhum subgrupo corresponde aos filtros.</td></tr>}
           </tbody>
         </table></div>

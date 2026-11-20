@@ -184,6 +184,6 @@ export async function OtbContent() {
   return <OtbDashboard email={user.email ?? ""} purchaseSource={purchaseSource} historicalSource={historicalSource}
     stockPosition={stockPosition} indicativeMonths={indicativeMonths} subgroupPreview={subgroupPreview}
     seasonalHistory={seasonalHistory} abcProjection={abcProjection} consignedPosition={consignedPosition}
-    forecastIssues={forecast.state==="indisponivel"?forecast.reasons:
+    simulationBaseDate={todayISO} forecastIssues={forecast.state==="indisponivel"?forecast.reasons:
       indicativeMonths?[]:["A referência da Projeção 12M não contém os três meses seguintes completos."]} />
 }

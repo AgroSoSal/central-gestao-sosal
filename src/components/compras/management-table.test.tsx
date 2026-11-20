@@ -31,6 +31,17 @@ describe("gestão tabular de pedidos", () => {
     expect(screen.getByRole("table")).toHaveTextContent("Retido")
   })
 
+  it("não apresenta pedido já pago com a sinalização de cancelado", () => {
+    render(<ManagementTable rows={[
+      { item: sample("77", "Pagamento realizado"), record: { loja: "SO SAL", pedido: "77", produto_codigo: "SKU77", decisao: "Já pago", observacao: null, atualizado_em: "2026-11-19", alteracoes: [] } },
+    ]} />)
+
+    fireEvent.click(screen.getByRole("button", { name: /Aprovados/ }))
+    const decision = within(screen.getByRole("table")).getByText("Já pago")
+    expect(decision).toHaveClass("text-violet-200")
+    expect(decision).not.toHaveClass("text-rose-200")
+  })
+
   it("abre a gestão em janela centralizada e fecha sem rolar a tabela", () => {
     render(<ManagementTable rows={[{ item: sample("1", "Sal mineral"), record: null }]} />)
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()

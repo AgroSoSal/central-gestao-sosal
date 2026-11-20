@@ -87,7 +87,7 @@ export function ManagementTable({ rows }: { rows: ManagementTableRow[] }) {
                   <td className="px-5 py-4 text-right tabular-nums text-cyan-200">{quantity.format(toNumber(item.quantidade_recebida))}</td>
                   <td className="px-5 py-4 text-right font-bold tabular-nums text-amber-200">{quantity.format(toNumber(item.quantidade_pendente))}</td>
                   <td className="whitespace-nowrap px-5 py-4 text-right font-bold text-amber-200">{item.valor_pendente === null ? "—" : money.format(toNumber(item.valor_pendente))}</td>
-                  <td className="px-5 py-4"><span className={`rounded-lg border px-2 py-1 text-[10px] font-bold ${record?.decisao === "Aprovado" ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200" : record ? "border-rose-400/20 bg-rose-400/10 text-rose-200" : "border-amber-400/20 bg-amber-400/10 text-amber-200"}`}>{decision}</span></td>
+                  <td className="px-5 py-4"><span className={`rounded-lg border px-2 py-1 text-[10px] font-bold ${record?.decisao === "Aprovado" ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200" : record?.decisao === "Já pago" ? "border-violet-400/20 bg-violet-400/10 text-violet-200" : record ? "border-rose-400/20 bg-rose-400/10 text-rose-200" : "border-amber-400/20 bg-amber-400/10 text-amber-200"}`}>{decision}</span></td>
                 </tr>
               })}
             </tbody>

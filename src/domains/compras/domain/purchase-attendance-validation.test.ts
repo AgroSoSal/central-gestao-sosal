@@ -21,6 +21,9 @@ describe("Atendimento Fornecedor 2.3.7 — fórmulas K21:K27",()=>{
   expect(cel({...ok,limitesAcumulados:[{data:"2026-12-01",limite:100},{data:"2027-01-01",limite:200}]},"K24")?.texto).toMatch(/2 parcela/)
  })
  it("K25 verifica linha, não total de rede",()=>expect(cel({...ok,verbasPorLinha:[{linha:"Saúde",valor:300,saldo:299}]},"K25")?.estado).toBe("erro"))
+ it("K24 acumula parcelas por vencimento mesmo se a fonte vier fora de ordem",()=>{
+  expect(cel({...ok,parcelas:[...ok.parcelas].reverse()},"K24")?.estado).toBe("ok")
+ })
  it("K26 detecta quantidades órfãs",()=>expect(cel({...ok,quantidadeOrfa:true},"K26")?.estado).toBe("erro"))
  it("K27 PODE GRAVAR só quando todas as verificações concluídas",()=>{
   expect(validarAtendimento(ok).decisao).toBe("pode_gravar")

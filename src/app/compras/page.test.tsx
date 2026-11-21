@@ -28,6 +28,7 @@ describe("consulta principal de compras", () => {
     expect(links[0]).toHaveAttribute("href", "/compras/gerenciar?busca=sal&loja=SO+SAL&inicio=2026-11-01&fim=2026-11-16")
     expect(screen.getByRole("link", { name: /Follow-up de entregas/i })).toHaveAttribute("href", "/compras/follow-up?busca=sal&loja=SO+SAL&inicio=2026-11-01&fim=2026-11-16")
     expect(screen.getByRole("link", { name: /Previsão de pagamentos/i })).toHaveAttribute("href", "/compras/previsao?busca=sal&loja=SO+SAL&inicio=2026-11-01&fim=2026-11-16")
+    expect(screen.getByRole("link", { name: /Entradas manuais SISCOM/i })).toHaveAttribute("href", "/compras/entradas-manuais")
     expect(screen.queryByText("Gerenciar", { exact: true })).not.toBeInTheDocument()
     expect(callLog.methods).toEqual(["fn_listar_pedidos_compra_conciliados"])
   })

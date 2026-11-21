@@ -88,7 +88,7 @@ async function Content({ searchParams }: { searchParams: Promise<Params> }) {
           Metas combinadas por subgrupo são consultadas no Supabase; sem meta manual, o DDE da posição de estoque é aproximado da meta básica pelos fatores mensais 30%, 55%, 75%, 87%, 95% e 100% da planilha.
           {metasResult.error&&<p className="mt-2 text-amber-200">Não foi possível consultar as metas do plano: as sugestões não foram homologadas.</p>}
         </div>
-        <AtendimentoFornecedor key={busca+"-"+filial} products={products} branch={filial} baseDate={baseDate} drafts={drafts} ddeMetas={metas} ddeObservado={ddeObservado} posicaoConectada={posicao.status==="conectado"} competencia={competencia} />
+        <AtendimentoFornecedor key={busca+"-"+filial} products={products} branch={filial} baseDate={baseDate} drafts={drafts} ddeMetas={metas} ddeObservado={ddeObservado} posicaoConectada={posicao.status==="conectado"} competencia={competencia} userId={user.id} />
         </>}
     <AtendimentoDespesas branch={filial} catalog={expenseCatalog} unavailable={!!expenseCatalogResult.error} />
   </main>

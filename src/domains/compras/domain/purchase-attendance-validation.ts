@@ -48,7 +48,7 @@ export function validarAtendimento(input:AtendimentoInput):AtendimentoResultado 
   else {
     const limites=[...input.limitesAcumulados].sort((a,b)=>a.data.localeCompare(b.data))
     let soma=0,acima=0
-    for(const p of input.parcelas){
+    for(const p of [...input.parcelas].sort((a,b)=>a.vencimento.localeCompare(b.vencimento))){
       soma+=centavos(p.valor)
       const limite=limites.filter(c=>c.data<=p.vencimento).at(-1)?.limite??0
       if(soma>centavos(limite))acima++

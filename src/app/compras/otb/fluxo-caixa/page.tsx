@@ -6,6 +6,7 @@ import { ComprasLogin, ComprasSair } from "@/components/compras/compras-auth"
 import { LoadingState } from "@/components/shared/mascot-loader"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { assessBankPosition, summarizeContractedSchedule, type BankPositionRow, type ContractedMonth } from "@/domains/compras/domain/otb-bank-readiness"
+import { calculateContractedCashBridge } from "@/domains/compras/domain/otb-contracted-cash-bridge"
 
 const money = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"})
 const integer = new Intl.NumberFormat("pt-BR")
@@ -72,6 +73,7 @@ async function Content(){
   const contractTotals=summarizeContractedSchedule(contracts)
   const hasBankPosition=!bankResult.error&&position.state==="conferido_sem_homologacao"
   const hasAgenda=!contractResult.error&&contractTotals.valid
+  const cashBridge=calculateContractedCashBridge(operationalSummary??null,contracts)
 
   return <main className="mx-auto max-w-[1480px] space-y-6 pb-16 text-slate-100">
     <header className="flex flex-wrap items-center justify-between gap-3"><Link href="/compras/otb" className="inline-flex items-center gap-2 text-xs font-semibold text-cyan-300"><ArrowLeft size={15}/> Voltar à OTB</Link><ComprasSair/></header>
@@ -106,6 +108,43 @@ async function Content(){
     <section className="erp-surface overflow-hidden rounded-2xl"><div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 p-6"><div><p className="flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[.15em] text-cyan-300"><CalendarRange size={15}/> 12 competências</p><h2 className="mt-2 text-xl font-bold">Agenda dos títulos identificados</h2><p className="mt-2 max-w-3xl text-xs leading-6 text-slate-400">Recebíveis de painel.receber e fornecedores presentes na última extração RPA, por vencimento. Valores já vencidos são tratados separadamente e não entram automaticamente no mês atual. Não inclui vendas e custos futuros ainda não contratados.</p></div><span className="rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-[11px] font-bold text-amber-200">Cobertura parcial · não é teto OTB</span></div>
       {contractResult.error?<p role="alert" className="p-6 text-xs text-amber-200">A agenda protegida de contratos está indisponível ({contractResult.error.code}).</p>:!hasAgenda?<p role="alert" className="p-6 text-xs text-amber-200">A agenda não retornou 12 meses válidos. Nenhum total foi assumido.</p>:<><div className="grid gap-3 border-b border-slate-800 p-5 md:grid-cols-3"><div className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-4"><p className="text-xs text-slate-400">Recebíveis identificados</p><p className="mt-2 text-xl font-bold text-emerald-200">{money.format(contractTotals.receivables)}</p></div><div className="rounded-xl border border-rose-400/20 bg-rose-400/5 p-4"><p className="text-xs text-slate-400">Fornecedores no último arquivo</p><p className="mt-2 text-xl font-bold text-rose-200">{money.format(contractTotals.payables)}</p></div><div className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-4"><p className="text-xs text-slate-400">Diferença entre títulos identificados</p><p className="mt-2 text-xl font-bold text-white">{money.format(contractTotals.net)}</p></div></div><div className="overflow-x-auto"><table className="erp-table w-full min-w-[760px] text-left text-xs"><thead className="bg-[#121e30] uppercase tracking-wider text-slate-400"><tr><th className="p-4">Competência</th><th className="p-4 text-right">A receber</th><th className="p-4 text-right">Títulos</th><th className="p-4 text-right">A pagar · RPA</th><th className="p-4 text-right">Títulos</th><th className="p-4 text-right">Diferença identificada</th></tr></thead><tbody className="divide-y divide-slate-800">{contracts.map(r=><tr key={r.mes}><td className="p-4 font-bold capitalize text-cyan-300">{monthName(r.mes)}</td><td className="p-4 text-right tabular-nums">{money.format(Number(r.receber_identificado))}</td><td className="p-4 text-right tabular-nums text-slate-400">{integer.format(Number(r.titulos_receber))}</td><td className="p-4 text-right tabular-nums">{money.format(Number(r.pagar_identificado))}</td><td className="p-4 text-right tabular-nums text-slate-400">{integer.format(Number(r.titulos_pagar))}</td><td className="p-4 text-right font-semibold tabular-nums">{money.format(Number(r.saldo_contratado_identificado))}</td></tr>)}</tbody></table></div><p className="p-5 text-[11px] text-slate-400">Última carga de fornecedores: {contracts[0]?.ultima_importacao_pagar?new Date(contracts[0].ultima_importacao_pagar).toLocaleString("pt-BR",{timeZone:"America/Campo_Grande"}):"Não identificada"}. Fonte parcial: um arquivo D-15 não representa necessariamente toda a carteira a pagar.</p></>}
     </section>
+
+    <section className="erp-surface overflow-hidden rounded-2xl" aria-label="Ponte mensal do caixa operacional identificado e títulos contratados">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 p-6">
+        <div>
+          <p className="text-[10px] font-extrabold uppercase tracking-[.15em] text-cyan-300">12 meses · compromisso identificado</p>
+          <h2 className="mt-2 text-xl font-bold text-white">Ponte aritmética do caixa com os títulos existentes</h2>
+          <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-400">Base parcial dos saldos Siscom mais apenas recebimentos e pagamentos já identificados por vencimento. É uma leitura de sensibilidade, não uma previsão integral de disponibilidade. O cálculo não inclui novas vendas, folha, impostos, outros custos, compras futuras, empréstimos nem conciliação bancária.</p>
+        </div>
+        <span className="rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-[11px] font-bold text-amber-200">Não homologa Projeção 12M nem libera compras</span>
+      </div>
+      {cashBridge.state==="indisponivel"?
+        <p role="alert" className="p-6 text-xs leading-6 text-amber-200">Série informativa não calculada: {cashBridge.motivo} Nenhum valor faltante foi considerado zero.</p>:
+        <>
+          <div className="grid gap-3 border-b border-slate-800 p-5 md:grid-cols-3">
+            <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-4"><p className="text-xs text-slate-400">Base parcial de abertura</p><p className="mt-2 text-xl font-bold tabular-nums text-cyan-200">{money.format(cashBridge.saldoParcialInicial)}</p></div>
+            <div className="rounded-xl border border-slate-700 p-4"><p className="text-xs text-slate-400">Menor saldo · somente títulos identificados</p><p className="mt-2 text-xl font-bold tabular-nums">{money.format(cashBridge.minimoSomenteTitulos)}</p></div>
+            <div className="rounded-xl border border-slate-700 p-4"><p className="text-xs text-slate-400">Saldo teórico ao fim dos 12 meses</p><p className="mt-2 text-xl font-bold tabular-nums">{money.format(cashBridge.ultimoSaldoSomenteTitulos)}</p></div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="erp-table w-full min-w-[900px] text-left text-xs">
+              <thead className="bg-[#121e30] uppercase tracking-wider text-slate-400"><tr><th className="p-4">Mês</th><th className="p-4 text-right">Base antes dos títulos</th><th className="p-4 text-right">Receber identificado</th><th className="p-4 text-right">Pagar identificado</th><th className="p-4 text-right">Variação identificada</th><th className="p-4 text-right">Base após títulos</th></tr></thead>
+              <tbody className="divide-y divide-slate-800">
+                {cashBridge.months.map(row=><tr key={row.mes}>
+                  <td className="p-4 font-semibold capitalize text-cyan-300">{monthName(row.mes)}</td>
+                  <td className="p-4 text-right tabular-nums">{money.format(row.base_abertura)}</td>
+                  <td className="p-4 text-right tabular-nums">{money.format(row.receber_identificado)}</td>
+                  <td className="p-4 text-right tabular-nums">{money.format(row.pagar_identificado)}</td>
+                  <td className="p-4 text-right tabular-nums">{money.format(row.variacao_identificada)}</td>
+                  <td className="p-4 text-right font-bold tabular-nums">{money.format(row.base_apos_titulos)}</td>
+                </tr>)}
+              </tbody>
+            </table>
+          </div>
+          <p className="p-5 text-[11px] leading-6 text-amber-200">Contas reconciliadas com o banco: {cashBridge.conciliacoes}/{cashBridge.contas}. Última carga de fornecedores identificada: {new Date(cashBridge.cargaFornecedores).toLocaleString("pt-BR",{timeZone:"America/Campo_Grande"})}. Este cenário omite componentes relevantes do fluxo futuro, inclusive despesas sem fonte validada. Saldos positivos nesta tabela NÃO constituem caixa disponível nem teto OTB.</p>
+        </>}
+    </section>
+
     <section className="rounded-2xl border border-amber-400/25 bg-amber-400/5 p-6"><h2 className="flex items-center gap-2 text-lg font-bold text-amber-100"><AlertTriangle size={19}/> Para transformar esta análise em OTB oficial</h2><p className="mt-3 text-sm leading-7 text-amber-100/80">Faltam consolidar toda a carteira CAP sem duplicatas, classificar pagamentos por categoria da Zacarini, aplicar projeção de vendas futuras e despesas, reservar matéria-prima e registrar a aprovação do pior cenário de caixa. O sistema não substituirá essas premissas por zero.</p><div className="mt-5 flex flex-wrap gap-3"><Link href="/compras/otb/premissas" className="inline-flex items-center gap-2 rounded-xl border border-cyan-300/30 bg-cyan-400/10 px-4 py-3 text-xs font-bold text-cyan-200"><ClipboardCheck size={15}/> Premissas de OTB</Link><Link href="/compras/otb" className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 text-xs font-bold text-white">Voltar à OTB</Link></div></section>
   </main>
 }

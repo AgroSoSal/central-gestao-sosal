@@ -50,7 +50,7 @@ function validCount(value: unknown): value is number {
 }
 
 function monthIndex(value: string): number | null {
-  if (!/^20\\d{2}-(0[1-9]|1[0-2])-01$/.test(value)) return null
+  if (!/^20\d{2}-(0[1-9]|1[0-2])-01$/.test(value)) return null
   const [year, month] = value.split("-").map(Number)
   return year * 12 + month - 1
 }
@@ -63,7 +63,7 @@ export function calculateContractedCashBridge(
   bank: OperationalBankBasis | null | undefined,
   schedule: readonly ContractedMonth[],
 ): ContractedCashBridge {
-  if (!bank || !/^20\\d{2}-(0[1-9]|1[0-2])-[0-3]\\d$/.test(bank.data_base) ||
+  if (!bank || !/^20\d{2}-(0[1-9]|1[0-2])-[0-3]\d$/.test(bank.data_base) ||
     !validCount(bank.contas_cadastradas) || bank.contas_cadastradas === 0 ||
     !validCount(bank.contas_com_saldo) || !validCount(bank.contas_sem_extrato) ||
     !validCount(bank.contas_conciliadas) ||

@@ -20,7 +20,12 @@ describe("editor de decisão da fila", () => {
     render(<PurchaseDecisionEditor loja="SO SAL" pedido="10" produtoCodigo="A" record={null} available />)
     expect(screen.getByText("Aguardando aprovação")).toBeInTheDocument()
     fireEvent.click(screen.getByText("Gerenciar pedido"))
-    expect(screen.getByRole("button", { name: "Salvar decisão" })).toBeEnabled()
+    const decision = screen.getByLabelText("Decisão do item")
+    const save = screen.getByRole("button", { name: "Salvar decisão" })
+    expect(decision).toHaveValue("")
+    expect(save).toBeDisabled()
+    fireEvent.change(decision, { target: { value: "Aprovado" } })
+    expect(save).toBeEnabled()
   })
 
   it("limita a largura do formulário ao espaço de cartões estreitos", () => {

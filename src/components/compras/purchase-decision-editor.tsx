@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Check, ClipboardPenLine, History, Loader2 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/client"
 import {
-  effectiveDecision, operationalDecision, type PurchaseDecision, type PurchaseDecisionRecord,
+  operationalDecision, type PurchaseDecision, type PurchaseDecisionRecord,
 } from "@/domains/compras/domain/purchase-decisions"
 
 type Props = {
@@ -35,17 +35,17 @@ function formattedDate(date: string): string {
 export function PurchaseDecisionEditor({ loja, pedido, produtoCodigo, record, available, expanded = false }: Props) {
   const router = useRouter()
   const [saved, setSaved] = useState<PurchaseDecisionRecord | null>(record)
-  const [decision, setDecision] = useState<PurchaseDecision>(effectiveDecision(record?.decisao))
+  const [decision, setDecision] = useState<PurchaseDecision | "">(record?.decisao ?? "")
   const [note, setNote] = useState(record?.observacao ?? "")
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState("")
 
   const current = operationalDecision(saved?.decisao)
-  const dirty = !saved || decision !== saved.decisao || note.trim() !== (saved.observacao ?? "")
+  const dirty = decision !== "" && (!saved || decision !== saved.decisao || note.trim() !== (saved.observacao ?? ""))
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!available || !dirty || busy) return
+    if (!available || !dirty || !decision || busy) return
     const client = createSupabaseBrowserClient()
     if (!client) {
       setFeedback("Conexão indisponível. Tente novamente.")
@@ -94,6 +94,7 @@ export function PurchaseDecisionEditor({ loja, pedido, produtoCodigo, record, av
             <div>
               <label className="mb-1.5 block text-[11px] font-semibold text-slate-300" htmlFor={`decisao-${loja}-${pedido}-${produtoCodigo}`}>Decisão do item</label>
               <select id={`decisao-${loja}-${pedido}-${produtoCodigo}`} value={decision} onChange={(event) => { setDecision(event.target.value as PurchaseDecision); setFeedback("") }} disabled={busy} className="erp-field w-full px-3 text-xs">
+                <option value="" disabled>Selecione uma decisão</option>
                 <option value="Aprovado">Aprovado</option>
                 <option value="Segurar">Segurar</option>
                 <option value="Cancelar">Cancelar</option>

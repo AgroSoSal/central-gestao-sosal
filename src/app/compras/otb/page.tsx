@@ -20,6 +20,7 @@ import { interpretOtbAbcProjection } from "@/domains/compras/domain/otb-abc-proj
 import { subtractOtbConsignedStock } from "@/domains/compras/domain/otb-consigned-stock-237"
 import { fetchOtbSubgroupPlans } from "@/domains/compras/domain/otb-subgroup-plan-source"
 import type { BankPositionRow, ContractedMonth } from "@/domains/compras/domain/otb-bank-readiness"
+import type { OtbGoLiveStatus } from "@/domains/compras/domain/otb-go-live-readiness"
 
 export default function ComprasOtbPage() {
   return <Suspense fallback={<LoadingState label="Autenticando acesso ao OTB..." />}><OtbContent /></Suspense>
@@ -67,7 +68,7 @@ export async function OtbContent() {
 
   // Duas fontes agregadas, somente leitura, verificadas pelo banco como Master.
   // O histórico NÃO contém fluxo de caixa futuro nem substitui a Projeção 12M.
-  const [summary, historical, stock, config, bank, weeks, months, recovery, consigned] = await Promise.all([
+  const [summary, historical, stock, config, bank, weeks, months, recovery, consigned, readiness] = await Promise.all([
     supabase.rpc("fn_listar_pedidos_compra", {
     p_busca: null,
     p_loja: null,
@@ -84,6 +85,7 @@ export async function OtbContent() {
     supabase.rpc("fn_otb_agenda_contratada_12m_237", { p_inicio: `${todayISO.slice(0,7)}-01` }),
     supabase.rpc("fn_compras_dashboard_receber_recuperavel_237", { p_data_base: todayISO }),
     supabase.rpc("fn_otb_estoque_consignado_237"),
+    supabase.rpc("fn_otb_situacao_homologacao"),
   ])
   const purchaseSource = interpretOtbPurchaseSource(summary.data, summary.error)
   const historicalSource = interpretOtbHistoricalSource(historical.data, historical.error, lastClosedMonth)
@@ -184,6 +186,8 @@ export async function OtbContent() {
   return <OtbDashboard email={user.email ?? ""} purchaseSource={purchaseSource} historicalSource={historicalSource}
     stockPosition={stockPosition} indicativeMonths={indicativeMonths} subgroupPreview={subgroupPreview}
     seasonalHistory={seasonalHistory} abcProjection={abcProjection} consignedPosition={consignedPosition}
-    simulationBaseDate={todayISO} forecastIssues={forecast.state==="indisponivel"?forecast.reasons:
+    simulationBaseDate={todayISO} forecast={forecast}
+    readinessStatus={readiness.error?null:(readiness.data as OtbGoLiveStatus|null)}
+    forecastIssues={forecast.state==="indisponivel"?forecast.reasons:
       indicativeMonths?[]:["A referência da Projeção 12M não contém os três meses seguintes completos."]} />
 }

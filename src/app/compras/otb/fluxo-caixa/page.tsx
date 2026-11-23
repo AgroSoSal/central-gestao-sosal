@@ -16,6 +16,8 @@ type OperationalCashAccount = {
   filial: string | null
   empresa_auxiliar: string | null
   data_ultimo_saldo: string | null
+  data_importacao_local: string | null
+  situacao_carga: "SEM_ARQUIVO" | "CARGA_ANTERIOR" | "CARGA_HOJE" | "CARGA_HOJE_SEM_MOVIMENTO_NA_DATA"
   situacao_operacional: string
 }
 type OperationalCashSummary = {
@@ -24,6 +26,10 @@ type OperationalCashSummary = {
   contas_com_saldo: number
   contas_sem_extrato: number
   contas_com_saldo_defasado: number
+  contas_com_carga_na_data: number
+  contas_com_carga_anterior: number
+  importacoes_conferidas_internamente: number
+  importacoes_com_divergencia: number
   contas_conciliadas: number
   saldo_parcial_conhecido_siscom: number | string | null
   situacao_consolidado: string
@@ -78,14 +84,17 @@ async function Content(){
     {bankResult.error&&<section role="alert" className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-5 text-xs text-amber-100">Não foi possível consultar a posição bancária protegida ({bankResult.error.code}). Nenhum caixa presumido.</section>}
     {operationalResult.error?<section role="alert" className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-5 text-xs text-amber-100">A posição operacional das contas não está disponível ({operationalResult.error.code}). Não é possível validar o caixa atual.</section>:operationalSummary?<section className="erp-surface rounded-2xl p-6" aria-label="Posição operacional dos extratos Siscom">
       <header><p className="text-[11px] font-bold uppercase tracking-wider text-cyan-300">Posição operacional · {br(operationalSummary.data_base)}</p><h2 className="mt-2 text-xl font-bold text-white">Saldos informados pelo Siscom</h2><p className="mt-2 max-w-4xl text-xs leading-6 text-slate-400">Inclui contas consolidadas, contas individuais por filial e empresas auxiliares. Os valores são registrados em cada conta distinta, mas não representam caixa livre, conciliação bancária nem teto de compras aprovado.</p></header>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <div className="rounded-xl border border-cyan-300/20 bg-cyan-400/5 p-4"><p className="text-xs text-slate-400">Saldo conhecido · parcial</p><p className="mt-2 text-xl font-bold text-cyan-200 tabular-nums">{hasPartialAmount?money.format(partialAmount):"—"}</p></div>
         <div className="rounded-xl border border-slate-700 p-4"><p className="text-xs text-slate-400">Contas com saldo</p><p className="mt-2 text-xl font-bold tabular-nums">{operationalSummary.contas_com_saldo}/{operationalSummary.contas_cadastradas}</p></div>
-        <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-4"><p className="text-xs text-slate-400">Saldos anteriores à data-base</p><p className="mt-2 text-xl font-bold text-amber-200 tabular-nums">{operationalSummary.contas_com_saldo_defasado}</p></div>
+        <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-4"><p className="text-xs text-slate-400">Cargas anteriores à data-base</p><p className="mt-2 text-xl font-bold text-amber-200 tabular-nums">{operationalSummary.contas_com_carga_anterior}</p></div>
         <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-4"><p className="text-xs text-slate-400">Contas sem extrato</p><p className="mt-2 text-xl font-bold text-amber-200 tabular-nums">{operationalSummary.contas_sem_extrato}</p></div>
+        <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-4"><p className="text-xs text-slate-400">Arquivos auditados internamente</p><p className="mt-2 text-xl font-bold text-emerald-200 tabular-nums">{operationalSummary.importacoes_conferidas_internamente}</p><p className="mt-1 text-[11px] text-slate-400">Divergentes: {operationalSummary.importacoes_com_divergencia}</p></div>
       </div>
       <p className="mt-4 text-xs leading-6 text-amber-200">Situação: {operationalSummary.situacao_consolidado.replaceAll("_"," ").toLowerCase()}. Apenas {operationalSummary.contas_conciliadas} contas têm saldo conciliado com o banco. Esse saldo parcial não libera compras pela OTB.</p>
       {(operational?.contas??[]).some(c=>c.situacao_operacional==="SEM_EXTRATO")&&<p className="mt-2 text-xs text-slate-400">Sem extrato: {(operational?.contas??[]).filter(c=>c.situacao_operacional==="SEM_EXTRATO").map(c=>c.numero_conta).join(", ")}.</p>}
+      {(operational?.contas??[]).some(c=>c.situacao_carga==="CARGA_ANTERIOR")&&<p className="mt-2 text-xs text-amber-200">Contas com carga anterior à data-base: {(operational?.contas??[]).filter(c=>c.situacao_carga==="CARGA_ANTERIOR").map(c=>c.numero_conta+" ("+br(c.data_importacao_local)+")").join(", ")}.</p>}
+      {(operational?.contas??[]).some(c=>c.situacao_carga==="CARGA_HOJE_SEM_MOVIMENTO_NA_DATA")&&<p className="mt-2 text-xs text-slate-300">Arquivo recebido hoje com último movimento anterior: {(operational?.contas??[]).filter(c=>c.situacao_carga==="CARGA_HOJE_SEM_MOVIMENTO_NA_DATA").map(c=>c.numero_conta+" (mov. "+br(c.data_ultimo_saldo)+")").join(", ")}. A importação não comprova a data de emissão do extrato.</p>}
     </section>:<section role="alert" className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-5 text-xs text-amber-100">O Supabase não retornou uma posição operacional válida. Nenhum saldo foi presumido.</section>}
     <div className="grid gap-4 md:grid-cols-3">
       <section className="erp-surface rounded-2xl p-6"><p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Caixa identificado · mesma data-base</p><p className="mt-3 text-2xl font-bold text-white tabular-nums">{hasBankPosition&&position.openingCash!==null?money.format(position.openingCash):"—"}</p><p className="mt-3 text-xs text-slate-400">Saldos transportados até {br(position.commonDate)}; não é saldo liberado para compras.</p></section>

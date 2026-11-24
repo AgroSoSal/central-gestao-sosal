@@ -267,7 +267,7 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
       buyerShare:0.9,subgroups:merchandise,
       materialBuyer:{
         line:"Linha 1",name:mp.name,openingStock:initialMpOpening,
-        forecastCost:[1,2,3].map(mpCostForForecastIndex) as OtbTriple<number>,
+        forecastCost:[mpCostForForecastIndex(1),mpCostForForecastIndex(2),mpCostForForecastIndex(3)],
       },
     })
   }catch(error){

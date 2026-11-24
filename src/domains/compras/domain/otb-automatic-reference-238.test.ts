@@ -104,8 +104,9 @@ describe("OTB operacional automática, sem liberação",()=>{
   expect(out.orderSummary.unmappedItems).toBe(1)
   expect(out.result.months[0].mpNeed).toBe(out.rawMaterialNeeds[0])
   expect(out.result.months[0].subgroups.some(s=>s.name==="1.LINHA NUTRIÇÃO / MATERIA PRIMA")).toBe(false)
-  expect(out.limitations.some(t=>t.includes("Pedidos"))).toBe(false) // texto explícito sobre "Pedido"
-  expect(out.limitations.join(" ")).toContain("Pedido anterior")
+  expect(out.limitations.join(" ")).toContain("Pedidos de MP")
+  expect(out.limitations.join(" ")).toContain("totalmente recebidos")
+  expect(out.limitations.join(" ")).toContain("V48/V173")
  })
  it("se não existe estoque de MP, produção, juros ou projeção, não gera teto de caixa falso",()=>{
   const broken=preview()

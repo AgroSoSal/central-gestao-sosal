@@ -53,7 +53,7 @@ begin
      or n.produto_cod ilike '%'||v_busca||'%'
      or n.fornecedor ilike '%'||v_busca||'%');
 
- select coalesce(jsonb_agg(to_jsonb(nf) order by nf.data desc,nf.nf desc,nf.produto_cod), '[]'::jsonb)
+ select coalesce(jsonb_agg(to_jsonb(nf_item) order by nf_item.data desc,nf_item.nf desc,nf_item.produto_cod), '[]'::jsonb)
  into v_itens
  from (
    select n.data,n.filial,n.nf,n.produto_cod,n.fornecedor,
@@ -68,7 +68,7 @@ begin
        or n.fornecedor ilike '%'||v_busca||'%')
    order by n.data desc nulls last,n.nf desc,n.produto_cod,n.fornecedor
    limit p_tamanho offset (p_pagina-1)*p_tamanho
- ) nf;
+ ) nf_item;
  return jsonb_build_object(
    'source','SISCOM_NF_ENTRADAS_238',
    'status','disponivel',

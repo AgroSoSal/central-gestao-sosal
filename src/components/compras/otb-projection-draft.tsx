@@ -1,8 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useActionState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useActionState } from "react"
 import { CheckCircle2, Database, Save, ShieldAlert } from "lucide-react"
 import { saveOtb12mDraft, type Otb12mSaveState } from "@/app/compras/otb/projecao/actions"
 import { buildOtb12mDraftRows, type Otb12mDraftHeader } from "@/domains/compras/domain/otb-projection-draft-12m"
@@ -20,12 +19,8 @@ export function OtbProjectionDraft({
   sourceError:boolean
 }) {
   const [state, action, pending]=useActionState(saveOtb12mDraft,initialState)
-  const router=useRouter()
-  const rows=forecast?buildOtb12mDraftRows(forecast):null
-  useEffect(()=>{
-    if(state.status==="success") router.refresh()
-  },[state.status,state.id,router])
-
+   const rows=forecast?buildOtb12mDraftRows(forecast):null
+ 
   return <section className="erp-surface rounded-[24px] p-5 sm:p-7" aria-label="Versionamento da Projeção 12M">
     <div className="flex flex-wrap items-start justify-between gap-5">
       <div>
@@ -54,7 +49,7 @@ export function OtbProjectionDraft({
         <span className="text-xs text-slate-400">12 competências · não altera histórico SISCOM nem gera pedidos</span>
       </div>
       {state.status!=="idle"&&<p role="status" className={`text-xs leading-6 ${state.status==="success"?"text-emerald-200":"text-amber-200"}`}>
-        {state.status==="success"&&<CheckCircle2 size={16} className="mr-2 inline"/>}{state.message}{state.id?" · Versão #"+state.id:""}
+        {state.status==="success"&&<CheckCircle2 size={16} className="mr-2 inline"/>}{state.message}{state.id?" · Versão #"+state.id:""}{state.status==="success"&&<span> Atualize a página para listar a nova versão.</span>}
       </p>}
     </form>:
       <p role="status" className="mt-5 rounded-xl border border-amber-400/25 bg-amber-400/5 p-4 text-xs leading-6 text-amber-100">

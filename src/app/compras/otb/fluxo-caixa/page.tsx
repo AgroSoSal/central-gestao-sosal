@@ -7,6 +7,7 @@ import { LoadingState } from "@/components/shared/mascot-loader"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { assessBankPosition, summarizeContractedSchedule, type BankPositionRow, type ContractedMonth } from "@/domains/compras/domain/otb-bank-readiness"
 import { calculateContractedCashBridge } from "@/domains/compras/domain/otb-contracted-cash-bridge"
+import { Zacarini238BankPanel, type BankReference238 } from "@/components/compras/otb-zacarini238-bank-panel"
 
 const money = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"})
 const integer = new Intl.NumberFormat("pt-BR")
@@ -58,10 +59,11 @@ async function Content(){
   if(permissionError)return <main role="alert" className="mx-auto max-w-2xl rounded-2xl border border-amber-400/30 bg-amber-400/10 p-8 text-amber-100">Somente Master ativo pode acessar o fluxo de caixa de Compras.</main>
 
   const today=todayBrazil()
-  const [bankResult,contractResult,operationalResult]=await Promise.all([
+  const [bankResult,contractResult,operationalResult,reference238Result]=await Promise.all([
     supabase.rpc("fn_otb_extratos_posicao_237",{p_corte:today}),
     supabase.rpc("fn_otb_agenda_contratada_12m_237",{p_inicio:today.slice(0,7)+"-01"}),
     supabase.rpc("fn_otb_caixa_operacional_status"),
+    supabase.rpc("fn_otb_zacarini238_conferencia_bancaria"),
   ])
   const banks=bankResult.error?[]:(bankResult.data??[]) as BankPositionRow[]
   const contracts=contractResult.error?[]:(contractResult.data??[]) as ContractedMonth[]
@@ -100,6 +102,8 @@ async function Content(){
       {(operational?.contas??[]).some(c=>c.situacao_carga==="REENVIO_IDENTICO_CONFIRMADO")&&<p className="mt-2 text-xs text-emerald-200">Extratos reenviados e conferidos sem novos lançamentos, conforme confirmação do usuário: {(operational?.contas??[]).filter(c=>c.situacao_carga==="REENVIO_IDENTICO_CONFIRMADO").map(c=>c.numero_conta+" (último lançamento em "+br(c.data_ultimo_saldo)+")").join(", ")}. Isso não significa conciliação com os bancos nem emissão de novo extrato.</p>}
       {(operational?.contas??[]).some(c=>c.situacao_carga==="CARGA_HOJE_SEM_MOVIMENTO_NA_DATA")&&<p className="mt-2 text-xs text-slate-300">Arquivo recebido hoje com último movimento anterior: {(operational?.contas??[]).filter(c=>c.situacao_carga==="CARGA_HOJE_SEM_MOVIMENTO_NA_DATA").map(c=>c.numero_conta+" (mov. "+br(c.data_ultimo_saldo)+")").join(", ")}. A importação não comprova a data de emissão do extrato.</p>}
     </section>:<section role="alert" className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-5 text-xs text-amber-100">O Supabase não retornou uma posição operacional válida. Nenhum saldo foi presumido.</section>}
+    <Zacarini238BankPanel source={reference238Result.error?null:reference238Result.data as BankReference238|null} error={!!reference238Result.error}/>
+
     <div className="grid gap-4 md:grid-cols-3">
       <section className="erp-surface rounded-2xl p-6"><p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Caixa identificado · mesma data-base</p><p className="mt-3 text-2xl font-bold text-white tabular-nums">{hasBankPosition&&position.openingCash!==null?money.format(position.openingCash):"—"}</p><p className="mt-3 text-xs text-slate-400">Saldos transportados até {br(position.commonDate)}; não é saldo liberado para compras.</p></section>
       <section className="erp-surface rounded-2xl p-6"><p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Arquivos x saldos do Supabase</p><p className="mt-3 text-2xl font-bold text-cyan-200 tabular-nums">{bankResult.error?"—":`${position.matchedArchives}/${position.accountCount}`}</p><p className="mt-3 text-xs text-slate-400">Conferência aritmética com tolerância de R$ 0,01.</p></section>

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { buildZacariniCashForecast, type ForecastStockLine } from "./zacarini-cash-forecast"
+import { cashLedgerView238, cashLedgerIncome238, cashLedgerOutflow238 } from "./cash-forecast-ledger-238"
 import type { DashboardReferenceRow } from "./dashboard-zacarini-237"
 import type { PartialCashSeries } from "./dashboard-cash-contracts"
 
@@ -156,5 +157,78 @@ describe("projeção de caixa Zacarini 2.3.7", () => {
     expect(result.monthlyWorst[1]).toBeLessThan(result.monthly.noventa[1])
     expect(result.minimumWorst12).toBe(Math.min(...result.monthlyWorst))
     expect(result.authorizesPurchases).toBe(false)
+  })
+})
+
+
+describe("Projeção 12M Zacarini 2.3.8 — razão mensal sem alterar o saldo",()=>{
+  it("reconcilia os 12 meses dos quatro cenários, mantendo o mesmo fechamento do motor",()=>{
+    const f=fixtures(3100)
+    f.partial.monthlyReceivables=Array(12).fill(1200)
+    f.partial.monthlyPayables=Array(12).fill(500)
+    f.rows.find(r=>r.codigo==="despesas_pct")!.valor=.09
+    f.rows.find(r=>r.codigo==="impostos_pct")!.valor=.04
+    f.rows.find(r=>r.codigo==="recuperacao_vencidos_semana")!.valor=.015
+    const result=buildZacariniCashForecast({
+      today:start,references:f.rows,contracts:f.partial,
+      stock:[1,2,3,4].map(linha=>({linha,estoque:0,cmv90:150})),overdue:2000,
+    })
+    expect(result.state).toBe("simulado")
+    if(result.state!=="simulado")return
+    for(const scenario of ["noventa","plano","historico","pior"] as const){
+      const view=cashLedgerView238(result,scenario)
+      expect(view,scenario).not.toBeNull()
+      if(!view)continue
+      expect(view.months).toHaveLength(12)
+      expect(view.saldoInicial).toBeCloseTo(1000000,5)
+      const reference=scenario==="pior"?result.monthlyWorst:result.monthly[scenario]
+      for(let i=0;i<12;i++){
+        const row=view.months[i]
+        expect(row.saldoFinal,scenario+" "+i).toBeCloseTo(reference[i],2)
+        expect(row.saldoInicial+cashLedgerIncome238(row)-cashLedgerOutflow238(row),
+          scenario+" "+i).toBeCloseTo(row.saldoFinal,2)
+      }
+      expect(view.saldoInicial+view.totalRecebimentos-view.totalSaidas).toBeCloseTo(view.saldoFinal,2)
+      expect(view.minimo).toBe(Math.min(...reference))
+    }
+    const nov=cashLedgerView238(result,"noventa")!
+    expect(nov.months[0].titulosReceber).toBeGreaterThan(0)
+    expect(nov.months[0].titulosPagar).toBeGreaterThan(0)
+    expect(nov.months[0].despesas).toBeGreaterThan(0)
+    expect(nov.months[0].impostos).toBeGreaterThan(0)
+    expect(nov.months.some(r=>r.comprasNovasVencidas>0)).toBe(true)
+    expect(result.authorizesPurchases).toBe(false)
+  })
+
+  it("no pior caso mantém as mesmas compras e elimina somente recebimento EXTRA de Saúde",()=>{
+    const f=fixtures(3100)
+    f.rows.find(r=>r.codigo==="fluxo_extra_saude_mes"&&r.competencia==="2026-11-01")!.valor=930
+    const result=buildZacariniCashForecast({today:start,references:f.rows,contracts:f.partial,stock:f.stock,overdue:0})
+    expect(result.state).toBe("simulado")
+    if(result.state!=="simulado")return
+    const normal=cashLedgerView238(result,"noventa")!
+    const worst=cashLedgerView238(result,"pior")!
+    expect(worst.months[0].extraSaudeNaoRecebido).toBeCloseTo(930*12/30*.15,2)
+    for(let i=0;i<12;i++){
+      expect(worst.months[i].comprasNovasVencidas).toBeCloseTo(normal.months[i].comprasNovasVencidas,5)
+      expect(worst.months[i].titulosPagar).toBeCloseTo(normal.months[i].titulosPagar,5)
+    }
+    expect(worst.saldoFinal).toBeCloseTo(result.monthlyWorst[11],2)
+    expect(worst.saldoFinal).toBeLessThan(normal.saldoFinal)
+  })
+
+  it("impede exibição do razão se o saldo, um mês ou uma rubrica for adulterado",()=>{
+    const f=fixtures()
+    const result=buildZacariniCashForecast({today:start,references:f.rows,contracts:f.partial,stock:f.stock,overdue:0})
+    expect(result.state).toBe("simulado")
+    if(result.state!=="simulado")return
+    const original=result.monthlyLedger.noventa[0]
+    expect(cashLedgerView238(result,"noventa")).not.toBeNull()
+    result.monthlyLedger.noventa[0]={...original,saldoFinal:original.saldoFinal+5}
+    expect(cashLedgerView238(result,"noventa")).toBeNull()
+    result.monthlyLedger.noventa[0]={...original,mes:"2025-09-01"}
+    expect(cashLedgerView238(result,"noventa")).toBeNull()
+    result.monthlyLedger.noventa[0]={...original,titulosPagar:Number.NaN}
+    expect(cashLedgerView238(result,"noventa")).toBeNull()
   })
 })

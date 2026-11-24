@@ -236,9 +236,21 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts,ddeMetas,
     if (!client) { setNotice("Conexão indisponível; nada foi salvo."); return }
     setSaving(true);setNotice("")
     try {
-      const itens=chosen.map(({p,qty,cost})=>({
-        produto_codigo:p.produto_cod,quantidade:qty,custo_unitario:cost,desconto_percentual:pct,
-      }))
+      const itens=chosen.map(({p,qty,cost})=>{
+        const rateio=allocation.find(a=>a.code===p.produto_cod)
+        return {
+          produto_codigo:p.produto_cod,quantidade:qty,custo_unitario:cost,desconto_percentual:pct,
+          // Persistidos junto à cotação, sem alterar a validação de custos do banco.
+          descricao:p.descricao?.slice(0,180)??null,
+          marca:p.marca?.slice(0,100)??null,
+          fornecedor:fornecedorProposto.slice(0,150),
+          comprador:(comprador.trim()||compradorProposto).slice(0,120),
+          frete,condicao_pagamento:termos.slice(0,120),
+          prazo_entrega_dias:Number(prazoEntrega),
+          chegada_prevista:chegadaEstimada||null,
+          rateio_filiais:rateio?.parts??null,
+        }
+      })
       const {data,error}=await client.rpc("fn_compras_salvar_cotacao_rascunho",{
         p_filial:branch,p_itens:itens,p_observacao:notes.trim()||null,
       })
@@ -426,7 +438,7 @@ export function AtendimentoFornecedor({products,branch,baseDate,drafts,ddeMetas,
         </div>
         <div className="mt-5 flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4 text-xs leading-6 text-amber-100"><AlertTriangle size={18} className="shrink-0"/> A Zacarini exige caixa disponível em cada vencimento, verba livre da linha e validação da Projeção 12M. Como essa homologação ainda está pendente no Supabase, esta simulação NÃO autoriza gravar pedidos no SISCOM.</div>
       </>}
-      {drafts.length>0&&<div className="mt-5 border-t border-white/10 pt-4"><h3 className="text-xs font-bold text-slate-200">Últimos rascunhos salvos</h3><div className="mt-3 flex flex-wrap gap-2">{drafts.map(d=><div key={d.id} className="rounded-lg border border-white/10 bg-[#071625] p-3 text-xs"><p className="font-bold text-cyan-200">#{d.id} · {d.filial}</p><p className="mt-1">{money.format(Number(d.total))} · {d.itens_count} item(ns)</p><p className="mt-1 text-[11px] text-slate-400">{new Date(d.criado_em).toLocaleString("pt-BR",{timeZone:"America/Campo_Grande"})}</p></div>)}</div></div>}
+      {drafts.length>0&&<div className="mt-5 border-t border-white/10 pt-4"><h3 className="text-xs font-bold text-slate-200">Últimos rascunhos salvos</h3><div className="mt-3 flex flex-wrap gap-2">{drafts.map(d=><div key={d.id} className="rounded-lg border border-white/10 bg-[#071625] p-3 text-xs"><p className="font-bold text-cyan-200">#{d.id} · {d.filial}</p><p className="mt-1">{money.format(Number(d.total))} · {d.itens_count} item(ns)</p><p className="mt-1 text-[11px] text-slate-400">{new Date(d.criado_em).toLocaleString("pt-BR",{timeZone:"America/Campo_Grande"})}</p><Link href={`/compras/atendimento/rascunho/${d.id}`} className="mt-2 inline-flex text-xs font-bold text-cyan-300 underline">Conferir itens e valores</Link></div>)}</div></div>}
       <p className="mt-4 flex items-center gap-2 text-[11px] text-slate-500"><CheckCircle2 size={14}/> Consulta limitada, somente Master, nenhuma gravação de pedidos ou alterações no SISCOM · {branch}.</p>
     </div>
   </section>

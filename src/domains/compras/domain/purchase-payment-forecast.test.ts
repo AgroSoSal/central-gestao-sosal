@@ -79,10 +79,10 @@ describe("previsão financeira das compras (Zacarini)", () => {
     }
   })
 
-  it("mantém a aprovação operacional pendente separada do padrão financeiro AP vazio", () => {
+  it("identifica a aprovação padrão Zacarini sem gerar autorização financeira", () => {
     const result = forecastPurchasePayments({ ...basic, decision: null })
     expect(result.included).toBe(true)
-    expect(result.operationalDecision).toBe("Aguardando aprovação")
+    expect(result.operationalDecision).toBe("Aprovado (padrão Zacarini)")
     expect(result.status).toBe("projetado")
     expect(result.installments).toHaveLength(3)
   })

@@ -24,10 +24,10 @@ describe("fila de gerenciamento de compras", () => {
     expect(requiresPurchaseManagement({ quantidade_pendente: null, situacao_recebimento: null }, "Segurar")).toBe(false)
   })
 
-  it("somente permite follow-up com aprovação explícita e saldo de entrega real", () => {
+  it("permite follow-up por aprovação padrão da planilha e saldo de entrega real", () => {
     const partial = { quantidade_pendente: "40", situacao_recebimento: "Chegada parcial" }
     expect(hasOutstandingDelivery(partial)).toBe(true)
-    expect(isApprovedForFollowUp(partial, null)).toBe(false)
+    expect(isApprovedForFollowUp(partial, null)).toBe(true)
     expect(isApprovedForFollowUp(partial, "Aprovado")).toBe(true)
     expect(isApprovedForFollowUp(partial, "Já pago")).toBe(true)
     expect(isApprovedForFollowUp(partial, "Segurar")).toBe(false)

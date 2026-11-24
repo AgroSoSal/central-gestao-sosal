@@ -31,8 +31,8 @@ export function effectiveDecision(value: PurchaseDecision | null | undefined): P
 }
 
 /** A previsão da planilha não substitui uma aprovação feita por uma pessoa. */
-export function operationalDecision(value: PurchaseDecision | null | undefined): PurchaseDecision | "Aguardando aprovação" {
-  return value ?? "Aguardando aprovação"
+export function operationalDecision(value: PurchaseDecision | null | undefined): PurchaseDecision | "Aprovado (padrão Zacarini)" {
+  return value ?? "Aprovado (padrão Zacarini)"
 }
 
 /** Aplicável quando o fluxo de caixa e OTB forem integrados no ERP. */

@@ -11,7 +11,7 @@ describe("decisões dos pedidos de compra", () => {
   })
 
   it("distingue aprovação operacional registrada da suposição financeira", () => {
-    expect(operationalDecision(null)).toBe("Aguardando aprovação")
+    expect(operationalDecision(null)).toBe("Aprovado (padrão Zacarini)")
     expect(operationalDecision("Aprovado")).toBe("Aprovado")
     expect(operationalDecision("Segurar")).toBe("Segurar")
     expect(forecastIncludesDecision(null)).toBe(true)

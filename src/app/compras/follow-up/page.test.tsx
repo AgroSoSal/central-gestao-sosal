@@ -54,7 +54,7 @@ describe("página Follow-up", () => {
     state.failTracking = true
     const { FollowUpContent } = await import("./page")
     render(await FollowUpContent({ searchParams: Promise.resolve({}) }))
-    expect(screen.getByRole("alert")).toHaveTextContent(/não foi habilitado/i)
+    expect(screen.getByRole("alert")).toHaveTextContent(/indisponível/i)
   })
 
   it("não transforma ausência de itens elegíveis em pendência fictícia", async () => {

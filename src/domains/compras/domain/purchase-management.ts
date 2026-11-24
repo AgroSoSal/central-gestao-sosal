@@ -1,4 +1,4 @@
-import type { PurchaseDecision } from "./purchase-decisions"
+import { effectiveDecision, type PurchaseDecision } from "./purchase-decisions"
 
 export type ManagementItem = {
   quantidade_pendente: number | string | null
@@ -17,7 +17,8 @@ export function requiresPurchaseManagement(item: ManagementItem, decision: Purch
 }
 
 export function isApprovedForFollowUp(item: ManagementItem, decision: PurchaseDecision | null | undefined): boolean {
-  return hasOutstandingDelivery(item) && (decision === "Aprovado" || decision === "Já pago")
+  const effective = effectiveDecision(decision)
+  return hasOutstandingDelivery(item) && (effective === "Aprovado" || effective === "Já pago")
 }
 
 /** Preserva o contexto da pesquisa ao trocar entre consulta e gestão. */

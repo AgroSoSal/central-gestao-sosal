@@ -20,7 +20,7 @@ vi.mock("@/lib/supabase/server", () => ({
     auth: { getUser: async () => ({ data: { user: { email: "master@sosal.com.br" } }, error: null }) },
     rpc: async (name: string, args?: Record<string, unknown>) => {
       state.calls.push({ name, args })
-      if (name === "fn_listar_followup_pendentes") return {
+      if (name === "fn_listar_followup_ativos_238") return {
         data: state.emptyList ? [{ loja: null, pedido: null, produto_codigo: null, total_itens: 0 }] : state.purchases.map((row) => ({ ...row, total_itens: state.pageTotal })),
         error: state.failListing ? { code: "PGRST202" } : null,
       }
@@ -33,21 +33,21 @@ vi.mock("@/lib/supabase/server", () => ({
 afterEach(() => { cleanup(); state.failTracking = false; state.failListing = false; state.emptyList = false; state.pageTotal = 2; state.calls = [] })
 
 describe("página Follow-up", () => {
-  it("recebe do banco somente aprovados com saldo, inclusive já pago, sem paginar antes da decisão", async () => {
+  it("recebe itens com saldo já conciliado e decisão em branco igual a Aprovado operacional", async () => {
     const { FollowUpContent } = await import("./page")
     render(await FollowUpContent({ searchParams: Promise.resolve({}) }))
     expect(screen.getByRole("table")).toHaveTextContent("Sal mineral")
     expect(screen.getByRole("table")).toHaveTextContent("Compra já paga")
-    expect(state.calls.map((entry) => entry.name)).toEqual(["fn_listar_followup_pendentes", "fn_listar_followup_compras"])
+    expect(state.calls.map((entry) => entry.name)).toEqual(["fn_listar_followup_ativos_238", "fn_listar_followup_compras"])
     expect(screen.getByRole("link", { name: /Previsão de pagamentos/i })).toHaveAttribute("href", "/compras/previsao")
   })
 
-  it("pagina pelo total de aprovados pendentes em vez do total bruto de origem", async () => {
+  it("pagina pelo total de pendências elegíveis em vez do total bruto de origem", async () => {
     state.pageTotal = 51
     const { FollowUpContent } = await import("./page")
     render(await FollowUpContent({ searchParams: Promise.resolve({ loja: "SO SAL", pagina: "1" }) }))
     expect(screen.getByRole("link", { name: /Próximo lote/i })).toHaveAttribute("href", "/compras/follow-up?loja=SO+SAL&pagina=2")
-    expect(state.calls[0]).toMatchObject({ name: "fn_listar_followup_pendentes", args: { p_loja: "SO SAL", p_pagina: 1, p_tamanho: 50 } })
+    expect(state.calls[0]).toMatchObject({ name: "fn_listar_followup_ativos_238", args: { p_loja: "SO SAL", p_pagina: 1, p_tamanho: 50 } })
   })
 
   it("não apresenta acompanhamento falso se a RPC ainda não está instalada", async () => {
@@ -57,20 +57,20 @@ describe("página Follow-up", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/não foi habilitado/i)
   })
 
-  it("não transforma falta de aprovações em pendência fictícia", async () => {
+  it("não transforma ausência de itens elegíveis em pendência fictícia", async () => {
     state.emptyList = true
     const { FollowUpContent } = await import("./page")
     render(await FollowUpContent({ searchParams: Promise.resolve({}) }))
-    expect(screen.getByText(/Nenhum item aprovado/i)).toBeInTheDocument()
+    expect(screen.getByText(/Nenhum item/i)).toBeInTheDocument()
     expect(screen.queryByText("Sal mineral")).not.toBeInTheDocument()
-    expect(state.calls.map((entry) => entry.name)).toEqual(["fn_listar_followup_pendentes"])
+    expect(state.calls.map((entry) => entry.name)).toEqual(["fn_listar_followup_ativos_238"])
   })
 
-  it("não usa a listagem antiga quando a consulta de aprovados falha", async () => {
+  it("não usa a listagem antiga quando a consulta de pendentes falha", async () => {
     state.failListing = true
     const { FollowUpContent } = await import("./page")
     render(await FollowUpContent({ searchParams: Promise.resolve({}) }))
-    expect(screen.getByRole("alert")).toHaveTextContent(/não foi possível consultar os pedidos aprovados/i)
-    expect(state.calls.map((entry) => entry.name)).toEqual(["fn_listar_followup_pendentes"])
+    expect(screen.getByRole("alert")).toHaveTextContent(/não foi possível consultar os pedidos em acompanhamento/i)
+    expect(state.calls.map((entry) => entry.name)).toEqual(["fn_listar_followup_ativos_238"])
   })
 })

@@ -12,6 +12,7 @@ import { interpretOtbPurchaseSource } from "@/domains/compras/domain/otb-source-
 import { buildPartialCashSeries, type ContractedWeek } from "@/domains/compras/domain/dashboard-cash-contracts"
 import { buildZacariniCashForecast } from "@/domains/compras/domain/zacarini-cash-forecast"
 import { buildOtbAutomaticReference238 } from "@/domains/compras/domain/otb-automatic-reference-238"
+import { interpretOtbOrderSource238 } from "@/domains/compras/domain/otb-order-source-238"
 import { resolveReceivablesRecovery, type RecoverableReceivablesLine } from "@/domains/compras/domain/receivables-recovery-237"
 import { nextOtbPurchaseNeeds } from "@/domains/compras/domain/otb-indicative-months"
 import { dashboardReference, type DashboardReferenceRow } from "@/domains/compras/domain/dashboard-zacarini-237"
@@ -70,7 +71,7 @@ export async function OtbContent() {
 
   // Duas fontes agregadas, somente leitura, verificadas pelo banco como Master.
   // O histórico NÃO contém fluxo de caixa futuro nem substitui a Projeção 12M.
-  const [summary, historical, stock, config, bank, weeks, months, recovery, consigned, readiness, drafts] = await Promise.all([
+  const [summary, historical, stock, config, bank, weeks, months, recovery, consigned, readiness, drafts, openOrders] = await Promise.all([
     supabase.rpc("fn_listar_pedidos_compra", {
     p_busca: null,
     p_loja: null,
@@ -89,6 +90,7 @@ export async function OtbContent() {
     supabase.rpc("fn_otb_estoque_consignado_237"),
     supabase.rpc("fn_otb_situacao_homologacao"),
     supabase.rpc("fn_otb_projecao_rascunhos_listar",{p_limite:10}),
+    supabase.rpc("fn_otb_carteira_subgrupos_238",{p_data_base:todayISO}),
   ])
   const purchaseSource = interpretOtbPurchaseSource(summary.data, summary.error)
   const historicalSource = interpretOtbHistoricalSource(historical.data, historical.error, lastClosedMonth)
@@ -192,6 +194,7 @@ export async function OtbContent() {
   const automaticReference=buildOtbAutomaticReference238({
     baseDate:todayISO,preview:subgroupPreview,forecast,
     references:config.error?[]:(config.data??[]) as DashboardReferenceRow[],
+    orders:interpretOtbOrderSource238(openOrders.data,openOrders.error,todayISO),
   })
 
   return <OtbDashboard email={user.email ?? ""} purchaseSource={purchaseSource} historicalSource={historicalSource}

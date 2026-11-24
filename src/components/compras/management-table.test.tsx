@@ -40,9 +40,8 @@ describe("gestão tabular de pedidos", () => {
   it("não apresenta pedido já pago com a sinalização de cancelado", () => {
     render(<ManagementTable rows={[
       { item: sample("77", "Pagamento realizado"), record: { loja: "SO SAL", pedido: "77", produto_codigo: "SKU77", decisao: "Já pago", observacao: null, atualizado_em: "2026-11-19", alteracoes: [] } },
-    ]} activeTab="padrao" tabHrefs={tabs} />)
+    ]} activeTab="aprovados" tabHrefs={tabs} />)
 
-    
     const decision = within(screen.getByRole("table")).getByText("Já pago")
     expect(decision).toHaveClass("text-violet-200")
     expect(decision).not.toHaveClass("text-rose-200")

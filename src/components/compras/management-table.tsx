@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import * as Dialog from "@radix-ui/react-dialog"
 import { CircleCheck, ClipboardPenLine, PackageOpen, X } from "lucide-react"
 import { getBranchDisplayName } from "@/domains/compras/domain/branches"
@@ -21,12 +22,12 @@ export type ManagementTableRow = { item: ManagementPurchaseItem; record: Purchas
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
 const quantity = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 })
-type Tab = "pendentes" | "aprovados" | "retidos"
+export type ManagementTab = "padrao" | "aprovados" | "retidos"
 
-const tabs: { id: Tab; text: string }[] = [
-  { id: "pendentes", text: "Aguardando aprovação" },
-  { id: "aprovados", text: "Aprovados" },
-  { id: "retidos", text: "Segurados / cancelados" },
+const tabs: { id: ManagementTab; text: string }[] = [
+  { id: "padrao", text: "Aprovados por padrão · sem decisão gravada" },
+  { id: "aprovados", text: "Aprovados / pagos registrados" },
+  { id: "retidos", text: "Segurar / Cancelar" },
 ]
 
 function toNumber(value: number | string | null): number {
@@ -39,33 +40,30 @@ function dateBR(value: string | null): string {
   return `${day}/${month}/${year}`
 }
 
-function tabFor(record: PurchaseDecisionRecord | null): Tab {
-  if (!record) return "pendentes"
-  return record.decisao === "Aprovado" || record.decisao === "Já pago" ? "aprovados" : "retidos"
-}
-
 function rowId(row: ManagementTableRow): string {
   return decisionKey(row.item.loja ?? "", row.item.pedido ?? "", row.item.produto_codigo ?? "")
 }
 
-export function ManagementTable({ rows }: { rows: ManagementTableRow[] }) {
-  const [tab, setTab] = useState<Tab>("pendentes")
+export function ManagementTable({ rows, activeTab, tabHrefs }: { rows: ManagementTableRow[]; activeTab: ManagementTab; tabHrefs: Record<ManagementTab, string> }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const visible = rows.filter((row) => tabFor(row.record) === tab)
+  // A consulta já pagina DEPOIS de selecionar a situação, no Supabase.
+  const visible = rows
   const selected = visible.find((row) => rowId(row) === selectedId)
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar aprovação operacional">
-        {tabs.map(({ id, text }) => {
-          const count = rows.filter((row) => tabFor(row.record) === id).length
-          return <button key={id} type="button" aria-pressed={tab === id} onClick={() => { setTab(id); setSelectedId(null) }} className={`rounded-xl border px-4 py-2.5 text-xs font-bold transition focus-visible:outline-2 focus-visible:outline-cyan-300 ${tab === id ? "border-cyan-300/50 bg-cyan-400/15 text-cyan-100 shadow-[0_0_20px_-12px_#22d3ee]" : "border-white/10 bg-white/[.035] text-slate-400 hover:text-white"}`}>{text} <span className="ml-1 rounded-md bg-white/10 px-1.5 py-0.5 text-[10px]">{count}</span></button>
-        })}
+        {tabs.map(({ id, text }) => <Link key={id} href={tabHrefs[id]}
+          aria-current={activeTab === id ? "page" : undefined}
+          onClick={() => setSelectedId(null)}
+          className={`rounded-xl border px-4 py-2.5 text-xs font-bold transition focus-visible:outline-2 focus-visible:outline-cyan-300 ${activeTab === id ? "border-cyan-300/50 bg-cyan-400/15 text-cyan-100 shadow-[0_0_20px_-12px_#22d3ee]" : "border-white/10 bg-white/[.035] text-slate-400 hover:text-white"}`}>
+          {text}
+        </Link>)}
       </div>
 
       <div className="erp-surface overflow-hidden rounded-2xl border border-[#2b4058]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#0d2034] px-5 py-4">
-          <h3 className="text-sm font-bold text-slate-100">{tabs.find((item) => item.id === tab)?.text}</h3>
+          <h3 className="text-sm font-bold text-slate-100">{tabs.find((item) => item.id === activeTab)?.text}</h3>
           <span className="text-xs text-slate-400">{visible.length} item(ns) neste lote · Selecione uma linha para gerenciar</span>
         </div>
         <div className="overflow-x-auto">
@@ -94,7 +92,7 @@ export function ManagementTable({ rows }: { rows: ManagementTableRow[] }) {
             </tbody>
           </table>
         </div>
-        {visible.length === 0 && <div className="px-6 py-12 text-center text-slate-400"><CircleCheck size={26} className="mx-auto mb-3 text-cyan-300" />Nenhum pedido nesta situação neste lote. Os próximos lotes podem conter outros itens.</div>}
+        {visible.length === 0 && <div className="px-6 py-12 text-center text-slate-400"><CircleCheck size={26} className="mx-auto mb-3 text-cyan-300" />Nenhum item com entrega pendente nesta categoria. Confira as outras situações ou filtros.</div>}
       </div>
 
       <Dialog.Root open={Boolean(selected)} onOpenChange={(open) => { if (!open) setSelectedId(null) }}>

@@ -45,6 +45,15 @@ export type OtbInput = {
   mpTiedSales?: OtbTriple<number>
   buyerShare: number
   subgroups: readonly OtbSubgroupInput[]
+  /** OTB!R/AA/AJ173 e Q/Z/AI173: abertura e CMV da matéria-prima.
+   * Opcional em testes manuais, obrigatório para a verba total real do comprador.
+   */
+  materialBuyer?: {
+    line: string
+    name: string
+    openingStock: number
+    forecastCost: OtbTriple<number>
+  }
 }
 
 export type OtbSubgroupMonth = {
@@ -98,6 +107,16 @@ export type OtbMonth = {
   /** Saldo de mercadorias; MP não é conciliada com pedidos neste contrato. */
   freeBalance: number
   cashStatus: "SEM NECESSIDADE" | "LIBERADO" | "SÓ CURVA A + PARTE" | "TRAVADO"
+  /** Linha S173 da verba do comprador (não duplica a necessidade de MP). */
+  materialBuyer?: {
+    line: string
+    name: string
+    openingStock: number
+    forecastCost: number
+    need: number
+    released: number
+    freeBalance: number
+  }
   subgroups: OtbSubgroupMonth[]
   lines: OtbLineMonth[]
 }
@@ -151,6 +170,12 @@ export function calculateOtb(input: OtbInput): OtbResult {
   requireNumber(input.buyerShare, "parcela do comprador", 0, 1)
   if (Math.abs(input.buyerShare - 0.9) > 1e-9) throw new RangeError("OTB: regra de OTB!R24 (90% comprador / 10% diretoria) violada.")
   if (!Array.isArray(input.subgroups)) throw new RangeError("OTB: subgrupos não disponíveis.")
+  if(input.materialBuyer){
+    const mp=input.materialBuyer
+    if(!mp.line?.trim()||!mp.name?.trim()) throw new RangeError("OTB: nome ou linha de MP inválidos.")
+    requireNumber(mp.openingStock,"estoque inicial da matéria-prima")
+    requireTriple(mp.forecastCost,"CMV de produção para MP",0)
+  }
 
   const seen = new Set<string>()
   for (const item of input.subgroups) {
@@ -171,6 +196,7 @@ export function calculateOtb(input: OtbInput): OtbResult {
   }
 
   let opening = input.subgroups.map((s) => s.openingStock + s.priorOrders)
+  let materialOpening = input.materialBuyer?.openingStock
   const output: OtbMonth[] = []
 
   for (let monthIndex = 0; monthIndex < 3; monthIndex++) {
@@ -183,6 +209,13 @@ export function calculateOtb(input: OtbInput): OtbResult {
     const mpRecorded = input.mpRecorded?.[monthIndex]??0
     const mpTiedSales = input.mpTiedSales?.[monthIndex]??0
     const mpFreeBalance = mpReleased + mpTiedSales - mpRecorded
+    const materialBuyer=input.materialBuyer && materialOpening!==undefined ? {
+      line:input.materialBuyer.line,
+      name:input.materialBuyer.name,
+      openingStock:materialOpening,
+      forecastCost:input.materialBuyer.forecastCost[monthIndex],
+      need:mpNeed,released:mpReleased,freeBalance:mpFreeBalance,
+    }:undefined
     const remainingForMerchandise = Math.max(0, cashCap - mpReleased)
 
     const needMerchandise = itemNeeds.reduce((sum, value) => sum + value, 0)
@@ -257,8 +290,13 @@ export function calculateOtb(input: OtbInput): OtbResult {
       excess: rows.reduce((sum, row) => sum + row.excess, 0),
       freeBalance: lines.reduce((sum, line) => sum + line.freeBalance, 0),
       cashStatus, subgroups: rows, lines,
+      ...(materialBuyer?{materialBuyer}:{}),
     })
     opening = rows.map((row) => row.closingStock)
+    if(materialBuyer) {
+      // OTB!AA/AJ173 = MAX(0, abertura MP + liberação T/AC - consumo Q/Z).
+      materialOpening=Math.max(0,materialBuyer.openingStock+mpReleased-materialBuyer.forecastCost)
+    }
   }
 
   return { source: input.source, baseDate: input.baseDate, months: output as unknown as OtbTriple<OtbMonth> }

@@ -1,4 +1,4 @@
-import type { CashForecastResult } from "./zacarini-cash-forecast"
+import type { CashForecastResult, CashScenario } from "./zacarini-cash-forecast"
 
 /**
  * Projeção 12M da Zacarini 2.3.8:
@@ -17,6 +17,7 @@ export type OtbFreeCash238 = {
   forecastMonths: readonly string[]
   freeCashForOtb: number[]
   returnedPaymentsByMonth: number[]
+  returnedPaymentsByScenario: Record<CashScenario, number[]>
   safetyFloor: number
   returnedPaymentsTotal: number
   authorizesPurchases: false
@@ -37,56 +38,74 @@ export function calculateFreeCashForOtb238(
 ): OtbFreeCash238 {
   if (forecast.state !== "simulado") throw new RangeError("Caixa OTB: projeção 12M indisponível.")
   const months = forecast.monthLabels
-  const purchases = forecast.monthlyNewPurchasesByLine?.noventa
+  const scenarios = ["noventa","plano","historico"] as const
+  const scenarioBalance=forecast.monthly
+  const scenarioPurchases=forecast.monthlyNewPurchasesByLine
   if (!Array.isArray(months) || months.length !== 12 ||
-      months.some((m, i) => !/^20\d{2}-(0[1-9]|1[0-2])-01$/.test(m) ||
+      months.some((m, i) => !/^20\\d{2}-(0[1-9]|1[0-2])-01$/.test(m) ||
         m !== monthAt(months[0], i)) ||
       !Array.isArray(forecast.monthlyWorst) || forecast.monthlyWorst.length !== 12 ||
-      !Array.isArray(purchases) || purchases.length !== 12 ||
-      purchases.some(row => !Array.isArray(row) || row.length !== 4) ||
+      !scenarioBalance || !scenarioPurchases ||
+      scenarios.some(s => !Array.isArray(scenarioBalance[s]) || scenarioBalance[s].length !== 12 ||
+        !Array.isArray(scenarioPurchases[s]) || scenarioPurchases[s].length !== 12 ||
+        scenarioPurchases[s].some(row => !Array.isArray(row) || row.length !== 4)) ||
       paymentDays.length !== 4 || paymentDays.some(n => !Number.isSafeInteger(n) || n < 0 || n > 365)) {
-    throw new RangeError("Caixa OTB: série, reposição ou prazos de pagamento incompletos.")
+    throw new RangeError("Caixa OTB: série, cenários, reposição ou prazos de pagamento incompletos.")
   }
   finite(forecast.safetyFloor, "saldo mínimo")
-  for (const [month, value] of forecast.monthlyWorst.entries()) finite(value, "caixa do mês " + month, true)
-  for (const [month, row] of purchases.entries()) {
-    for (const [line, value] of row.entries()) finite(value, "compra no mês " + month + " linha " + line)
-  }
-
-  // Replicar o instante exato em que o simulador descontou a reposição:
-  // compras dos meses futuros começam no dia 1 e vencem em dia 1 + prazo.
-  // Não devolvemos compras do mês corrente, nem de meses 4..12.
-  const refunds = new Array<number>(12).fill(0)
-  const baseYear = Number(months[0].slice(0, 4))
-  const baseMonth = Number(months[0].slice(5, 7))
-  for (let purchaseMonth = 1; purchaseMonth <= 3; purchaseMonth++) {
-    const [year, month] = months[purchaseMonth].split("-").map(Number)
-    const purchaseStart = Date.UTC(year, month - 1, 1)
-    for (let line = 0; line < 4; line++) {
-      const amount = purchases[purchaseMonth][line]
-      if (amount === 0) continue
-      const due = new Date(purchaseStart + paymentDays[line] * DAY)
-      const dueMonthIndex = (due.getUTCFullYear() - baseYear) * 12 +
-        due.getUTCMonth() - (baseMonth - 1)
-      if (dueMonthIndex < 0 || dueMonthIndex >= 12) continue
-      refunds[dueMonthIndex] += amount
+  for (const [month, value] of forecast.monthlyWorst.entries()) finite(value, "pior caixa no mês " + month, true)
+  for (const scenario of scenarios) {
+    for (const [month, amount] of scenarioBalance[scenario].entries()) {
+      finite(amount, scenario + " caixa no mês " + month, true)
+    }
+    for (const [month, row] of scenarioPurchases[scenario].entries()) {
+      for (const [line, amount] of row.entries()) {
+        finite(amount, scenario + " compra no mês " + month + " linha " + line)
+      }
     }
   }
-  let cumulative = 0
-  const returnedPaymentsByMonth = refunds.map(amount => {
-    cumulative += amount
-    return cumulative
-  })
-  const freeCashForOtb = forecast.monthlyWorst.map((cash, index) =>
-    cash + returnedPaymentsByMonth[index] - forecast.safetyFloor)
-  if (freeCashForOtb.some(x => !Number.isFinite(x))) {
+
+  const baseYear = Number(months[0].slice(0, 4))
+  const baseMonth = Number(months[0].slice(5, 7))
+  const returnedPaymentsByScenario={} as Record<CashScenario,number[]>
+  for (const scenario of scenarios) {
+    const refundAtDue = new Array<number>(12).fill(0)
+    // OTB calcula os meses 1–3; não devolve compras do mês-base nem 4–12.
+    for (let purchaseMonth = 1; purchaseMonth <= 3; purchaseMonth++) {
+      const [year, month] = months[purchaseMonth].split("-").map(Number)
+      const purchaseStart = Date.UTC(year, month - 1, 1)
+      for (let line = 0; line < 4; line++) {
+        const amount = scenarioPurchases[scenario][purchaseMonth][line]
+        if (amount === 0) continue
+        const due = new Date(purchaseStart + paymentDays[line] * DAY)
+        const dueMonthIndex = (due.getUTCFullYear() - baseYear) * 12 +
+          due.getUTCMonth() - (baseMonth - 1)
+        if (dueMonthIndex < 0 || dueMonthIndex >= 12) continue
+        refundAtDue[dueMonthIndex] += amount
+      }
+    }
+    let accumulated = 0
+    returnedPaymentsByScenario[scenario]=refundAtDue.map(amount=>{
+      accumulated+=amount
+      return accumulated
+    })
+  }
+  // Zacarini Projeção 12M!C613:N613 = MIN(C607:C609,C807).
+  // Corrigir cada cenário com as SUAS próprias compras já provisionadas,
+  // depois aplicar o piso B7 em todos os candidatos (uma só vez).
+  const freeCashForOtb=months.map((_,i)=>Math.min(
+    ...scenarios.map(s=>scenarioBalance[s][i]+returnedPaymentsByScenario[s][i]-forecast.safetyFloor),
+    forecast.monthlyWorst[i]+returnedPaymentsByScenario.noventa[i]-forecast.safetyFloor,
+  ))
+  if (freeCashForOtb.some(x=>!Number.isFinite(x))) {
     throw new RangeError("Caixa OTB: excesso numérico nos saldos livres.")
   }
   return {
     forecastMonths: [...months],
     freeCashForOtb,
-    returnedPaymentsByMonth,
-    returnedPaymentsTotal: cumulative,
+    returnedPaymentsByMonth: returnedPaymentsByScenario.noventa,
+    returnedPaymentsByScenario,
+    returnedPaymentsTotal: returnedPaymentsByScenario.noventa[11],
     safetyFloor: forecast.safetyFloor,
     authorizesPurchases: false,
   }

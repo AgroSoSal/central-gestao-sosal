@@ -103,3 +103,37 @@ describe("OTB de três meses segundo Gestão Zacarini", () => {
     expect(() => calculateOtb(scenario({ months: [months[1], months[0], months[2]] }))).toThrow()
   })
 })
+
+describe("Zacarini 2.3.8: matéria-prima na Verba Comprador",()=>{
+  it("transporta abertura e CMV de MP sem duplicar a verba nem os pedidos",()=>{
+    const result=calculateOtb(scenario({
+      cashCaps:[70,70,70],mpNeeds:[100,0,0],
+      materialBuyer:{
+        line:"Linha 1",name:"1.LINHA NUTRIÇÃO / MATERIA PRIMA",
+        openingStock:200,forecastCost:[30,20,10],
+      },
+      subgroups:[],
+    }))
+    const [first,second,third]=result.months
+    expect(first.mpReleased).toBe(70)
+    expect(first.buyerBudget).toBeCloseTo(63,6)
+    expect(first.materialBuyer).toEqual({
+      line:"Linha 1",name:"1.LINHA NUTRIÇÃO / MATERIA PRIMA",
+      openingStock:200,forecastCost:30,need:100,released:70,freeBalance:70,
+    })
+    expect(second.materialBuyer?.openingStock).toBe(240)
+    expect(third.materialBuyer?.openingStock).toBe(220)
+    expect(first.releasedTotal).toBe(70)
+    expect(first.releasedMerchandise).toBe(0)
+  })
+  it("sem origem de MP não mascara estoque ou CMV com zero",()=>{
+    const result=calculateOtb(scenario({mpNeeds:[100,0,0]}))
+    expect(result.months[0].materialBuyer).toBeUndefined()
+  })
+  it("rejeita origem de MP sem CMV validado",()=>{
+    expect(()=>calculateOtb(scenario({
+      materialBuyer:{line:"Linha 1",name:"MP",openingStock:123,
+        forecastCost:[10,Number.NaN,30]},
+    }))).toThrow(/MP/)
+  })
+})

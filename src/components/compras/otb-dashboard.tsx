@@ -18,6 +18,8 @@ import type { OtbSeasonalHistory } from "@/domains/compras/domain/otb-seasonal-s
 import type { OtbAbcProjection } from "@/domains/compras/domain/otb-abc-projection-237"
 import type { OtbConsignedStock } from "@/domains/compras/domain/otb-consigned-stock-237"
 import { buildOtbTestSimulation } from "@/domains/compras/domain/otb-test-simulation"
+import type { CashForecastResult } from "@/domains/compras/domain/zacarini-cash-forecast"
+import { assessOtbGoLive, type OtbGoLiveStatus } from "@/domains/compras/domain/otb-go-live-readiness"
 
 type Props = {
   email: string
@@ -28,6 +30,10 @@ type Props = {
   indicativeMonths?: {month:string;amount:number}[] | null
   /** Por que a simulação não foi calculada, sem mascarar falhas de dados. */
   forecastIssues?: readonly string[]
+  /** Série financeira 12M gerada pelo motor existente, somente simulação. */
+  forecast?: CashForecastResult
+  /** Comprovação efetiva das fontes oficiais, exclusivamente RPC protegida Master. */
+  readinessStatus?: OtbGoLiveStatus | null
   /** Prévia de estoque por subgrupo. Não é cenário oficial nem autorização. */
   subgroupPreview?: OtbSubgroupPreview | null
   /** Vendas entregues das quatro janelas da aba fx_VendaSubgrupo. */
@@ -86,7 +92,8 @@ function Metric({ label, value, sub, icon }: { label: string; value: string; sub
   </div>
 }
 
-export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, indicativeMonths, forecastIssues, subgroupPreview, seasonalHistory, abcProjection, consignedPosition, officialScenario, simulationBaseDate }: Props) {
+export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, indicativeMonths, forecastIssues, forecast, readinessStatus, subgroupPreview, seasonalHistory, abcProjection, consignedPosition, officialScenario, simulationBaseDate }: Props) {
+  const goLive = assessOtbGoLive(readinessStatus ?? null)
   const [testActive, setTestActive] = useState(false)
   const [testCashCaps, setTestCashCaps] = useState<[string, string, string]>(["120000", "150000", "180000"])
   const [testMpNeeds, setTestMpNeeds] = useState<[string, string, string]>(["15000", "20000", "25000"])
@@ -246,6 +253,76 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
           ? "As últimas 12 competências possuem vendas e saídas classificadas. Ainda faltam premissas financeiras e fluxo de caixa futuro para liberar a OTB."
           : "Histórico ainda não homologado para previsão automática: confira competências ausentes e classificações de produtos. As travas financeiras continuam bloqueadas."}
       </div>}
+    </section>
+
+
+    <section className="erp-surface rounded-[24px] p-5 sm:p-7" aria-label="Checklist real de homologação">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[.17em] text-cyan-300"><ShieldCheck size={14} className="mr-2 inline"/>Governança financeira · dados reais</p>
+          <h2 className="mt-2 text-xl font-bold text-white">Checklist de homologação do OTB</h2>
+          <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-400">Status consultado diretamente no Supabase. Auditoria interna dos extratos e confirmação de ausência de movimento não são conciliação com banco. As referências da Zacarini não se tornam premissas homologadas automaticamente.</p>
+        </div>
+        <Status value={goLive.safeToRelease ? "LIBERADO" : "TRAVADO"}/>
+      </div>
+      {goLive.available&&readinessStatus?
+        <>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-cyan-300/20 bg-cyan-400/5 p-4"><p className="text-xs text-slate-400">Contas com saldo</p><p className="mt-2 text-xl font-bold tabular-nums">{readinessStatus.caixa.saldos}/{readinessStatus.caixa.contas}</p><p className="mt-1 text-[11px] text-amber-200">{readinessStatus.caixa.conciliadas} conciliadas oficialmente</p></div>
+            <div className="rounded-xl border border-cyan-300/20 bg-cyan-400/5 p-4"><p className="text-xs text-slate-400">Arquivos conferidos</p><p className="mt-2 text-xl font-bold tabular-nums">{readinessStatus.arquivos.auditados}/{readinessStatus.arquivos.importados}</p><p className="mt-1 text-[11px] text-slate-400">{readinessStatus.arquivos.reenvios_sem_movimento_informado} reenvios atestados · {readinessStatus.arquivos.cargas_anteriores_sem_ateste} sem confirmação</p></div>
+            <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-4"><p className="text-xs text-slate-400">Premissas homologadas</p><p className="mt-2 text-xl font-bold tabular-nums">{readinessStatus.premissas.homologadas}</p><p className="mt-1 text-[11px] text-slate-400">{readinessStatus.premissas.referencias} referências ainda não aprovadas</p></div>
+            <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-4"><p className="text-xs text-slate-400">Meses de Projeção 12M homologados</p><p className="mt-2 text-xl font-bold tabular-nums">{readinessStatus.projecao.linhas_homologadas}</p><p className="mt-1 text-[11px] text-slate-400">Exigência de 12 competências e alçada Master</p></div>
+          </div>
+          {readinessStatus.pendencias.length>0&&<p className="mt-4 text-xs text-slate-400">Pendências de extrato/caixa registradas: {readinessStatus.pendencias.map(item=>item.conta ? `${item.conta} · ${item.tipo.replaceAll("_"," ")}` : item.tipo.replaceAll("_"," ")).join("; ")}.</p>}
+        </>:<p role="alert" className="mt-4 rounded-xl border border-amber-300/25 bg-amber-400/10 p-4 text-xs text-amber-100">Não foi possível conferir a fonte protegida da homologação. Nenhum teto foi liberado.</p>}
+      <div className="mt-5 rounded-xl border border-amber-400/25 bg-amber-400/5 p-4 text-xs leading-6 text-amber-100">
+        <p className="font-bold">Condições para liberar orçamento</p>
+        <ul className="mt-2 list-inside list-disc space-y-1">{goLive.blockers.map(item=><li key={item}>{item}</li>)}</ul>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Link href="/compras/otb/fluxo-caixa" className="inline-flex h-10 items-center rounded-xl border border-cyan-300/30 px-4 text-xs font-bold text-cyan-200 hover:bg-cyan-400/10">Extratos, saldos e títulos</Link>
+        <Link href="/compras/otb/premissas" className="inline-flex h-10 items-center rounded-xl border border-cyan-300/30 px-4 text-xs font-bold text-cyan-200 hover:bg-cyan-400/10">Premissas financeiras</Link>
+      </div>
+    </section>
+
+    <section className="erp-surface overflow-hidden rounded-[24px]" aria-label="Simulação da Projeção 12M baseada na Zacarini">
+      <div className="flex flex-wrap items-start justify-between gap-5 border-b border-[#25354e] p-5 sm:p-7">
+        <div>
+          <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.17em] text-cyan-300"><ChartNoAxesCombined size={15}/> Motor Zacarini · 12 competências</p>
+          <h2 className="mt-2 text-xl font-bold text-white">Projeção 12M simulada · três cenários e pior caso</h2>
+          <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-400">Motor financeiro existente da versão 2.3.7: combina saldos e títulos identificados, estoque a custo, CMV e premissas de referência para projetar cenários de caixa. Os resultados são estudos de sensibilidade, não o caixa real futuro nem o teto oficial de compras.</p>
+        </div>
+        <span className="rounded-lg border border-amber-300/25 bg-amber-400/10 px-3 py-2 text-[11px] font-bold text-amber-100">Referência · não autoriza compras</span>
+      </div>
+      {forecast?.state==="simulado"?
+        <>
+          <div className="grid gap-3 border-b border-[#25354e] p-5 sm:grid-cols-3">
+            <div className="rounded-xl border border-slate-700 p-4"><p className="text-xs text-slate-400">Pior caixa projetado de referência</p><p className="mt-2 text-xl font-bold tabular-nums"><Balance value={forecast.minimumWorst12}/></p></div>
+            <div className="rounded-xl border border-slate-700 p-4"><p className="text-xs text-slate-400">Saldo no último mês · cenário 90%</p><p className="mt-2 text-xl font-bold tabular-nums"><Balance value={forecast.final12}/></p></div>
+            <div className="rounded-xl border border-slate-700 p-4"><p className="text-xs text-slate-400">Colchão da referência</p><p className="mt-2 text-xl font-bold tabular-nums text-white">{money.format(forecast.safetyFloor)}</p></div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="erp-table w-full min-w-[960px] text-left text-xs">
+              <thead className="bg-[#121e30] uppercase tracking-wider text-slate-400"><tr><th className="p-4">Mês</th><th className="p-4 text-right">Cenário 90%</th><th className="p-4 text-right">Plano</th><th className="p-4 text-right">Histórico</th><th className="p-4 text-right">Pior caso</th><th className="p-4 text-right">Reposição simulada</th></tr></thead>
+              <tbody className="divide-y divide-slate-800">{forecast.monthLabels.map((month,i)=><tr key={month}>
+                <td className="p-4 font-bold capitalize text-cyan-200">{monthLabel(month)}</td>
+                <td className="p-4 text-right tabular-nums"><Balance value={forecast.monthly.noventa[i]}/></td>
+                <td className="p-4 text-right tabular-nums"><Balance value={forecast.monthly.plano[i]}/></td>
+                <td className="p-4 text-right tabular-nums"><Balance value={forecast.monthly.historico[i]}/></td>
+                <td className="p-4 text-right tabular-nums"><Balance value={forecast.monthlyWorst[i]}/></td>
+                <td className="p-4 text-right tabular-nums">{money.format(forecast.monthlyNewPurchases.noventa[i])}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+          <div className="p-5 text-[11px] leading-6 text-amber-100">
+            <strong>Premissas não homologadas:</strong> {forecast.warnings.join(" ")} O motor não preenche lacunas de conciliação, DDE, matéria-prima ou pedidos como se fossem zeros.
+          </div>
+        </>:
+        <div role="status" className="p-6 text-xs leading-6 text-amber-200">
+          <p className="font-bold">A simulação de 12 meses não pode ser calculada com a cobertura atual.</p>
+          <ul className="mt-3 list-inside list-disc space-y-1">{(forecast?.state==="indisponivel"?forecast.reasons:forecastIssues??["Fonte financeira indisponível."]).map(x=><li key={x}>{x}</li>)}</ul>
+          <p className="mt-3 text-slate-400">A tabela de títulos já contratados permanece disponível no fluxo de caixa. Não foi preenchido nenhum mês com dados de exemplo.</p>
+        </div>}
     </section>
 
     <section className="erp-surface overflow-hidden rounded-[24px]" aria-label="Estoque e CMV reais do Supabase">

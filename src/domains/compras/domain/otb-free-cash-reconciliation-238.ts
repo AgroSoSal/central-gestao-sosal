@@ -42,7 +42,7 @@ export function calculateFreeCashForOtb238(
   const scenarioBalance=forecast.monthly
   const scenarioPurchases=forecast.monthlyNewPurchasesByLine
   if (!Array.isArray(months) || months.length !== 12 ||
-      months.some((m, i) => !/^20\\d{2}-(0[1-9]|1[0-2])-01$/.test(m) ||
+      months.some((m, i) => !/^20\d{2}-(0[1-9]|1[0-2])-01$/.test(m) ||
         m !== monthAt(months[0], i)) ||
       !Array.isArray(forecast.monthlyWorst) || forecast.monthlyWorst.length !== 12 ||
       !scenarioBalance || !scenarioPurchases ||

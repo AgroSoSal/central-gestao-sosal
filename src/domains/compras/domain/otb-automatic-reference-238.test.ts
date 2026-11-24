@@ -80,7 +80,7 @@ describe("OTB operacional automática, sem liberação",()=>{
   const out=buildOtbAutomaticReference238({
    baseDate:"2026-11-24",preview:preview(),forecast:forecast(),references:refs,
   })
-  expect(out.state).toBe("referencia_parcial")
+  expect(out.state,out.state==="indisponivel"?out.reason:"").toBe("referencia_parcial")
   expect(out.authorizesPurchases).toBe(false)
   if(out.state!=="referencia_parcial")throw new Error(out.reason)
   expect(out.result.months).toHaveLength(3)

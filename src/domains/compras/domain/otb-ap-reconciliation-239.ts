@@ -10,7 +10,7 @@ export type OtbApCandidate239={
 }
 export type OtbApAudit239=
  | {state:"indisponivel";reason:string}
- | {state:"auditado";base:string;latestImportedAt:string|null;
+ | {state:"auditado";base:string;latestImportedAt:string;
     latestImport:number;apRows:number;apValue12m:number;orderGroups:number;
     orderPending:number;candidatePairs:number;uniqueCandidates:number;
     uniqueCandidateValue:number;duplicateApKeys:number;duplicateApExtraRows:number;

@@ -13,7 +13,7 @@ const workbook:readonly (readonly number[])[]=[
 ]
 function ref(code:string,value:number):DashboardReferenceRow {
  return {codigo:code,valor:value,grupo:"fonte",dimensao:null,competencia:null,
-  rotulo:code,unidade:"dias",origem_aba:"Premissas 12M",origem_celula:"G77:G80",
+  rotulo:code,unidade:"dias",origem_aba:"Premissas 12M",origem_celula:"G77",
   versao:"2.3.7",situacao:"referencia"}
 }
 const refs=paymentDays.map((v,i)=>ref("prazo_pagamento_linha_"+(i+1),v))

@@ -5,6 +5,7 @@ import type { OtbSubgroupPreview } from "./otb-subgroup-preview"
 import type { CashForecastResult } from "./zacarini-cash-forecast"
 import { matchOtbOrders238, type OtbOrderSource238 } from "./otb-order-source-238"
 import { tiedSalesForSubgroup238, type OtbTiedSales238 } from "./otb-manual-calendar-238"
+import { calculateFreeCashForOtb238, type OtbFreeCash238 } from "./otb-free-cash-reconciliation-238"
 
 /**
  * Executa AUTOMATICAMENTE a OTB no modo demonstrativo operacional com dados do
@@ -24,6 +25,7 @@ export type OtbAutomaticReference238 =
       authorizesPurchases:false
       result:OtbResult
       cash:OtbWorstCashResult
+      freeCashReconciliation:OtbFreeCash238
       excludedSubgroups:string[]
       mpMethod:"PRODUCAO_P_MULTIPLICADA_H12_ESTOQUE_MP_COM_PEDIDOS"
       rawMaterialNeeds:OtbTriple<number>
@@ -238,16 +240,21 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
   }
   let caps:OtbWorstCashResult
   let result:OtbResult
+  let freeCashReconciliation:OtbFreeCash238
   try{
     const dues=buildZacarini238CumulativeDues({
       forecastMonths:forecast.monthLabels,otbMonths,
       needsByMonthLine,paymentDays:terms as number[],
     })
+    // Excel C607:C609 devolve as compras do modelo que a nova OTB substitui
+    // e subtrai Fluxo de Caixa!B7 (R$ 500 mil em 2.3.8).
+    // OTB!B11 é verba EXTRA da diretoria (0 na referência): nunca misturar.
+    freeCashReconciliation=calculateFreeCashForOtb238(forecast,terms as number[])
     caps=calculateWorstCaseOtbCaps({
       source:"PROJECAO_12M_SOSAL_ESTIMATIVA_238",
       forecastStart:forecast.monthLabels[0],
-      cashBuffer:0, // Excel OTB!B11 = 0, distinto de minimo_caixa
-      worstFreeCash:forecast.monthlyWorst,
+      cashBuffer:0, // OTB!B11, APENAS o extra autorizado da diretoria
+      worstFreeCash:freeCashReconciliation.freeCashForOtb,
       monthlyNeeds:needsByMonthLine.map(row=>row.reduce((s,v)=>s+v,0)),
       cumulativeDues:dues,
     })
@@ -262,6 +269,7 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
   }
   return {
     state:"referencia_parcial",authorizesPurchases:false,result,cash:caps,
+    freeCashReconciliation,
     mpMethod:"PRODUCAO_P_MULTIPLICADA_H12_ESTOQUE_MP_COM_PEDIDOS",
     rawMaterialNeeds:mpTriple,mpPriorOrders,mpRecorded,
     orderSummary:{
@@ -280,6 +288,7 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
         "OTB!U/AD/AM: vendas casadas iniciadas em zero como na planilha; não há fonte externa de aprovações neste teste.",
       `${orders.unmappedItems} itens, R$ ${orders.unmappedValue.toFixed(2)}, sem subgrupo identificado; não foram imputados em nenhuma linha.`,
       ...(groupMatch.unmatched.length?[`${groupMatch.unmatched.length} grupo(s) da carteira não tiveram correspondência segura com a posição de estoque. Pendência R$ ${unmatchedPending.toFixed(2)}.`]:[]),
+      `A trava de caixa desconta o mínimo de R$ ${freeCashReconciliation.safetyFloor.toLocaleString("pt-BR",{minimumFractionDigits:2})} e devolve R$ ${freeCashReconciliation.returnedPaymentsTotal.toLocaleString("pt-BR",{minimumFractionDigits:2})} de compras previstas que a OTB recalcula, evitando dupla contagem (Projeção 12M!607:613).`,
       "O saldo do pior caso é simulação com referências financeiras, não saldo bancário homologado. A programação de pagamentos replica os prazos por linha da Zacarini.",
       ...(missing.length?[`${missing.length} subgrupo(s) S incompleto(s) excluído(s); valores são parciais.`]:[]),
     ],

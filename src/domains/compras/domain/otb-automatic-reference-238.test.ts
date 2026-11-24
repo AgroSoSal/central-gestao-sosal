@@ -21,6 +21,17 @@ const refs=paymentDays.map((v,i)=>ref("prazo_pagamento_linha_"+(i+1),v))
 function forecast():CashForecastResult {
  return {state:"simulado",authorizesPurchases:false,warnings:[],
   monthLabels:months,monthlyWorst:months.map((_,i)=>3000000+i*500000),
+  safetyFloor:500000,
+  monthlyNewPurchasesByLine:{
+    noventa:months.map(()=>[20000,10000,5000,6000]),
+    plano:months.map(()=>[20000,10000,5000,6000]),
+    historico:months.map(()=>[20000,10000,5000,6000]),
+  },
+  monthly:{
+    noventa:months.map((_,i)=>3000000+i*500000),
+    plano:months.map((_,i)=>3300000+i*500000),
+    historico:months.map((_,i)=>3500000+i*500000),
+  },
   monthlyCmvByLine:{noventa:months.map(()=>[200000,100000,50000,60000]),plano:[],historico:[]},
  } as unknown as CashForecastResult
 }
@@ -99,6 +110,10 @@ describe("OTB operacional automática, sem liberação",()=>{
   expect(out.result.months[0].month).toBe("2026-12-01")
   expect(out.rawMaterialNeeds[0]).toBeGreaterThan(0)
   expect(out.mpPriorOrders).toBe(10000)
+  expect(out.freeCashReconciliation.safetyFloor).toBe(500000)
+  expect(out.freeCashReconciliation.returnedPaymentsTotal).toBe(123000)
+  expect(out.freeCashReconciliation.freeCashForOtb[0]).toBe(2500000)
+  expect(out.cash.source).toContain("ESTIMATIVA_238")
   expect(out.result.months[0].subgroups.find(s=>s.name==="1.LINHA NUTRIÇÃO / MINERAL")?.openingStock).toBe(22000)
   expect(out.result.months[0].subgroups.find(s=>s.name==="1.LINHA NUTRIÇÃO / MINERAL")?.recorded).toBe(400)
   expect(out.orderSummary.unmappedItems).toBe(1)

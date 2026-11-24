@@ -18,6 +18,9 @@ function ref(code:string,value:number):DashboardReferenceRow {
   versao:"2.3.7",situacao:"referencia"}
 }
 const refs=paymentDays.map((v,i)=>ref("prazo_pagamento_linha_"+(i+1),v))
+const tiedSales={
+  state:"conectado" as const,start:"2026-12-01",rows:[],total:0,entries:0,
+}
 function forecast():CashForecastResult {
  return {state:"simulado",authorizesPurchases:false,warnings:[],
   monthLabels:months,monthlyWorst:months.map((_,i)=>3000000+i*500000),
@@ -100,7 +103,7 @@ describe("Zacarini 2.3.8: vencimentos por linha iguais aos valores da planilha",
 describe("OTB operacional automática, sem liberação",()=>{
  it("monta os três meses usando CMV real e MP por produção, nunca exemplo local",()=>{
   const out=buildOtbAutomaticReference238({
-   baseDate:"2026-11-24",preview:preview(),forecast:forecast(),references:refs,orders:openOrders(),
+   baseDate:"2026-11-24",preview:preview(),forecast:forecast(),references:refs,orders:openOrders(),tiedSales,
   })
   expect(out.state,out.state==="indisponivel"?out.reason:"").toBe("referencia_parcial")
   expect(out.authorizesPurchases).toBe(false)
@@ -136,7 +139,7 @@ describe("OTB operacional automática, sem liberação",()=>{
   if(f.state!=="simulado")throw new Error("cenário de teste indisponível")
   f.monthlyWorst=months.map(()=>-2000000)
   const result=buildOtbAutomaticReference238({
-    baseDate:"2026-11-24",preview:stock,forecast:f,references:refs,orders:ord,
+    baseDate:"2026-11-24",preview:stock,forecast:f,references:refs,orders:ord,tiedSales,
   })
   expect(result.state,result.state==="indisponivel"?result.reason:"").toBe("referencia_parcial")
   if(result.state!=="referencia_parcial")return
@@ -152,11 +155,25 @@ describe("OTB operacional automática, sem liberação",()=>{
   expect(result.rawMaterialNeeds[1]).toBeGreaterThan(result.rawMaterialNeeds[0]*0.3)
   expect(result.result.months[1].mpNeed).toBe(result.rawMaterialNeeds[1])
  })
+ it("bloqueia apenas a ausência da fonte de vendas casadas; aceita zero confirmado pelo Master",()=>{
+  const input={
+    baseDate:"2026-11-24",preview:preview(),forecast:forecast(),
+    references:refs,orders:openOrders(),
+  }
+  expect(buildOtbAutomaticReference238(input).state).toBe("indisponivel")
+  expect(buildOtbAutomaticReference238({...input,tiedSales:{
+    state:"indisponivel" as const,reason:"RPC de vendas casadas indisponível",
+  }}).state).toBe("indisponivel")
+  expect(buildOtbAutomaticReference238({...input,tiedSales:{
+    ...tiedSales,start:"2027-01-01",
+  }}).state).toBe("indisponivel")
+  expect(buildOtbAutomaticReference238({...input,tiedSales}).state).toBe("referencia_parcial")
+ })
  it("se não existe estoque de MP, produção, juros ou projeção, não gera teto de caixa falso",()=>{
   const broken=preview()
   if(broken.state==="calculado")broken.rows[0].targets=[]
   expect(buildOtbAutomaticReference238({
-   baseDate:"2026-11-24",preview:broken,forecast:forecast(),references:refs,orders:openOrders(),
+   baseDate:"2026-11-24",preview:broken,forecast:forecast(),references:refs,orders:openOrders(),tiedSales,
   }).state).toBe("indisponivel")
   expect(buildOtbAutomaticReference238({
    baseDate:"2026-11-24",preview:preview(),forecast:forecast(),references:[],

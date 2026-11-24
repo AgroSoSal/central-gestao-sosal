@@ -19,6 +19,27 @@ export type CashForecastInput = {
 type ScenarioSeries = Record<CashScenario, number[]>
 type LineSeries = Record<CashScenario, number[][]>
 type WeekSeries = Record<CashScenario, { withPurchases: number[]; withoutPurchases: number[] }>
+
+/** Abertura, movimentações e fechamento de cada competência da simulação.
+ * Cada parcela é apurada no MESMO laço diário do saldo projetado, sem
+ * redistribuição ou fórmulas financeiras alternativas.
+ */
+export type CashForecastLedgerMonth238 = {
+  mes: string
+  saldoInicial: number
+  titulosReceber: number
+  recebimentosVendas: number
+  recuperacaoVencidos: number
+  titulosPagar: number
+  despesas: number
+  impostos: number
+  pessoal: number
+  comprasNovasVencidas: number
+  /** Apenas pior caso: projeção de Saúde não recebida, mantidas as compras. */
+  extraSaudeNaoRecebido: number
+  saldoFinal: number
+}
+type LedgerSeries238 = Record<CashScenario, CashForecastLedgerMonth238[]>
 export type CashForecastResult =
   | { state: "indisponivel"; reasons: string[]; authorizesPurchases: false }
   | { state: "simulado"; warnings: string[]; authorizesPurchases: false;
@@ -32,7 +53,10 @@ export type CashForecastResult =
     /** Vendas entregues projetadas por linha: OTB!P/Y/AH aplica BH/BI/BJ sobre esta base. */
     monthlyDeliveriesByLine: LineSeries;
     /** Reposição por competência e linha 1–4, sem entradas pendentes confirmadas. */
-    monthlyNewPurchasesByLine: LineSeries }
+    monthlyNewPurchasesByLine: LineSeries
+    /** Detalhamento mensal que reconcilia com monthly e monthlyWorst. */
+    monthlyLedger: LedgerSeries238
+    worstLedger: CashForecastLedgerMonth238[] }
 
 const DAY = 86400000
 const dateMs = (iso: string) => Date.parse(`${iso}T00:00:00.000Z`)
@@ -139,6 +163,7 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
 
   const weekly = {} as WeekSeries
   const monthly = {} as ScenarioSeries
+  const monthlyLedger = {} as LedgerSeries238
   const monthlyNewPurchases = {} as ScenarioSeries
   const monthlyCmvByLine = {} as LineSeries
   const monthlyDeliveriesByLine = {} as LineSeries
@@ -222,6 +247,7 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
     monthlyCmvByLine[scenario] = months.map(m => [...m.cmv[scenario]])
     monthlyDeliveriesByLine[scenario] = months.map(m => [...m.deliveries[scenario]])
 
+    const ledger: CashForecastLedgerMonth238[] = []
     const simulate = (source: "weekly"|"monthly", buy: boolean) => {
       let balance = contracts.openingCash!
       const weeklyEnds: number[] = []
@@ -250,8 +276,28 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
         const iso = isoDate(ms)
         if (iso === "2026-11-30") personnel += config.decimo_terceiro_parcela_1
         if (iso === "2026-12-18") personnel += config.decimo_terceiro_parcela_2
+        if (source==="monthly" && buy && !ledger[month]) {
+          ledger[month] = {
+            mes:calendarMonths[month],saldoInicial:balance,
+            titulosReceber:0,recebimentosVendas:0,recuperacaoVencidos:0,
+            titulosPagar:0,despesas:0,impostos:0,pessoal:0,
+            comprasNovasVencidas:0,extraSaudeNaoRecebido:0,saldoFinal:balance,
+          }
+        }
         balance += ar+newReceipts+recovered-ap-
           invoicing*(config.despesas_pct+config.impostos_pct)-personnel-(buy?purchasePayments[day]:0)
+        if (source==="monthly" && buy) {
+          const row=ledger[month]
+          row.titulosReceber+=ar
+          row.recebimentosVendas+=newReceipts
+          row.recuperacaoVencidos+=recovered
+          row.titulosPagar+=ap
+          row.despesas+=invoicing*config.despesas_pct
+          row.impostos+=invoicing*config.impostos_pct
+          row.pessoal+=personnel
+          row.comprasNovasVencidas+=purchasePayments[day]
+          row.saldoFinal=balance
+        }
         if ((day+1)%7===0 && source==="weekly") weeklyEnds.push(balance)
         if ((day+1===dayCount || monthOfDay[day+1]!==month) && source==="monthly") monthlyEnds.push(balance)
       }
@@ -259,18 +305,31 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
     }
     weekly[scenario] = { withPurchases: simulate("weekly",true), withoutPurchases: simulate("weekly",false) }
     monthly[scenario] = simulate("monthly",true)
+    monthlyLedger[scenario] = ledger
   }
   const missingReceipts = receiptsOf(healthExtraDaily)
   let lostCollections = 0
   const monthlyWorst: number[] = []
+  const missingReceiptsByMonth: number[] = []
+  let priorLostCollections = 0
   for (let day=0, m=0;day<dayCount;day++) {
     lostCollections += missingReceipts[day]
     const currentMonth = startMonth(todayMs+day*DAY)
     if (day===dayCount-1 || startMonth(todayMs+(day+1)*DAY)!==currentMonth) {
       monthlyWorst.push(monthly.noventa[m]-lostCollections)
+      missingReceiptsByMonth.push(lostCollections-priorLostCollections)
+      priorLostCollections=lostCollections
       m++
     }
   }
+  // PIOR CASO da Projeção 12M!C801:C807: mesmas obrigações e compras do
+  // cenário 90%, com perda apenas do recebimento adicional previsto de Saúde.
+  const worstLedger:CashForecastLedgerMonth238[] = monthlyLedger.noventa.map((row,i)=>({
+    ...row,
+    saldoInicial:i===0?row.saldoInicial:monthlyWorst[i-1],
+    extraSaudeNaoRecebido:missingReceiptsByMonth[i],
+    saldoFinal:monthlyWorst[i],
+  }))
   const warnings = [
     "Simulação de referência: compras e caixa NÃO homologados; nenhuma verba é liberada.",
     "Saldo-base bancário de " + contracts.base + " não reconciliado até a data da projeção; mudanças posteriores podem alterar todo o fluxo.",
@@ -280,7 +339,7 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
   return {
     state: "simulado", authorizesPurchases: false, warnings, monthLabels: calendarMonths,
     weekly, monthly, monthlyWorst, monthlyNewPurchases, monthlyCmvByLine,monthlyDeliveriesByLine,
-    monthlyNewPurchasesByLine, safetyFloor: floor,
+    monthlyNewPurchasesByLine, monthlyLedger, worstLedger, safetyFloor: floor,
     minimum13WithPurchases: Math.min(...weekly.noventa.withPurchases.slice(0,13)),
     minimum13WithoutPurchases: Math.min(...weekly.noventa.withoutPurchases.slice(0,13)),
     minimum12: Math.min(...monthly.noventa), minimumWorst12: Math.min(...monthlyWorst),

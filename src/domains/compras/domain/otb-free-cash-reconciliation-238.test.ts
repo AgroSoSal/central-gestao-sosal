@@ -10,7 +10,7 @@ const months=Array.from({length:12},(_,i)=>
 const purchases=months.map(()=>[0,0,0,0])
 purchases[1]=[200000,0,0,0] // dez/26; +47 dias -> jan/27
 purchases[2]=[0,150000,0,0] // jan/27; +73 dias -> mar/27
-purchases[3]=[0,0,0,100000] // fev/27; +146 dias -> jul/27
+purchases[3]=[0,0,0,100000] // fev/27; +146 dias -> jun/27
 purchases[4]=[99000,0,0,0] // março: NÃO faz parte das três compras da OTB
 const forecast={
  state:"simulado",authorizesPurchases:false,
@@ -18,7 +18,7 @@ const forecast={
  // Já descontou no fluxo esses pagamentos de compras nos meses de vencimento.
  monthlyWorst:months.map((_,i)=>1_500_000
    -(i>=2?200000:0)-(i>=4?150000:0)
-   -(i>=8?100000:0)-(i>=6?99000:0)),
+   -(i>=7?100000:0)-(i>=5?99000:0)),
  monthlyNewPurchasesByLine:{noventa:purchases,plano:[],historico:[]},
 } as unknown as CashForecastResult
 describe("Projeção 12M!C607:C613 e OTB!B10/B11 - caixa livre sem duplicidade",()=>{
@@ -37,7 +37,7 @@ describe("Projeção 12M!C607:C613 e OTB!B10/B11 - caixa livre sem duplicidade",
   expect(result.returnedPaymentsByMonth[2]).toBe(200000)
   expect(result.returnedPaymentsByMonth[3]).toBe(200000)
   expect(result.returnedPaymentsByMonth[4]).toBe(350000)
-  expect(result.returnedPaymentsByMonth[8]).toBe(450000)
+  expect(result.returnedPaymentsByMonth[7]).toBe(450000)
  })
  it("nunca libera teto maior omitindo o mínimo, e não confunde B10 com B11",()=>{
   const noPurchase={...forecast,

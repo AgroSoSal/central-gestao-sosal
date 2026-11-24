@@ -4,6 +4,11 @@ import { ManagementTable } from "./management-table"
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }))
 
+const tabs = {
+  padrao:"/compras/gerenciar?situacao=padrao",
+  aprovados:"/compras/gerenciar?situacao=aprovados",
+  retidos:"/compras/gerenciar?situacao=retidos",
+} as const
 const sample = (pedido: string, descricao: string) => ({
   loja: "SO SAL", pedido, produto_codigo: "SKU" + pedido, descricao,
   fornecedor_nome: "Fornecedor " + pedido, fornecedor_codigo: pedido,
@@ -15,35 +20,36 @@ const sample = (pedido: string, descricao: string) => ({
 afterEach(cleanup)
 
 describe("gestão tabular de pedidos", () => {
-  it("separa aguardando, aprovados e segurados por decisão registrada", () => {
-    render(<ManagementTable rows={[
-      { item: sample("1", "Pendente"), record: null },
-      { item: sample("2", "Aprovado e a caminho"), record: { loja: "SO SAL", pedido: "2", produto_codigo: "SKU2", decisao: "Aprovado", observacao: null, atualizado_em: "2026-11-16", alteracoes: [] } },
-      { item: sample("3", "Retido"), record: { loja: "SO SAL", pedido: "3", produto_codigo: "SKU3", decisao: "Segurar", observacao: null, atualizado_em: "2026-11-16", alteracoes: [] } },
-    ]} />)
-
-    expect(screen.getByRole("table")).toHaveTextContent("Pendente")
-    expect(screen.getByRole("table")).not.toHaveTextContent("Aprovado e a caminho")
-    fireEvent.click(screen.getByRole("button", { name: /Aprovados/ }))
-    expect(screen.getByRole("table")).toHaveTextContent("Aprovado e a caminho")
-    expect(screen.getByRole("table")).not.toHaveTextContent("Fornecedor 1")
-    fireEvent.click(screen.getByRole("button", { name: /Segurados/ }))
+  it("a fila do Supabase entrega itens de uma situação antes de paginar", () => {
+    const rows = [
+      { item: sample("1", "Aprovado padrão"), record: null },
+    ]
+    const { rerender } = render(<ManagementTable rows={rows} activeTab="padrao" tabHrefs={tabs} />)
+    expect(screen.getByRole("table")).toHaveTextContent("Aprovado padrão")
+    expect(screen.getByRole("table")).toHaveTextContent("Aprovado (padrão Zacarini)")
+    expect(screen.getByRole("link", { name: /Aprovados por padrão/ })).toHaveAttribute("aria-current","page")
+    expect(screen.getByRole("link", { name: /Segurar \/ Cancelar/ })).toHaveAttribute("href",tabs.retidos)
+    rerender(<ManagementTable rows={[{ item: sample("3", "Retido"), record: {
+      loja: "SO SAL", pedido: "3", produto_codigo: "SKU3",
+      decisao: "Segurar", observacao: null, atualizado_em: "2026-11-16", alteracoes: [],
+    } }]} activeTab="retidos" tabHrefs={tabs} />)
     expect(screen.getByRole("table")).toHaveTextContent("Retido")
+    expect(screen.getByRole("table")).not.toHaveTextContent("Aprovado padrão")
   })
 
   it("não apresenta pedido já pago com a sinalização de cancelado", () => {
     render(<ManagementTable rows={[
       { item: sample("77", "Pagamento realizado"), record: { loja: "SO SAL", pedido: "77", produto_codigo: "SKU77", decisao: "Já pago", observacao: null, atualizado_em: "2026-11-19", alteracoes: [] } },
-    ]} />)
+    ]} activeTab="padrao" tabHrefs={tabs} />)
 
-    fireEvent.click(screen.getByRole("button", { name: /Aprovados/ }))
+    
     const decision = within(screen.getByRole("table")).getByText("Já pago")
     expect(decision).toHaveClass("text-violet-200")
     expect(decision).not.toHaveClass("text-rose-200")
   })
 
   it("abre a gestão em janela centralizada e fecha sem rolar a tabela", () => {
-    render(<ManagementTable rows={[{ item: sample("1", "Sal mineral"), record: null }]} />)
+    render(<ManagementTable rows={[{ item: sample("1", "Sal mineral"), record: null }]} activeTab="padrao" tabHrefs={tabs} />)
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("row", { name: /Sal mineral/ }))
     const dialog = screen.getByRole("dialog", { name: /Gerenciar pedido #1/ })
@@ -63,7 +69,7 @@ describe("gestão tabular de pedidos", () => {
   })
 
   it("permite abrir a gestão da linha pelo teclado", () => {
-    render(<ManagementTable rows={[{ item: sample("2", "Fertilizante"), record: null }]} />)
+    render(<ManagementTable rows={[{ item: sample("2", "Fertilizante"), record: null }]} activeTab="padrao" tabHrefs={tabs} />)
     fireEvent.keyDown(screen.getByRole("row", { name: /Fertilizante/ }), { key: "Enter" })
     expect(screen.getByRole("dialog", { name: /Gerenciar pedido #2/ })).toBeInTheDocument()
   })

@@ -56,7 +56,7 @@ describe("Projeção 12M!C607:C613 e OTB!B10/B11 - caixa livre sem duplicidade",
   const candidate={...forecast,monthly:{
     ...(forecast as Extract<CashForecastResult,{state:"simulado"}>).monthly,
     plano:months.map((_,i)=>i===2?600000:2000000),
-  }} as CashForecastResult
+  }} as unknown as CashForecastResult
   const out=calculateFreeCashForOtb238(candidate,[47,73,78,146])
   // Jan/27 é definido pelo cenário plano (600k + 200k devolvidos - 500k)
   expect(out.freeCashForOtb[2]).toBe(300000)
@@ -65,13 +65,13 @@ describe("Projeção 12M!C607:C613 e OTB!B10/B11 - caixa livre sem duplicidade",
  it("falha fechado com caixa faltante, parcelas negativas ou mês truncado",()=>{
   expect(()=>calculateFreeCashForOtb238({
     ...forecast,safetyFloor:undefined,
-  } as CashForecastResult,[47,73,78,146])).toThrow(/saldo mínimo/)
+  } as unknown as CashForecastResult,[47,73,78,146])).toThrow(/saldo mínimo/)
   expect(()=>calculateFreeCashForOtb238(forecast,[47,-10,78,146])).toThrow()
   expect(()=>calculateFreeCashForOtb238({
     ...forecast,monthLabels:months.slice(0,11),
-  } as CashForecastResult,[47,73,78,146])).toThrow()
+  } as unknown as CashForecastResult,[47,73,78,146])).toThrow()
   expect(()=>calculateFreeCashForOtb238({
     ...forecast,monthlyNewPurchasesByLine:{noventa:months.map(()=>[0,0,0,0]).slice(0,11),plano:purchases,historico:purchases},
-  } as CashForecastResult,[47,73,78,146])).toThrow()
+  } as unknown as CashForecastResult,[47,73,78,146])).toThrow()
  })
 })

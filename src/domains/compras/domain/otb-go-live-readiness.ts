@@ -45,16 +45,32 @@ export function assessOtbGoLive(data: OtbGoLiveStatus | null): OtbGoLiveAssessme
   if (!data || !data.caixa || !data.arquivos || !data.premissas || !data.projecao ||
     !Array.isArray(data.pendencias) ||
     !count(data.caixa.contas) || !count(data.caixa.saldos) || !count(data.caixa.conciliadas) ||
-    !count(data.arquivos.divergentes) || !count(data.premissas.referencias) ||
-    !count(data.premissas.homologadas) || !count(data.projecao.linhas_homologadas)) {
+    !count(data.caixa.faltando_extrato) || typeof data.caixa.caixa_oficial_conciliado !== "boolean" ||
+    !count(data.arquivos.importados) || !count(data.arquivos.auditados) ||
+    !count(data.arquivos.divergentes) || !count(data.arquivos.cargas_anteriores_sem_ateste) ||
+    !count(data.arquivos.reenvios_sem_movimento_informado) ||
+    !count(data.premissas.referencias) || !count(data.premissas.homologadas) ||
+    !count(data.premissas.versoes_financeiras) || !count(data.projecao.linhas_homologadas) ||
+    typeof data.projecao.horizonte_completo !== "boolean" ||
+    typeof data.teto_otb_autorizado !== "boolean" ||
+    data.pendencias.some(item => !item || typeof item.tipo !== "string" ||
+      (item.conta !== null && typeof item.conta !== "string") ||
+      typeof item.descricao !== "string")) {
     return { available: false, safeToRelease: false, blockers: ["A verificação protegida do Supabase está indisponível ou inconsistente."] }
   }
   const blockers: string[] = []
   if (!data.caixa.caixa_oficial_conciliado || data.caixa.contas === 0 ||
-    data.caixa.saldos !== data.caixa.contas || data.caixa.conciliadas !== data.caixa.contas) {
+    data.caixa.saldos !== data.caixa.contas || data.caixa.conciliadas !== data.caixa.contas ||
+    data.caixa.faltando_extrato > 0) {
     blockers.push("Conciliar os saldos de todas as contas com os extratos oficiais dos bancos.")
   }
   if (data.arquivos.divergentes > 0) blockers.push("Resolver diferenças nas importações dos extratos.")
+  if (data.arquivos.importados === 0 || data.arquivos.auditados < data.arquivos.importados) {
+    blockers.push("Auditar todas as importações bancárias antes da homologação.")
+  }
+  if (data.pendencias.length > 0) {
+    blockers.push("Resolver as pendências operacionais explícitas do caixa no Supabase.")
+  }
   if (data.premissas.referencias > 0 || data.premissas.homologadas === 0 || data.premissas.versoes_financeiras === 0) {
     blockers.push("Homologar as premissas financeiras atuais (as referências Zacarini não são aprovação operacional).")
   }

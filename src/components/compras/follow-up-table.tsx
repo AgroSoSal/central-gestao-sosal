@@ -6,6 +6,7 @@ import { AlertTriangle, CalendarClock, Check, History, Loader2, PackageCheck, Tr
 import { createSupabaseBrowserClient } from "@/lib/supabase/client"
 import { getBranchDisplayName } from "@/domains/compras/domain/branches"
 import { decisionKey } from "@/domains/compras/domain/purchase-decisions"
+import { PurchaseNfEvidence } from "./purchase-nf-evidence"
 import type { ManagementPurchaseItem } from "./management-table"
 
 export type FollowUpHistory = { quando: string; por: string; anterior: Record<string, unknown> | null; novo: Record<string, unknown> }
@@ -132,7 +133,7 @@ export function FollowUpTable({ rows, trackingAvailable }: { rows: FollowUpRow[]
       {rows.length === 0 && <div className="px-6 py-14 text-center"><PackageCheck className="mx-auto mb-4 text-emerald-400" size={30} /><h3 className="font-semibold text-white">Nenhum item aprovado com saldo pendente neste lote</h3><p className="mt-2 text-xs text-slate-400">A decisão vazia equivale a Aprovado pela regra da Zacarini. Confira outros lotes, filtros ou os itens já entregues.</p></div>}
     </section>
     <section className="erp-surface rounded-2xl border border-cyan-400/20 p-5 sm:p-7" aria-label="Detalhamento do follow-up">
-      {selected ? <FollowUpEditor key={keyOf(selected)} row={selected} trackingAvailable={trackingAvailable} /> : <p className="flex items-center gap-3 text-sm text-slate-400"><Truck size={19} className="text-cyan-300" /> Selecione um pedido na tabela para ver o saldo e atualizar seu acompanhamento.</p>}
+      {selected ? <div className="space-y-5"><FollowUpEditor key={keyOf(selected)} row={selected} trackingAvailable={trackingAvailable} /><PurchaseNfEvidence key={"nf-"+keyOf(selected)} loja={selected.item.loja!} pedido={selected.item.pedido!} produtoCodigo={selected.item.produto_codigo!}/></div> : <p className="flex items-center gap-3 text-sm text-slate-400"><Truck size={19} className="text-cyan-300" /> Selecione um pedido na tabela para ver o saldo e atualizar seu acompanhamento.</p>}
     </section>
   </div>
 }

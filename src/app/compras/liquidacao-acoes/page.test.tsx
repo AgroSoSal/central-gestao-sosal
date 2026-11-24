@@ -32,7 +32,7 @@ describe("ações planejadas de liquidação 2.3.8",()=>{
   expect(screen.getByRole("table")).toHaveTextContent("100101")
   expect(screen.getByRole("table")).toHaveTextContent("Equipe de Compras")
   expect(screen.getByRole("table")).toHaveTextContent("CG")
-  expect(screen.getByText(/não executa transferência SISCOM/i)).toBeInTheDocument()
+  expect(screen.getByText(/Não movimenta o SISCOM/i)).toBeInTheDocument()
   expect(state.calls).toEqual([{name:"fn_compras_liquidacao_acoes_listar_238",
     args:{p_filial:"BDS",p_produto_codigo:"100101",p_pagina:1,p_tamanho:30}}])
  })

@@ -23,7 +23,7 @@ describe("OTB — modo teste separado da aprovação", () => {
     fireEvent.click(screen.getByRole("button", { name: /Iniciar simulação de teste/i }))
     expect(screen.getByRole("status", { name: /Simulação de teste ativa/i })).toHaveTextContent("não autoriza compras")
     expect(screen.getByLabelText("Indicadores de OTB do mês")).toBeInTheDocument()
-    expect(screen.getByText(/Exemplo · Mineral/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Exemplo · Mineral/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/TRAVADO · TESTE/).length).toBeGreaterThan(0)
     expect(screen.queryByText(/Cenário recebido exclusivamente da fonte oficial/i)).not.toBeInTheDocument()
 

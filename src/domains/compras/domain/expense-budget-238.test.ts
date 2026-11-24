@@ -5,7 +5,7 @@ const groups=["Administrativo","Industrial","Investimento","Logística","Marketi
 const empty=()=>({
  source:"ORC_DADOS_REPLANEJADO_238",status:"manual_sem_homologacao",
  competencia:month,authorizesPurchases:false,
- grupos:groups.map(grupo=>({grupo,qtd_itens:0,orcamento:null,saldo_assinado:null})),
+ grupos:groups.map(grupo=>({grupo,qtd_itens:0,orcamento:null as number|null,saldo_assinado:null as number|null})),
  itens:[],
 })
 describe("Orc_Dados → Atendimento!I51:I58 Zacarini 2.3.8",()=>{

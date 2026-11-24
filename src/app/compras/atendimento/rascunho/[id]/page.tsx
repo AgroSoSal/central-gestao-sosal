@@ -1,3 +1,6 @@
+// Rota de detalhe dinâmica: impede pré-renderização do shell com usePathname.
+export const instant = false
+
 import Link from "next/link"
 import { Suspense } from "react"
 import { connection } from "next/server"

@@ -130,8 +130,10 @@ describe("OTB operacional automática, sem liberação",()=>{
   stock.rows[0].stockCost=100
   stock.rows[3].stockCost=0
   const ord=openOrders()
+  if(ord.state!=="conectado")throw new Error("carteira de teste não conectada")
   ord.groups=ord.groups.map(g=>g.name.includes("MATERIA PRIMA")?{...g,prior:0,pending:0}:g)
   const f=forecast()
+  if(f.state!=="simulado")throw new Error("cenário de teste indisponível")
   f.monthlyWorst=months.map(()=>-2000000)
   const result=buildOtbAutomaticReference238({
     baseDate:"2026-11-24",preview:stock,forecast:f,references:refs,orders:ord,

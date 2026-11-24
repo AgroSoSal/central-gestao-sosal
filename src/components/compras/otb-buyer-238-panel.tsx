@@ -15,20 +15,33 @@ export function OtbBuyer238Panel({month, simulated}:{month:OtbMonth; simulated:b
     try {
       const [year,mon]=month.month.split("-").map(Number)
       const days=new Date(Date.UTC(year,mon,0)).getUTCDate()
+      const lineBalances=month.lines.map(line=>({
+        line:line.line,availableAfterExcess:line.freeBalance,
+      }))
+      const subgroupRows=month.subgroups.map(s=>({
+        line:s.line,name:s.name,kind:s.kind,need:s.need,
+        openingStock:s.openingStock,forecastCost:s.forecastCost,
+      }))
+      if(month.materialBuyer){
+        const material=month.materialBuyer
+        // Verba Comprador!D/H/L12 = OTB!I/L/O17 inclui S173 de MP.
+        const matching=lineBalances.find(row=>row.line===material.line)
+        if(matching)matching.availableAfterExcess+=material.freeBalance
+        else lineBalances.push({line:material.line,availableAfterExcess:material.freeBalance})
+        subgroupRows.push({
+          line:material.line,name:material.name,kind:"S",
+          need:material.need,openingStock:material.openingStock,
+          forecastCost:material.forecastCost,
+        })
+      }
       return calculateBuyerBudget238({
         month:month.month,cashCap:month.cashCap,daysInMonth:days,share:0.9,
-        subgroups:month.subgroups.map(s=>({
-          line:s.line,name:s.name,kind:s.kind,need:s.need,
-          openingStock:s.openingStock,forecastCost:s.forecastCost,
-        })),
-        lines:month.lines.map(line=>({
-          line:line.line,availableAfterExcess:line.freeBalance,
-        })),
+        subgroups:subgroupRows,lines:lineBalances,
       })
     } catch { return null }
   },[month])
   const [query, setQuery] = useState("")
-  const missingMp=month.mpNeed>0
+  const missingMp=month.mpNeed>0&&!month.materialBuyer
   return <section className="erp-surface overflow-hidden rounded-[24px]" aria-label="Verba do Comprador conforme fórmulas Zacarini 2.3.8">
     <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#25354e] p-5 sm:p-7">
       <div>

@@ -79,7 +79,7 @@ export function buildZacariniCashForecast(input: CashForecastInput): CashForecas
     ...Array.from({length:4}, (_,i) => `prazo_pagamento_linha_${i+1}`),
     ...Array.from({length:4}, (_,i) => `dde_alvo_linha_${i+1}`)]) {
     const value = required(code)
-    if (value === null || !Number.isFinite(value) || value < 0) return unavailable(`Premissa ${code} não encontrada na versão 2.3.7.`)
+    if (value === null || !Number.isFinite(value) || value < 0) return unavailable(`Premissa ${code} não encontrada na versão ativa da referência Zacarini.`)
     config[code] = value
   }
   if (config.vendas_a_vista > 1 || config.fator_vendas_previstas > 1 || config.recuperacao_vencidos_semana > 1 ||

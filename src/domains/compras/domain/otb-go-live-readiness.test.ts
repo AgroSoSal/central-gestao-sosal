@@ -35,6 +35,29 @@ describe("homologação do OTB: nunca liberar por suposições", () => {
     expect(assessOtbGoLive(apparentlyComplete).safeToRelease).toBe(false)
     expect(assessOtbGoLive({...apparentlyComplete,teto_otb_autorizado:true}).safeToRelease).toBe(true)
   })
+  it("não exige apagar as referências históricas após homologação", () => {
+    const approved: OtbGoLiveStatus = {
+      ...base,
+      caixa:{...base.caixa,conciliadas:14,caixa_oficial_conciliado:true},
+      arquivos:{...base.arquivos,cargas_anteriores_sem_ateste:0},
+      premissas:{referencias:749,homologadas:25,versoes_financeiras:1},
+      projecao:{linhas_homologadas:12,horizonte_completo:true},
+      teto_otb_autorizado:true,
+    }
+    const result=assessOtbGoLive(approved)
+    expect(result.available).toBe(true)
+    expect(result.safeToRelease).toBe(true)
+    expect(result.blockers).toHaveLength(0)
+    expect(assessOtbGoLive({
+      ...approved,premissas:{...approved.premissas,homologadas:0},
+    }).safeToRelease).toBe(false)
+    expect(assessOtbGoLive({
+      ...approved,premissas:{...approved.premissas,versoes_financeiras:0},
+    }).safeToRelease).toBe(false)
+    expect(assessOtbGoLive({
+      ...approved,teto_otb_autorizado:false,
+    }).safeToRelease).toBe(false)
+  })
   it("bloqueia aprovação quando a RPC ainda relata pendência operacional explícita", () => {
     const approved: OtbGoLiveStatus = {
       ...base,

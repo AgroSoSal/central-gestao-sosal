@@ -46,6 +46,20 @@ describe("Atendimento Fornecedor 2.3.7 · despesas e investimentos",()=>{
     expect(screen.getByRole("alert")).toHaveTextContent(/Histórico de despesas indisponível/i)
     expect(screen.queryByRole("link",{name:/Conferir despesa salva/})).not.toBeInTheDocument()
   })
+  it("mostra a verba Replanejado conforme o GRUPO de orçamento, não a conta individual",()=>{
+    const snapshot={
+      source:"ORC_DADOS_REPLANEJADO_238" as const,status:"manual_sem_homologacao" as const,
+      competencia:"2026-11-01",authorizesPurchases:false as const,itens:[],
+      grupos:["Administrativo","Industrial","Investimento","Logística","Marketing","Pessoal"].map(grupo=>
+        grupo==="Industrial"?{grupo,qtd_itens:2,orcamento:120,saldo_assinado:-120}:
+          {grupo,qtd_itens:0,orcamento:null,saldo_assinado:null}),
+    }
+    render(<AtendimentoDespesas branch="BDS" catalog={catalog} budget={snapshot}/>)
+    expect(screen.getByRole("link",{name:"Orçamento Replanejado"})).toHaveAttribute("href","/compras/atendimento/orcamento")
+    fireEvent.click(screen.getByRole("button",{name:"Abrir bloco ⑨"}))
+    fireEvent.change(screen.getByLabelText("Produto despesa 1"),{target:{value:"106399"}})
+    expect(screen.getByText(/Orc_Dados · Industrial: R\$\s*120,00/)).toBeInTheDocument()
+  })
   it("não grava sem catálogo autorizado",()=>{
     render(<AtendimentoDespesas branch="BDS" catalog={[]} unavailable/>)
     fireEvent.click(screen.getByRole("button",{name:"Abrir bloco ⑨"}))

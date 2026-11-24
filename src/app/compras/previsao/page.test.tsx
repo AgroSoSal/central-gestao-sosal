@@ -49,7 +49,7 @@ describe("previsão financeira sem alterar o banco", () => {
     expect(screen.getByText(/60 recebidas · 40 pendentes/i)).toBeInTheDocument()
     expect(screen.getAllByText("BANDEIRANTES").length).toBeGreaterThan(0)
     expect(screen.getByText("Compra sem decisão")).toBeInTheDocument()
-    expect(screen.getAllByText("Aguardando aprovação").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Aprovado (padrão Zacarini)").length).toBeGreaterThan(0)
     expect(screen.getByText(/30 dias padrão/i)).toBeInTheDocument()
     expect(screen.getByText(/50 itens por lote/i)).toBeInTheDocument()
   })

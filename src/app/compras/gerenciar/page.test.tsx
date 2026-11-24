@@ -14,8 +14,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => undefined
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: async () => ({
     auth: { getUser: async () => ({ data: { user: { email: "master@sosal.com.br" } }, error: null }) },
-    rpc: async (name: string) => name === "fn_listar_pedidos_compra_conciliados"
-      ? { data: fake.purchases, error: null }
+    rpc: async (name: string) => name === "fn_listar_gerenciamento_pendentes_238"
+      ? { data: fake.purchases.filter(row => row.quantidade_pendente > 0).map(row => ({ ...row, total_itens: 1 })), error: null }
       : { data: [], error: fake.failDecisions ? { code: "500" } : null },
   }),
 }))
@@ -42,12 +42,12 @@ describe("tela dedicada Gerenciar pedidos", () => {
     expect(screen.queryByText("Sal mineral")).not.toBeInTheDocument()
   })
 
-  it("apresenta a navegação para o follow-up e status operacional sem aprovação automática", async () => {
+  it("apresenta Follow-up e decisão padrão sem confundir com autorização financeira", async () => {
     const { ManagementContent } = await import("./page")
     render(await ManagementContent({ searchParams: Promise.resolve({}) }))
     expect(screen.getByRole("link", { name: /Follow-up/ })).toHaveAttribute("href", "/compras/follow-up")
     expect(screen.getByRole("link", { name: /Previsão de pagamentos/i })).toHaveAttribute("href", "/compras/previsao")
-    expect(screen.getByRole("button", { name: /Aguardando aprovação/ })).toBeInTheDocument()
-    expect(screen.queryByText("Aprovado")).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: /Aprovados por padrão/ })).toBeInTheDocument()
+    expect(screen.getByRole("table")).toHaveTextContent("Aprovado (padrão Zacarini)")
   })
 })

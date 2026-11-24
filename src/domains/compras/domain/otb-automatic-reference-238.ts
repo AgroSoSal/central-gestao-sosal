@@ -165,6 +165,8 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
     sum+(matched(row.name)?.recorded[i]??0),0)) as [number,number,number]
   let mpOpening=mp.stockCost+preview.rows.filter(row=>row.kind==="M")
     .reduce((sum,row)=>sum+row.stockCost,0)+mpPriorOrders
+  // OTB!R173 = estoque de MP + estoque M + pedidos anteriores elegíveis.
+  const initialMpOpening=mpOpening
   const mpNeeds:number[]=[]
   for(let monthIndex=0;monthIndex<3;monthIndex++){
     const i=monthIndex+1
@@ -263,6 +265,10 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
       baseDate,months:otbMonths,cashCaps:caps.cashCaps,mpNeeds:mpTriple,
       mpRecorded,mpTiedSales,
       buyerShare:0.9,subgroups:merchandise,
+      materialBuyer:{
+        line:"Linha 1",name:mp.name,openingStock:initialMpOpening,
+        forecastCost:[1,2,3].map(mpCostForForecastIndex) as OtbTriple<number>,
+      },
     })
   }catch(error){
     return unavailable(error instanceof Error?error.message:"Não foi possível calcular a trava da Projeção 12M.")

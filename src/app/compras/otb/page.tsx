@@ -14,6 +14,7 @@ import { buildZacariniCashForecast } from "@/domains/compras/domain/zacarini-cas
 import { buildOtbAutomaticReference238 } from "@/domains/compras/domain/otb-automatic-reference-238"
 import { interpretOtbOrderSource238 } from "@/domains/compras/domain/otb-order-source-238"
 import { interpretOtbTiedSales238, interpretOtbDeliveryCalendar238 } from "@/domains/compras/domain/otb-manual-calendar-238"
+import { interpretOtbApAudit239 } from "@/domains/compras/domain/otb-ap-reconciliation-239"
 import { resolveReceivablesRecovery, type RecoverableReceivablesLine } from "@/domains/compras/domain/receivables-recovery-237"
 import { nextOtbPurchaseNeeds } from "@/domains/compras/domain/otb-indicative-months"
 import { dashboardReference, type DashboardReferenceRow } from "@/domains/compras/domain/dashboard-zacarini-237"
@@ -74,7 +75,7 @@ export async function OtbContent() {
 
   // Duas fontes agregadas, somente leitura, verificadas pelo banco como Master.
   // O histórico NÃO contém fluxo de caixa futuro nem substitui a Projeção 12M.
-  const [summary, historical, stock, config, bank, weeks, months, recovery, consigned, readiness, drafts, openOrders, tied, plannedDues] = await Promise.all([
+  const [summary, historical, stock, config, bank, weeks, months, recovery, consigned, readiness, drafts, openOrders, tied, plannedDues, apAudit] = await Promise.all([
     supabase.rpc("fn_listar_pedidos_compra", {
     p_busca: null,
     p_loja: null,
@@ -96,6 +97,7 @@ export async function OtbContent() {
     supabase.rpc("fn_otb_carteira_subgrupos_238",{p_data_base:todayISO}),
     supabase.rpc("fn_otb_vendas_casadas_listar_238",{p_inicio:firstOtbMonth}),
     supabase.rpc("fn_otb_pedidos_vencimentos_238",{p_inicio:todayISO}),
+    supabase.rpc("fn_otb_auditoria_pedidos_titulos_239",{p_data_base:todayISO}),
   ])
   const purchaseSource = interpretOtbPurchaseSource(summary.data, summary.error)
   const historicalSource = interpretOtbHistoricalSource(historical.data, historical.error, lastClosedMonth)
@@ -210,6 +212,7 @@ export async function OtbContent() {
     seasonalHistory={seasonalHistory} abcProjection={abcProjection} consignedPosition={consignedPosition}
     simulationBaseDate={todayISO} forecast={forecast} automaticReference={automaticReference}
     plannedDeliveries={plannedSource} tiedSales={tiedSource} tiedSalesStart={firstOtbMonth}
+    apReconciliation={interpretOtbApAudit239(apAudit.data,apAudit.error,todayISO)}
     readinessStatus={readiness.error?null:(readiness.data as OtbGoLiveStatus|null)}
     recentDrafts={drafts.error?[]:((drafts.data??[]) as Otb12mDraftHeader[])} draftSourceError={!!drafts.error}
     forecastIssues={forecast.state==="indisponivel"?forecast.reasons:

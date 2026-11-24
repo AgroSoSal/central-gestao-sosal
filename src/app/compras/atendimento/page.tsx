@@ -8,6 +8,7 @@ import { AtendimentoFornecedor, type AttendanceProduct, type PurchaseDraft, type
 import { AtendimentoDespesas, type ExpenseCatalogEntry, type ExpenseDraft238 } from "@/components/compras/atendimento-despesas"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { interpretOtbStockPosition } from "@/domains/compras/domain/otb-position-source"
+import { parseExpenseBudget238 } from "@/domains/compras/domain/expense-budget-238"
 
 type Params = { busca?: string; filial?: string }
 const filiais = ["REDE","BDS","CG","RIO","CX","PG","AN"] as const
@@ -45,6 +46,10 @@ async function Content({ searchParams }: { searchParams: Promise<Params> }) {
   }).formatToParts(new Date())
   const date = (key: string) => parts.find((p) => p.type === key)?.value ?? ""
   const baseDate = date("year")+"-"+date("month")+"-"+date("day")
+  // Atendimento Fornecedor!I51:I58 usa o mês de C9 (data atual) e Tipo Replanejado.
+  const budgetMonth=baseDate.slice(0,7)+"-01"
+  const budgetResult=await supabase.rpc("fn_compras_orcamento_replanejado_238",{p_competencia:budgetMonth})
+  const expenseBudget=budgetResult.error?null:parseExpenseBudget238(budgetResult.data,budgetMonth)
 
   // A versão 2.3.7 seleciona a competência do primeiro mês da OTB.
   const mesPlano=new Date(baseDate+"T00:00:00Z")
@@ -92,6 +97,6 @@ async function Content({ searchParams }: { searchParams: Promise<Params> }) {
         </div>
         <AtendimentoFornecedor key={busca+"-"+filial} products={products} branch={filial} baseDate={baseDate} drafts={drafts} ddeMetas={metas} ddeObservado={ddeObservado} posicaoConectada={posicao.status==="conectado"} competencia={competencia} userId={user.id} />
         </>}
-    <AtendimentoDespesas branch={filial} catalog={expenseCatalog} unavailable={!!expenseCatalogResult.error} drafts={expenseDrafts} draftsUnavailable={!!expenseDraftsResult.error} />
+    <AtendimentoDespesas branch={filial} catalog={expenseCatalog} unavailable={!!expenseCatalogResult.error} drafts={expenseDrafts} draftsUnavailable={!!expenseDraftsResult.error} budget={expenseBudget} budgetUnavailable={!!budgetResult.error||!expenseBudget} />
   </main>
 }

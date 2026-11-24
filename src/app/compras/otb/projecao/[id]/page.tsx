@@ -1,3 +1,7 @@
+// A rota dinâmica é sempre renderizada por solicitação; evita que hooks do shell
+// (usePathname) sejam avaliados na pré-renderização estática do Next 16.
+export const instant = false
+
 import Link from "next/link"
 import { connection } from "next/server"
 import { Suspense } from "react"

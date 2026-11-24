@@ -26,6 +26,23 @@ export function OtbDeliveryCalendarPanel238({calendar}:{calendar:OtbDeliveryCale
     <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-4"><p className="text-xs text-slate-400">Chegada calculada (7 dias)</p><p className="mt-2 text-lg font-bold tabular-nums text-amber-100">{calendar.assumedArrivalItems.toLocaleString("pt-BR")} itens</p></div>
     <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-4"><p className="text-xs text-slate-400">Chegada individual confirmada</p><p className="mt-2 text-lg font-bold tabular-nums text-cyan-200">{calendar.explicitArrivalItems.toLocaleString("pt-BR")} itens</p></div>
    </div>
+   {(calendar.bonificationItems!==undefined || calendar.fixedDueDateItems!==undefined) && <div className="grid gap-3 px-5 pb-5 sm:grid-cols-3">
+     <div className="rounded-xl border border-emerald-500/20 bg-emerald-400/5 p-4">
+       <p className="text-[11px] text-slate-400">Bonificações/garantias · sem título a pagar</p>
+       <p className="mt-2 text-lg font-bold tabular-nums text-emerald-200">{(calendar.bonificationItems??0).toLocaleString("pt-BR")} itens</p>
+       <p className="mt-1 text-[11px] text-slate-400">{money.format(calendar.bonificationValue??0)} não geram parcela financeira</p>
+     </div>
+     <div className="rounded-xl border border-cyan-500/20 bg-cyan-400/5 p-4">
+       <p className="text-[11px] text-slate-400">Vencimento fixo respeitado</p>
+       <p className="mt-2 text-lg font-bold tabular-nums text-cyan-200">{(calendar.fixedDueDateItems??0).toLocaleString("pt-BR")} itens</p>
+       <p className="mt-1 text-[11px] text-slate-400">Sem acrescentar prazo à data informada</p>
+     </div>
+     <div className="rounded-xl border border-amber-500/20 bg-amber-400/5 p-4">
+       <p className="text-[11px] text-slate-400">Condições que continuam estimadas</p>
+       <p className="mt-2 text-lg font-bold tabular-nums text-amber-100">{calendar.termsToReview.toLocaleString("pt-BR")} itens</p>
+       <p className="mt-1 text-[11px] text-slate-400">Prazo padrão de 30 dias para dados ausentes</p>
+     </div>
+   </div>}
    <div className="p-5 pt-0"><p className="flex items-start gap-2 text-[11px] leading-5 text-amber-200">
     <AlertTriangle size={15} className="mt-0.5 shrink-0"/>
     {calendar.termsToReview.toLocaleString("pt-BR")} itens têm condição de pagamento ausente ou ambígua. Vencimentos estimados podem coincidir com títulos já lançados no contas a pagar; não foram somados novamente ao caixa, evitando duplicidade.

@@ -22,7 +22,7 @@ export function PurchaseSubgroupEditor({loja,pedido,produtoCodigo}:{
  useEffect(()=>{
    let active=true
    const client=createSupabaseBrowserClient()
-   if(!client){setState("error");return}
+   if(!client){Promise.resolve().then(()=>{if(active)setState("error")});return()=>{active=false}}
    const date=new Intl.DateTimeFormat("sv-SE",{
      timeZone:"America/Campo_Grande",year:"numeric",month:"2-digit",day:"2-digit",
    }).format(new Date())

@@ -5,6 +5,39 @@ import { useRouter } from "next/navigation"
 import { ClipboardCheck, Loader2 } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/client"
 
+/** Centros de despesas (5) e investimentos (6) da aba Pedidos de Compra,
+ * Gestão Zacarini 2.3.8. Nunca entram no OTB de estoque 1–4.
+ * A escolha é sempre manual e auditada.
+ */
+const expenseGroups238 = [
+  "5.DESPESAS / LOGISTICA / FRETE",
+  "5.DESPESAS / LOGISTICA / MANUT FROTA",
+  "5.DESPESAS / ADMINISTRATIVO / MANUT PREDIAL",
+  "5.DESPESAS / LOGISTICA / COMBUSTIVEL TROC OLEO",
+  "5.DESPESAS / USO E CONSUMO",
+  "5.DESPESAS / ADMINISTRATIVO / MAT COPA E COZINHA",
+  "5.DESPESAS / SERVIÇOS",
+  "5.DESPESAS / ADMINISTRATIVO / SISTEMAS SOFTWARE",
+  "5.DESPESAS / LOGISTICA / PNEUS",
+  "5.DESPESAS / ADMINISTRATIVO / MAT LIMPEZA",
+  "5.DESPESAS / INDUSTRIAL / MANUT MAQUINAS",
+  "5.DESPESAS / ADMINISTRATIVO / MANUT EQUIPAMENTOS",
+  "6.INVESTIMENTO / ATIVOS (INFORMATICA, ELETRO, GONDOLAS)",
+  "5.DESPESAS / PESSOAL / EPI UNIFORMES",
+  "5.DESPESAS / ADMINISTRATIVO / MAT ESCRITORIO",
+  "5.DESPESAS / MARKETING / EVENTOS FEIRAS",
+  "5.DESPESAS / PESSOAL / VIAGENS",
+  "6.INVESTIMENTO / MAQUINAS EQUIPAMENTOS",
+  "5.DESPESAS / LOGISTICA / ALUGUEL VEICULOS",
+  "6.INVESTIMENTO / CURSOS TREINAMENTOS",
+  "5.DESPESAS / ADMINISTRATIVO / CONSULTORIA",
+  "5.DESPESAS / PESSOAL / BRINDES COLABORADORES",
+  "5.DESPESAS / MARKETING / BRINDES CLIENTES",
+  "5.DESPESAS / MARKETING / MATERIAIS GRAFICOS",
+  "6.INVESTIMENTO / OBRAS REFORMAS",
+  "5.DESPESAS / ADMINISTRATIVO / ALUGUEL EQUIPAMENTOS"
+] as const
+
 /** Reutiliza as RPCs Master existentes; registra o motivo em auditoria.
  * A classificação NÃO autoriza compras e não altera os relatórios SISCOM.
  */
@@ -37,7 +70,7 @@ export function PurchaseSubgroupEditor({loja,pedido,produtoCodigo}:{
        setState("error");return
      }
      const rows=(groupsResult.data??[]) as {grupo_subgrupo?:string}[]
-     const options=[...new Set(rows.map(r=>r.grupo_subgrupo).filter((name):name is string=>
+     const options=[...new Set([...rows.map(r=>r.grupo_subgrupo),...expenseGroups238].filter((name):name is string=>
        typeof name==="string"&&/^[1-6]\..{2,197}$/.test(name)))].sort((a,b)=>a.localeCompare(b,"pt-BR"))
      const cls=(classification.data??[]) as {grupo_subgrupo?:string|null}[]
      const saved=cls[0]?.grupo_subgrupo??""
@@ -66,7 +99,7 @@ export function PurchaseSubgroupEditor({loja,pedido,produtoCodigo}:{
  }
  return <section className="rounded-2xl border border-cyan-300/20 bg-[#081625] p-4 sm:p-5" aria-label="Classificação do item para OTB">
    <h3 className="flex items-center gap-2 text-sm font-bold text-white"><ClipboardCheck size={16} className="text-cyan-300"/> Classificação do subgrupo · OTB</h3>
-   <p className="mt-2 text-xs leading-5 text-slate-400">Os pedidos sem subgrupo não entram na distribuição do orçamento. Escolha a classificação oficial de estoque para esse produto; essa ação não aprova o pedido.</p>
+   <p className="mt-2 text-xs leading-5 text-slate-400">Selecione o subgrupo de estoque (1–4) ou de despesa/investimento (5–6) da Zacarini. Os grupos 5 e 6 não entram na verba OTB; toda correção é manual, justificada e auditada.</p>
    {state==="loading"?<p className="mt-3 text-xs text-slate-300">Conferindo cadastro e categorias...</p>:
     state==="error"?<p role="alert" className="mt-3 text-xs text-amber-200">Não foi possível carregar a classificação. Nenhum dado foi alterado.</p>:
     <form onSubmit={save} className="mt-4 space-y-3">

@@ -35,6 +35,34 @@ describe("homologação do OTB: nunca liberar por suposições", () => {
     expect(assessOtbGoLive(apparentlyComplete).safeToRelease).toBe(false)
     expect(assessOtbGoLive({...apparentlyComplete,teto_otb_autorizado:true}).safeToRelease).toBe(true)
   })
+  it("bloqueia aprovação quando a RPC ainda relata pendência operacional explícita", () => {
+    const approved: OtbGoLiveStatus = {
+      ...base,
+      caixa: {...base.caixa, conciliadas: 14, caixa_oficial_conciliado: true},
+      arquivos: {...base.arquivos, cargas_anteriores_sem_ateste: 0},
+      premissas: {referencias: 0, homologadas: 749, versoes_financeiras: 1},
+      projecao: {linhas_homologadas: 12, horizonte_completo: true},
+      teto_otb_autorizado: true,
+    }
+    expect(assessOtbGoLive(approved).safeToRelease).toBe(true)
+    expect(assessOtbGoLive({
+      ...approved,
+      pendencias: [{tipo: "CONCILIACAO_BANCARIA_PENDENTE", conta: "conta-1", descricao: "Sem homologação"}],
+    }).safeToRelease).toBe(false)
+    expect(assessOtbGoLive({
+      ...approved, caixa: {...approved.caixa, faltando_extrato: 1},
+    }).safeToRelease).toBe(false)
+    expect(assessOtbGoLive({
+      ...approved, arquivos: {...approved.arquivos, auditados: 20},
+    }).safeToRelease).toBe(false)
+    expect(assessOtbGoLive({
+      ...approved, arquivos: {...approved.arquivos, divergentes: 1},
+    }).safeToRelease).toBe(false)
+  })
+  it("rejeita payload incompleto, mesmo se apresentar liberação no campo booleano", () => {
+    const invalid = {...base, teto_otb_autorizado: true, caixa: {...base.caixa, faltando_extrato: NaN}}
+    expect(assessOtbGoLive(invalid).available).toBe(false)
+  })
   it("não interpreta prova interna de importação como conciliação bancária", () => {
     const result=assessOtbGoLive({...base,arquivos:{...base.arquivos,cargas_anteriores_sem_ateste:0}})
     expect(result.safeToRelease).toBe(false)

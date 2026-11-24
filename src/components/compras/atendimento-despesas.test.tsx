@@ -33,6 +33,19 @@ describe("Atendimento Fornecedor 2.3.7 · despesas e investimentos",()=>{
     expect((state.save.mock.calls[0][0] as {p_itens: unknown}).p_itens).toEqual([{codigo:"106399",quantidade:2,valor_unitario:35}])
     expect(await screen.findByText(/Nenhuma emissão realizada/)).toBeInTheDocument()
   })
+  it("permite reabrir apenas os rascunhos de despesas fornecidos pelo servidor",()=>{
+    render(<AtendimentoDespesas branch="BDS" catalog={catalog} drafts={[
+      {id:42,filial:"BDS",total:39.80,itens_count:1,observacao:"teste",criado_em:"2026-11-24T16:00:00Z"},
+    ]}/>)
+    expect(screen.getByRole("link",{name:"Conferir despesa salva"})).toHaveAttribute(
+      "href","/compras/atendimento/despesa/42")
+    expect(screen.queryByRole("link",{name:/Cotação/i})).not.toBeInTheDocument()
+  })
+  it("não inventa histórico quando o Supabase não autoriza a listagem",()=>{
+    render(<AtendimentoDespesas branch="BDS" catalog={catalog} draftsUnavailable/>)
+    expect(screen.getByRole("alert")).toHaveTextContent(/Histórico de despesas indisponível/i)
+    expect(screen.queryByRole("link",{name:/Conferir despesa salva/})).not.toBeInTheDocument()
+  })
   it("não grava sem catálogo autorizado",()=>{
     render(<AtendimentoDespesas branch="BDS" catalog={[]} unavailable/>)
     fireEvent.click(screen.getByRole("button",{name:"Abrir bloco ⑨"}))

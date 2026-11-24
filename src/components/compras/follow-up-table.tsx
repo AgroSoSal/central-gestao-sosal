@@ -73,7 +73,7 @@ function FollowUpEditor({ row, trackingAvailable }: { row: FollowUpRow; tracking
         p_codigo_rastreio: rastreio.trim() || null,
         p_status_entrega: etapa,
       })
-      if (error) { setFeedback(error.code === "42501" ? "Sua conta não tem permissão Master ativa. Nada foi salvo." : "Não foi possível salvar o acompanhamento. Confira a conexão e tente novamente."); return }
+      if (error) { setFeedback(error.code === "42501" ? "Sua conta não tem permissão Master ativa. Nada foi salvo." : error.code === "22023" ? "O item saiu da fila de entregas, foi retido ou teve os dados alterados. Atualize a tela antes de salvar." : "Não foi possível salvar o acompanhamento. Confira a conexão e tente novamente."); return }
       setFeedback("Acompanhamento registrado. Recarregando histórico e previsões…")
       router.refresh()
     } catch {

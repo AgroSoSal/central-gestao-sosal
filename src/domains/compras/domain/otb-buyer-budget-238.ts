@@ -25,6 +25,16 @@ export type Buyer238Input = {
   subgroups: readonly Buyer238Subgroup[]
   lines: readonly Buyer238LineBalance[]
 }
+export type Buyer238SubgroupAllocation = {
+  line: string
+  name: string
+  kind: "S" | "P" | "M" | "N"
+  ddeOpening: number | null
+  desired: number
+  isProtected: boolean
+  afterCashCut: number
+  buyer: number
+}
 export type Buyer238Line = {
   line: string
   desired: number
@@ -44,6 +54,8 @@ export type Buyer238Result = {
   allocatedToSubgroups: number
   protectedAboveCashCap: boolean
   lines: Buyer238Line[]
+  /** Rateio por subgrupo: Verba Comprador!E:G/I:K/M:O, sem aprovação. */
+  subgroups: Buyer238SubgroupAllocation[]
 }
 
 function finite(value: unknown, label: string, min = Number.NEGATIVE_INFINITY) {
@@ -72,7 +84,7 @@ export function calculateBuyerBudget238(input: Buyer238Input): Buyer238Result {
       availableAfterExcess:finite(line.availableAfterExcess,"saldo livre da linha"),buyer:0,allocatedToSubgroups:0,
     })
   }
-  const entries: {line:string; desired:number; protected:boolean}[]=[]
+  const allocations:Buyer238SubgroupAllocation[]=[]
   const keys = new Set<string>()
   for (const s of input.subgroups) {
     if (!s.line?.trim() || !s.name?.trim() || !["S","P","M","N"].includes(s.kind)) {
@@ -85,34 +97,40 @@ export function calculateBuyerBudget238(input: Buyer238Input): Buyer238Result {
     finite(s.openingStock,"estoque inicial")
     finite(s.forecastCost,"CMV projetado",0)
     if (!buckets.has(s.line)) throw new RangeError("Saldo da linha não informado: "+s.line)
-    if(s.kind!=="S")continue
-    const dde=s.forecastCost>0?s.openingStock/(s.forecastCost/input.daysInMonth):999
-    const amount=s.need*input.share
-    const protectedDde=dde<30
+    const dde=s.kind==="S"
+      ? (s.forecastCost>0?s.openingStock/(s.forecastCost/input.daysInMonth):999)
+      : null
+    const amount=s.kind==="S"?s.need*input.share:0
+    const protectedDde=amount>0&&dde!==null&&dde<30
     const bucket=buckets.get(s.line)!
     bucket.desired+=amount
     if(protectedDde)bucket.protected+=amount
-    entries.push({line:s.line,desired:amount,protected:protectedDde})
+    allocations.push({
+      line:s.line,name:s.name,kind:s.kind,ddeOpening:dde,
+      desired:amount,isProtected:protectedDde,afterCashCut:0,buyer:0,
+    })
   }
   const totalDesired=[...buckets.values()].reduce((sum,b)=>sum+b.desired,0)
   const totalProtected=[...buckets.values()].reduce((sum,b)=>sum+b.protected,0)
   const remainingNonProtected=totalDesired-totalProtected
   const factor=totalDesired<=input.cashCap?1:
     remainingNonProtected>1e-9?Math.max(0,Math.min(1,(input.cashCap-totalProtected)/remainingNonProtected)):0
-  for(const entry of entries){
-    buckets.get(entry.line)!.afterCashCut+=entry.desired*(entry.protected?1:factor)
+  for(const entry of allocations){
+    entry.afterCashCut=entry.desired*(entry.isProtected?1:factor)
+    buckets.get(entry.line)!.afterCashCut+=entry.afterCashCut
   }
   for(const line of buckets.values()){
     // E12/M12: MAX(protegido; MIN(total após trava; MAX(0; saldo da linha))).
     line.buyer=Math.max(line.protected,Math.min(line.afterCashCut,Math.max(0,line.availableAfterExcess)))
   }
-  for(const entry of entries){
+  for(const entry of allocations){
     const line=buckets.get(entry.line)!
-    const after=entry.desired*(entry.protected?1:factor)
-    // G20/O20: preservar protegidos; dividir o restante proporcionalmente.
+    const after=entry.afterCashCut
+    // G20/K20/O20: protegidos mantidos; demais rateados após corte por linha.
     const remaining=line.afterCashCut-line.protected
-    const allocation=entry.protected?after:
+    const allocation=entry.isProtected?after:
       remaining>1e-9?after*Math.max(0,Math.min(1,(line.buyer-line.protected)/remaining)):0
+    entry.buyer=allocation
     line.allocatedToSubgroups+=allocation
   }
   const lines:Buyer238Line[]=[...buckets].map(([line,value])=>({line,...value}))
@@ -122,6 +140,6 @@ export function calculateBuyerBudget238(input: Buyer238Input): Buyer238Result {
     buyerTotal:lines.reduce((sum,row)=>sum+row.buyer,0),
     allocatedToSubgroups:lines.reduce((sum,row)=>sum+row.allocatedToSubgroups,0),
     protectedAboveCashCap:totalProtected>input.cashCap+0.005,
-    lines,
+    lines,subgroups:allocations,
   }
 }

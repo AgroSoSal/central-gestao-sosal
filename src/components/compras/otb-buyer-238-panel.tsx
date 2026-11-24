@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import { ShieldAlert, Layers3 } from "lucide-react"
 import type { OtbMonth } from "@/domains/compras/domain/otb-calculation"
 import { calculateBuyerBudget238 } from "@/domains/compras/domain/otb-buyer-budget-238"
@@ -15,19 +15,33 @@ export function OtbBuyer238Panel({month, simulated}:{month:OtbMonth; simulated:b
     try {
       const [year,mon]=month.month.split("-").map(Number)
       const days=new Date(Date.UTC(year,mon,0)).getUTCDate()
+      const lineBalances=month.lines.map(line=>({
+        line:line.line,availableAfterExcess:line.freeBalance,
+      }))
+      const subgroupRows=month.subgroups.map(s=>({
+        line:s.line,name:s.name,kind:s.kind,need:s.need,
+        openingStock:s.openingStock,forecastCost:s.forecastCost,
+      }))
+      if(month.materialBuyer){
+        const material=month.materialBuyer
+        // Verba Comprador!D/H/L12 = OTB!I/L/O17 inclui S173 de MP.
+        const matching=lineBalances.find(row=>row.line===material.line)
+        if(matching)matching.availableAfterExcess+=material.freeBalance
+        else lineBalances.push({line:material.line,availableAfterExcess:material.freeBalance})
+        subgroupRows.push({
+          line:material.line,name:material.name,kind:"S",
+          need:material.need,openingStock:material.openingStock,
+          forecastCost:material.forecastCost,
+        })
+      }
       return calculateBuyerBudget238({
         month:month.month,cashCap:month.cashCap,daysInMonth:days,share:0.9,
-        subgroups:month.subgroups.map(s=>({
-          line:s.line,name:s.name,kind:s.kind,need:s.need,
-          openingStock:s.openingStock,forecastCost:s.forecastCost,
-        })),
-        lines:month.lines.map(line=>({
-          line:line.line,availableAfterExcess:line.freeBalance,
-        })),
+        subgroups:subgroupRows,lines:lineBalances,
       })
     } catch { return null }
   },[month])
-  const missingMp=month.mpNeed>0
+  const [query, setQuery] = useState("")
+  const missingMp=month.mpNeed>0&&!month.materialBuyer
   return <section className="erp-surface overflow-hidden rounded-[24px]" aria-label="Verba do Comprador conforme fórmulas Zacarini 2.3.8">
     <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#25354e] p-5 sm:p-7">
       <div>
@@ -63,6 +77,49 @@ export function OtbBuyer238Panel({month, simulated}:{month:OtbMonth; simulated:b
             <td className="p-4 text-right font-bold tabular-nums">{money.format(line.buyer)}</td>
           </tr>)}</tbody>
         </table></div>
+        <details className="border-t border-slate-800" aria-label="Detalhamento por grupo e subgrupo">
+          <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/5 sm:px-7">
+            Conferir rateio por grupo-subgrupo ({budget.subgroups.length} registros) · fórmula Verba Comprador
+          </summary>
+          <div className="border-t border-slate-800 px-5 py-4 sm:px-7">
+            <label htmlFor="buyer238-subgroup-search" className="block text-xs font-semibold text-slate-300">
+              Filtrar grupo, subgrupo ou linha
+            </label>
+            <input id="buyer238-subgroup-search" type="search" value={query}
+              onChange={(event)=>setQuery(event.target.value)}
+              placeholder="Ex.: SEMENTES, SAÚDE, MATÉRIA PRIMA"
+              className="mt-2 w-full max-w-xl rounded-lg border border-slate-600 bg-[#091829] px-4 py-2 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
+            />
+            <p className="mt-2 text-[11px] text-slate-400">Apenas classificação S gera necessidade de compra nesta aba. Linhas P/M/N ficam visíveis com verba zero.</p>
+          </div>
+          <div className="max-h-[520px] overflow-auto">
+            <table className="erp-table w-full min-w-[1010px] text-left text-xs">
+              <thead className="sticky top-0 z-10 bg-[#121e30] text-slate-300">
+                <tr>
+                  <th className="p-3">Linha / subgrupo</th>
+                  <th className="p-3">Tipo</th>
+                  <th className="p-3 text-right">DDE inicial</th>
+                  <th className="p-3 text-right">Necessidade × 90%</th>
+                  <th className="p-3 text-right">Após trava de caixa</th>
+                  <th className="p-3 text-right">Verba comprador</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {budget.subgroups.filter(s=>{
+                  const term=query.trim().toLocaleUpperCase("pt-BR")
+                  return !term || (s.line+" "+s.name).toLocaleUpperCase("pt-BR").includes(term)
+                }).map(s=><tr key={s.line+"|"+s.name}>
+                  <td className="p-3"><span className="font-semibold text-slate-200">{s.name}</span><span className="ml-2 text-slate-500">({s.line})</span></td>
+                  <td className="p-3 text-slate-300">{s.kind}</td>
+                  <td className="p-3 text-right tabular-nums">{s.ddeOpening===null?"—":s.ddeOpening.toLocaleString("pt-BR",{maximumFractionDigits:1})+" dias"}{s.isProtected?<span className="ml-2 text-emerald-300">Protegido</span>:null}</td>
+                  <td className="p-3 text-right tabular-nums">{money.format(s.desired)}</td>
+                  <td className="p-3 text-right tabular-nums">{money.format(s.afterCashCut)}</td>
+                  <td className="p-3 text-right font-bold tabular-nums text-cyan-200">{money.format(s.buyer)}</td>
+                </tr>)}
+              </tbody>
+            </table>
+          </div>
+        </details>
         <p className="p-5 text-[11px] leading-6 text-amber-200">
           {missingMp?"A matéria-prima aparece em um bloco separado neste ERP; enquanto seu DDE e orçamento por linha não forem conciliados com a linha S da planilha, estes totais são APENAS de mercadorias e não podem ser comparados à verba global da Zacarini. ":""}
           {budget.protectedAboveCashCap?"A proteção DDE excede o teto simulado; isso exige decisão financeira explícita. ":""}

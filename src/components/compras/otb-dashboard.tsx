@@ -522,7 +522,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores de OTB do mês">
         <Metric label={testActive ? "Teto digitado (teste)" : indicativeActive ? "Teto referencial do pior caso" : "Teto de caixa"} value={money.format(month.cashCap)} sub={testActive ? "Premissa editável, não saldo bancário" : indicativeActive ? "Trava 12M calculada, não conciliada" : "Pior caso mensal da fonte informada"} icon={<Wallet size={20} />} />
         <Metric label="Necessidade total" value={money.format(month.totalNeed)} sub="Matéria-prima + mercadorias" icon={<Warehouse size={20} />} />
-        <Metric label={(testActive || indicativeActive) ? "Verba calculada (não aprovada)" : "Verba liberada"} value={money.format(month.releasedTotal)} sub={(testActive || indicativeActive) ? "Referência sem efeito em pedidos" : "Distribuição limitada pelo caixa"} icon={<CheckCircle2 size={20} />} />
+        <Metric label={testActive ? "Verba calculada (teste)" : indicativeActive ? "Verba calculada (não aprovada)" : "Verba liberada"} value={money.format(month.releasedTotal)} sub={(testActive || indicativeActive) ? "Referência sem efeito em pedidos" : "Distribuição limitada pelo caixa"} icon={<CheckCircle2 size={20} />} />
         <Metric label="Saldo de mercadorias" value={money.format(month.freeBalance)} sub="Após pedidos, vendas casadas e excessos" icon={<ClipboardList size={20} />} />
       </section>
 

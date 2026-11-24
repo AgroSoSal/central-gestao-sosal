@@ -89,7 +89,7 @@ export async function ReceiptsContent({searchParams}:Props){
     p_loja:loja||null,p_inicio:inicio||null,p_fim:fim||null,
     p_busca:busca||null,p_pagina:pagina,p_tamanho:PAGE_SIZE,
   })
-  const report=isReport(data)?data:null
+  const report=!error&&isReport(data)?data:null
   const paginas=report?Math.max(1,Math.ceil(report.total/PAGE_SIZE)):1
 
   return <main className="mx-auto max-w-[1500px] space-y-6 pb-14 text-slate-100">

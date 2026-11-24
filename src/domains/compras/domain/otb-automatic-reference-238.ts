@@ -184,8 +184,7 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
     for(const row of merchandise){
       const line=Number(row.line.slice(6))-1
       if(!Number.isInteger(line)||line<0||line>3)return [] // inválido: validação abaixo
-      lineNeeds[line]+=row.forecastCost[index]+row.targetStock[index]-
-        (index===0?row.openingStock:0) // primeiro cálculo inicia com estoque observado
+      lineNeeds[line]+=preview.rows.find(p=>p.name===row.name&&p.line===line+1)!.months![index].need
     }
     return lineNeeds.map(v=>Math.max(0,v))
   })

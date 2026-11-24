@@ -20,6 +20,8 @@ import type { OtbConsignedStock } from "@/domains/compras/domain/otb-consigned-s
 import { buildOtbTestSimulation } from "@/domains/compras/domain/otb-test-simulation"
 import type { CashForecastResult } from "@/domains/compras/domain/zacarini-cash-forecast"
 import { assessOtbGoLive, type OtbGoLiveStatus } from "@/domains/compras/domain/otb-go-live-readiness"
+import { OtbProjectionDraft } from "@/components/compras/otb-projection-draft"
+import type { Otb12mDraftHeader } from "@/domains/compras/domain/otb-projection-draft-12m"
 
 type Props = {
   email: string
@@ -34,6 +36,8 @@ type Props = {
   forecast?: CashForecastResult
   /** Comprovação efetiva das fontes oficiais, exclusivamente RPC protegida Master. */
   readinessStatus?: OtbGoLiveStatus | null
+  recentDrafts?: readonly Otb12mDraftHeader[]
+  draftSourceError?: boolean
   /** Prévia de estoque por subgrupo. Não é cenário oficial nem autorização. */
   subgroupPreview?: OtbSubgroupPreview | null
   /** Vendas entregues das quatro janelas da aba fx_VendaSubgrupo. */
@@ -92,7 +96,7 @@ function Metric({ label, value, sub, icon }: { label: string; value: string; sub
   </div>
 }
 
-export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, indicativeMonths, forecastIssues, forecast, readinessStatus, subgroupPreview, seasonalHistory, abcProjection, consignedPosition, officialScenario, simulationBaseDate }: Props) {
+export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, indicativeMonths, forecastIssues, forecast, readinessStatus, recentDrafts, draftSourceError, subgroupPreview, seasonalHistory, abcProjection, consignedPosition, officialScenario, simulationBaseDate }: Props) {
   const goLive = assessOtbGoLive(readinessStatus ?? null)
   const [testActive, setTestActive] = useState(false)
   const [testCashCaps, setTestCashCaps] = useState<[string, string, string]>(["120000", "150000", "180000"])
@@ -324,6 +328,8 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
           <p className="mt-3 text-slate-400">A tabela de títulos já contratados permanece disponível no fluxo de caixa. Não foi preenchido nenhum mês com dados de exemplo.</p>
         </div>}
     </section>
+
+    <OtbProjectionDraft forecast={forecast} baseDate={simulationBaseDate??""} recent={recentDrafts??[]} sourceError={!!draftSourceError}/>
 
     <section className="erp-surface overflow-hidden rounded-[24px]" aria-label="Estoque e CMV reais do Supabase">
       <div className="flex flex-wrap items-center justify-between gap-4 p-6 sm:p-7">

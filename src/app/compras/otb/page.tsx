@@ -21,6 +21,7 @@ import { subtractOtbConsignedStock } from "@/domains/compras/domain/otb-consigne
 import { fetchOtbSubgroupPlans } from "@/domains/compras/domain/otb-subgroup-plan-source"
 import type { BankPositionRow, ContractedMonth } from "@/domains/compras/domain/otb-bank-readiness"
 import type { OtbGoLiveStatus } from "@/domains/compras/domain/otb-go-live-readiness"
+import type { Otb12mDraftHeader } from "@/domains/compras/domain/otb-projection-draft-12m"
 
 export default function ComprasOtbPage() {
   return <Suspense fallback={<LoadingState label="Autenticando acesso ao OTB..." />}><OtbContent /></Suspense>
@@ -68,7 +69,7 @@ export async function OtbContent() {
 
   // Duas fontes agregadas, somente leitura, verificadas pelo banco como Master.
   // O histórico NÃO contém fluxo de caixa futuro nem substitui a Projeção 12M.
-  const [summary, historical, stock, config, bank, weeks, months, recovery, consigned, readiness] = await Promise.all([
+  const [summary, historical, stock, config, bank, weeks, months, recovery, consigned, readiness, drafts] = await Promise.all([
     supabase.rpc("fn_listar_pedidos_compra", {
     p_busca: null,
     p_loja: null,
@@ -86,6 +87,7 @@ export async function OtbContent() {
     supabase.rpc("fn_compras_dashboard_receber_recuperavel_237", { p_data_base: todayISO }),
     supabase.rpc("fn_otb_estoque_consignado_237"),
     supabase.rpc("fn_otb_situacao_homologacao"),
+    supabase.rpc("fn_otb_projecao_rascunhos_listar",{p_limite:10}),
   ])
   const purchaseSource = interpretOtbPurchaseSource(summary.data, summary.error)
   const historicalSource = interpretOtbHistoricalSource(historical.data, historical.error, lastClosedMonth)
@@ -188,6 +190,7 @@ export async function OtbContent() {
     seasonalHistory={seasonalHistory} abcProjection={abcProjection} consignedPosition={consignedPosition}
     simulationBaseDate={todayISO} forecast={forecast}
     readinessStatus={readiness.error?null:(readiness.data as OtbGoLiveStatus|null)}
+    recentDrafts={drafts.error?[]:((drafts.data??[]) as Otb12mDraftHeader[])} draftSourceError={!!drafts.error}
     forecastIssues={forecast.state==="indisponivel"?forecast.reasons:
       indicativeMonths?[]:["A referência da Projeção 12M não contém os três meses seguintes completos."]} />
 }

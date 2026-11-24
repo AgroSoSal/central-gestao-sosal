@@ -21,6 +21,7 @@ import { dashboardReference, type DashboardReferenceRow } from "@/domains/compra
 import { buildOtbSubgroupPreview, type OtbSubgroupPreview } from "@/domains/compras/domain/otb-subgroup-preview"
 import { interpretOtbSeasonalHistory } from "@/domains/compras/domain/otb-seasonal-source"
 import { interpretOtbAbcProjection } from "@/domains/compras/domain/otb-abc-projection-237"
+import { mergeOtbAbcStock238 } from "@/domains/compras/domain/otb-abc-stock-merge-238"
 import { subtractOtbConsignedStock } from "@/domains/compras/domain/otb-consigned-stock-237"
 import { fetchOtbSubgroupPlans } from "@/domains/compras/domain/otb-subgroup-plan-source"
 import type { BankPositionRow, ContractedMonth } from "@/domains/compras/domain/otb-bank-readiness"
@@ -141,6 +142,7 @@ export async function OtbContent() {
   const abcProjection=interpretOtbAbcProjection(abcResponse.data,abcResponse.error)
 
   let subgroupPreview:OtbSubgroupPreview|null=null
+  let abcCoverageMissing:string[]=[]
   if(indicativeMonths?.length===3&&forecast.state==="simulado"){
     if(stockPosition.status!=="conectado"||consignedPosition.state!=="conectado"||config.error){
       subgroupPreview={state:"indisponivel",reason:"Estoque líquido da marca consignada ou parâmetros de planejamento indisponíveis.",authorizesPurchases:false}
@@ -159,28 +161,17 @@ export async function OtbContent() {
           const target=dashboardReference(references,`dde_alvo_linha_${line}`,null).valor
           if(target!==null&&target>=0)fallbackDde[line]=target
         }
-        const abcByGroup=new Map<string,Extract<typeof abcProjection,{state:"conectado"}>["groups"][number]>(
-          abcProjection.state==="conectado"?
-          abcProjection.groups.map(group=>[`${group.line}\0${group.name}`,group] as const):[])
-        const positions=consignedPosition.subgroups.filter(row=>row.line>=1&&row.line<=4).map(row=>{
-          const abc=abcByGroup.get(`${row.line}\0${row.subgroup}`)
-          return {line:row.line,subgroup:row.subgroup,stockCost:row.stockCost,cmv90d:row.cmv90d,
-            ...(abcProjection.state==="conectado"?{
-              projectedSales90d:abc?.projectedSales90??0,
-              projectedCmv90d:abc?.projectedCmv90??0,
-              curveASales90d:abc?.curveASales90??0,
-            }:{}),
-          }
-        })
-        if(abcProjection.state==="conectado"){
-          const stocked=new Set(positions.map(row=>`${row.line}\0${row.subgroup}`))
-          for(const abc of abcProjection.groups){
-            if(stocked.has(`${abc.line}\0${abc.name}`))continue
-            positions.push({line:abc.line,subgroup:abc.name,stockCost:0,cmv90d:0,
-              projectedSales90d:abc.projectedSales90,projectedCmv90d:abc.projectedCmv90,
-              curveASales90d:abc.curveASales90})
-          }
-        }
+        const merged=mergeOtbAbcStock238(
+          consignedPosition.subgroups
+            .filter(row=>row.line>=1&&row.line<=4)
+            .map(row=>({line:row.line,subgroup:row.subgroup,stockCost:row.stockCost,cmv90d:row.cmv90d})),
+          abcProjection,
+        )
+        const positions=merged.positions
+        abcCoverageMissing=merged.missingAbc
+        // Se ABC não abrange todos os subgrupos do estoque, o helper NÃO
+        // inventa venda/CMV zero: a prévia assume o modo proxy, identificado
+        // ao usuário no relatório de cobertura da fonte.
         subgroupPreview=buildOtbSubgroupPreview({
           months:nextMonths,referenceMonths:forecast.monthLabels,
           projectedCmv:forecast.monthlyCmvByLine.noventa,
@@ -207,7 +198,11 @@ export async function OtbContent() {
     tiedSales:tiedSource,
   })
 
-  return <OtbDashboard email={user.email ?? ""} purchaseSource={purchaseSource} historicalSource={historicalSource}
+  return <>
+    {abcCoverageMissing.length>0&&<div role="status" className="mx-auto max-w-[1600px] rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-xs leading-6 text-amber-100">
+      <strong>Projeção ABC incompleta em {abcCoverageMissing.length} subgrupo(s).</strong> Não foram presumidas vendas ou CMV zerados. O planejamento mostra a estimativa pelo histórico (proxy), sem homologação. Conferir correspondência de nomes do SISCOM no cadastro.
+    </div>}
+  <OtbDashboard email={user.email ?? ""} purchaseSource={purchaseSource} historicalSource={historicalSource}
     stockPosition={stockPosition} indicativeMonths={indicativeMonths} subgroupPreview={subgroupPreview}
     seasonalHistory={seasonalHistory} abcProjection={abcProjection} consignedPosition={consignedPosition}
     simulationBaseDate={todayISO} forecast={forecast} automaticReference={automaticReference}
@@ -216,5 +211,5 @@ export async function OtbContent() {
     readinessStatus={readiness.error?null:(readiness.data as OtbGoLiveStatus|null)}
     recentDrafts={drafts.error?[]:((drafts.data??[]) as Otb12mDraftHeader[])} draftSourceError={!!drafts.error}
     forecastIssues={forecast.state==="indisponivel"?forecast.reasons:
-      indicativeMonths?[]:["A referência da Projeção 12M não contém os três meses seguintes completos."]} />
+      indicativeMonths?[]:["A referência da Projeção 12M não contém os três meses seguintes completos."]}  /></>
 }

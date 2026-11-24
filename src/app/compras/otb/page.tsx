@@ -11,6 +11,7 @@ import { interpretOtbStockPosition } from "@/domains/compras/domain/otb-position
 import { interpretOtbPurchaseSource } from "@/domains/compras/domain/otb-source-status"
 import { buildPartialCashSeries, type ContractedWeek } from "@/domains/compras/domain/dashboard-cash-contracts"
 import { buildZacariniCashForecast } from "@/domains/compras/domain/zacarini-cash-forecast"
+import { buildOtbAutomaticReference238 } from "@/domains/compras/domain/otb-automatic-reference-238"
 import { resolveReceivablesRecovery, type RecoverableReceivablesLine } from "@/domains/compras/domain/receivables-recovery-237"
 import { nextOtbPurchaseNeeds } from "@/domains/compras/domain/otb-indicative-months"
 import { dashboardReference, type DashboardReferenceRow } from "@/domains/compras/domain/dashboard-zacarini-237"
@@ -185,10 +186,18 @@ export async function OtbContent() {
     }
   }
 
+  // Fluxo completo em modo REFERÊNCIA: fontes SISCOM + projeção 12M +
+  // vencimentos 3M e MP + teto do pior caso + orçamento por subgrupo.
+  // NÃO autoriza pedidos e expõe lacunas de conciliação/entradas pendentes.
+  const automaticReference=buildOtbAutomaticReference238({
+    baseDate:todayISO,preview:subgroupPreview,forecast,
+    references:config.error?[]:(config.data??[]) as DashboardReferenceRow[],
+  })
+
   return <OtbDashboard email={user.email ?? ""} purchaseSource={purchaseSource} historicalSource={historicalSource}
     stockPosition={stockPosition} indicativeMonths={indicativeMonths} subgroupPreview={subgroupPreview}
     seasonalHistory={seasonalHistory} abcProjection={abcProjection} consignedPosition={consignedPosition}
-    simulationBaseDate={todayISO} forecast={forecast}
+    simulationBaseDate={todayISO} forecast={forecast} automaticReference={automaticReference}
     readinessStatus={readiness.error?null:(readiness.data as OtbGoLiveStatus|null)}
     recentDrafts={drafts.error?[]:((drafts.data??[]) as Otb12mDraftHeader[])} draftSourceError={!!drafts.error}
     forecastIssues={forecast.state==="indisponivel"?forecast.reasons:

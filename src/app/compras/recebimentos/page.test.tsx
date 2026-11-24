@@ -7,6 +7,7 @@ const state=vi.hoisted(()=>({
   calls:[] as Array<{name:string;args:Record<string,unknown>}>,
 }))
 vi.mock("next/server",()=>({connection:async()=>undefined}))
+vi.mock("next/navigation",()=>({useRouter:()=>({refresh:vi.fn(),push:vi.fn(),replace:vi.fn()})}))
 vi.mock("@/lib/supabase/server",()=>({
   createSupabaseServerClient:async()=>({
     auth:{getUser:async()=>({data:{user:{email:"master@sosal.com.br"}},error:null})},

@@ -99,9 +99,9 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
   const otbMonths=[1,2,3].map(i=>nextMonth(baseDate,i)) as OtbTriple<string>
   if(preview.months.some((month,i)=>month!==otbMonths[i])||
      forecast.monthLabels.length!==12||forecast.monthLabels.some((m,i)=>m!==nextMonth(baseDate,i))||
-     forecast.monthlyWorst.length!==12||
+     !Array.isArray(forecast.monthlyWorst)||forecast.monthlyWorst.length!==12||
      forecast.monthlyWorst.some(value=>!Number.isFinite(value))||
-     forecast.monthlyCmvByLine.noventa.length!==12||
+     !Array.isArray(forecast.monthlyCmvByLine?.noventa)||forecast.monthlyCmvByLine.noventa.length!==12||
      forecast.monthlyCmvByLine.noventa.some(row=>row.length!==4||row.some(v=>!validAmount(v)))){
      return unavailable("Série financeira mensal ou competências de estoque não coincidem.")
   }
@@ -184,7 +184,9 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
     for(const row of merchandise){
       const line=Number(row.line.slice(6))-1
       if(!Number.isInteger(line)||line<0||line>3)return [] // inválido: validação abaixo
-      lineNeeds[line]+=preview.rows.find(p=>p.name===row.name&&p.line===line+1)!.months![index].need
+      const item=preview.rows.find(p=>p.name===row.name&&p.line===line+1)
+      if(!item?.months) return []
+      lineNeeds[line]+=item.months[index].need
     }
     return lineNeeds.map(v=>Math.max(0,v))
   })

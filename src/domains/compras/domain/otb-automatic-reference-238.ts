@@ -163,11 +163,10 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
   const mpPriorOrders=rawGroups.reduce((sum,row)=>sum+(matched(row.name)?.prior??0),0)
   const mpRecorded:[number,number,number]=[0,1,2].map(i=>rawGroups.reduce((sum,row)=>
     sum+(matched(row.name)?.recorded[i]??0),0)) as [number,number,number]
-  let mpOpening=mp.stockCost+preview.rows.filter(row=>row.kind==="M")
+  const initialMpOpening=mp.stockCost+preview.rows.filter(row=>row.kind==="M")
     .reduce((sum,row)=>sum+row.stockCost,0)+mpPriorOrders
-  // OTB!R173 = estoque de MP + estoque M + pedidos anteriores elegíveis.
-  const initialMpOpening=mpOpening
-  const mpNeeds:number[]=[]
+  const mpCurrentCosts:number[]=[]
+  const mpTargetStocks:number[]=[]
   for(let monthIndex=0;monthIndex<3;monthIndex++){
     const i=monthIndex+1
     const currentCost=mpCostForForecastIndex(i)*factorConsumption238
@@ -179,13 +178,24 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
       forwardDays+=(endMonthMs(forecast.monthLabels[future])-isoMs(forecast.monthLabels[future]))/DAY+1
     }
     const target=mp.targets[monthIndex].days*forwardCost/forwardDays
-    const need=Math.max(0,currentCost+target-mpOpening)
-    if(![currentCost,target,need].every(validAmount))return unavailable("Projeção de matéria-prima inválida.")
-    mpNeeds.push(need)
-    mpOpening=Math.max(0,mpOpening+need-currentCost)
+    if(![currentCost,target].every(validAmount))return unavailable("Projeção de matéria-prima inválida.")
+    mpCurrentCosts.push(currentCost)
+    mpTargetStocks.push(target)
   }
-
-  const mpTriple:OtbTriple<number>=[mpNeeds[0],mpNeeds[1],mpNeeds[2]]
+  /** OTB!AA/AJ173 usa T/AC173 (liberação REAL), não S/AB173
+   * (necessidade teórica). Em cenários de caixa restrito, a falta de MP
+   * do mês anterior deve elevar a necessidade do mês seguinte.
+   */
+  function calculateMpNeedsWithCaps(cashCaps?:readonly number[]):number[]{
+    let opening=initialMpOpening
+    return mpCurrentCosts.map((currentCost,i)=>{
+      const need=Math.max(0,currentCost+mpTargetStocks[i]-opening)
+      const released=cashCaps?Math.min(need,cashCaps[i]):need
+      opening=Math.max(0,opening+released-currentCost)
+      return need
+    })
+  }
+  let mpNeeds=calculateMpNeedsWithCaps()
   const mpTiedSales=[0,1,2].map(i=>rawGroups.reduce((total,row)=>
     total+(tiedSales?.state==="conectado"?
       tiedSalesForSubgroup238(tiedSales,row.name,otbMonths)[i]:0),0)) as [number,number,number]
@@ -226,8 +236,8 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
     })
   }
   if(!merchandise.length)return unavailable("Nenhum subgrupo S com DDE, CMV e curva ABC completos.")
-  const needsByMonthLine=[0,1,2].map(index=>{
-    const lineNeeds=[mpNeeds[index],0,0,0]
+  const needsByMonthLine=(rawNeeds:readonly number[])=>[0,1,2].map(index=>{
+    const lineNeeds=[rawNeeds[index],0,0,0]
     for(const row of merchandise){
       const line=Number(row.line.slice(6))-1
       if(!Number.isInteger(line)||line<0||line>3)return [] // inválido: validação abaixo
@@ -237,29 +247,45 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
     }
     return lineNeeds.map(v=>Math.max(0,v))
   })
-  if(needsByMonthLine.some(row=>row.length!==4||row.some(v=>!validAmount(v)))){
-    return unavailable("Necessidades por linha inválidas.")
-  }
-  let caps:OtbWorstCashResult
+  let caps!:OtbWorstCashResult
   let result:OtbResult
   let freeCashReconciliation:OtbFreeCash238
   try{
-    const dues=buildZacarini238CumulativeDues({
-      forecastMonths:forecast.monthLabels,otbMonths,
-      needsByMonthLine,paymentDays:terms as number[],
-    })
-    // Excel C607:C609 devolve as compras do modelo que a nova OTB substitui
-    // e subtrai Fluxo de Caixa!B7 (R$ 500 mil em 2.3.8).
-    // OTB!B11 é verba EXTRA da diretoria (0 na referência): nunca misturar.
+    // Recalcula a verba MP e seus vencimentos até ficarem compatíveis com
+    // a verba efetivamente liberada de cada mês. Fator de caixa e necessidade
+    // dependem um do outro; em caso de não convergência, falhar fechado.
     freeCashReconciliation=calculateFreeCashForOtb238(forecast,terms as number[])
-    caps=calculateWorstCaseOtbCaps({
-      source:"PROJECAO_12M_SOSAL_ESTIMATIVA_238",
-      forecastStart:forecast.monthLabels[0],
-      cashBuffer:0, // OTB!B11, APENAS o extra autorizado da diretoria
-      worstFreeCash:freeCashReconciliation.freeCashForOtb,
-      monthlyNeeds:needsByMonthLine.map(row=>row.reduce((s,v)=>s+v,0)),
-      cumulativeDues:dues,
-    })
+    let converged=false
+    for(let iteration=0;iteration<40;iteration++){
+      const monthLines=needsByMonthLine(mpNeeds)
+      if(monthLines.some(row=>row.length!==4||row.some(v=>!validAmount(v)))){
+        return unavailable("Necessidades por linha inválidas.")
+      }
+      const dues=buildZacarini238CumulativeDues({
+        forecastMonths:forecast.monthLabels,otbMonths,
+        needsByMonthLine:monthLines,paymentDays:terms as number[],
+      })
+      caps=calculateWorstCaseOtbCaps({
+        source:"PROJECAO_12M_SOSAL_ESTIMATIVA_238",
+        forecastStart:forecast.monthLabels[0],
+        cashBuffer:0,
+        worstFreeCash:freeCashReconciliation.freeCashForOtb,
+        monthlyNeeds:monthLines.map(row=>row.reduce((total,value)=>total+value,0)),
+        cumulativeDues:dues,
+      })
+      const updated=calculateMpNeedsWithCaps(caps.cashCaps)
+      if(updated.some(value=>!validAmount(value))){
+        return unavailable("Matéria-prima sem projeção física verificável.")
+      }
+      if(updated.every((value,i)=>Math.abs(value-mpNeeds[i])<0.001)){
+        converged=true
+        break
+      }
+      mpNeeds=updated
+    }
+    if(!converged)return unavailable(
+      "OTB: trava de caixa e necessidade de matéria-prima não convergiram; evitar teto inconsistente.")
+    const mpTriple:OtbTriple<number>=[mpNeeds[0],mpNeeds[1],mpNeeds[2]]
     result=calculateOtb({
       source:"OTB_SOSAL_PREVIA_AUTOMATICA_NAO_HOMOLOGADA_238",
       baseDate,months:otbMonths,cashCaps:caps.cashCaps,mpNeeds:mpTriple,
@@ -273,6 +299,7 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
   }catch(error){
     return unavailable(error instanceof Error?error.message:"Não foi possível calcular a trava da Projeção 12M.")
   }
+  const mpTriple:OtbTriple<number>=[mpNeeds[0],mpNeeds[1],mpNeeds[2]]
   return {
     state:"referencia_parcial",authorizesPurchases:false,result,cash:caps,
     freeCashReconciliation,

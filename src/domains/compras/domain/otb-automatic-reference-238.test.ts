@@ -123,6 +123,35 @@ describe("OTB operacional automática, sem liberação",()=>{
   expect(out.limitations.join(" ")).toContain("totalmente recebidos")
   expect(out.limitations.join(" ")).toContain("V48/V173")
  })
+ it("recalcula MP no mês seguinte quando o caixa NÃO liberou a compra anterior",()=>{
+  const stock=preview()
+  if(stock.state!=="calculado")throw Error("prévia ausente")
+  // MP sem estoque: a compra solicitada é grande, mas o caixa fica travado.
+  stock.rows[0].stockCost=100
+  stock.rows[3].stockCost=0
+  const ord=openOrders()
+  if(ord.state!=="conectado")throw new Error("carteira de teste não conectada")
+  ord.groups=ord.groups.map(g=>g.name.includes("MATERIA PRIMA")?{...g,prior:0,pending:0}:g)
+  const f=forecast()
+  if(f.state!=="simulado")throw new Error("cenário de teste indisponível")
+  f.monthlyWorst=months.map(()=>-2000000)
+  const result=buildOtbAutomaticReference238({
+    baseDate:"2026-11-24",preview:stock,forecast:f,references:refs,orders:ord,
+  })
+  expect(result.state,result.state==="indisponivel"?result.reason:"").toBe("referencia_parcial")
+  if(result.state!=="referencia_parcial")return
+  expect(result.authorizesPurchases).toBe(false)
+  expect(result.result.months[0].mpReleased).toBe(0)
+  expect(result.result.months[0].mpNeed).toBeGreaterThan(0)
+  // Excel OTB!AA173 = MAX(0,R173+T173-Q173); T173=0.
+  // A abertura do segundo mês é estoque (100) menos consumo (80 mil), ou 0,
+  // e NÃO estoque acrescido da necessidade teórica do primeiro mês.
+  const firstRawConsumption=80000
+  const firstClosing=Math.max(0,100+result.result.months[0].mpReleased-firstRawConsumption)
+  expect(result.result.months[1].materialBuyer?.openingStock).toBeCloseTo(firstClosing,5)
+  expect(result.rawMaterialNeeds[1]).toBeGreaterThan(result.rawMaterialNeeds[0]*0.3)
+  expect(result.result.months[1].mpNeed).toBe(result.rawMaterialNeeds[1])
+ })
  it("se não existe estoque de MP, produção, juros ou projeção, não gera teto de caixa falso",()=>{
   const broken=preview()
   if(broken.state==="calculado")broken.rows[0].targets=[]

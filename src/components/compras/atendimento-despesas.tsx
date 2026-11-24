@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { budgetForExpense238,budgetGroupForArea238,type ExpenseBudgetSnapshot238 } from "@/domains/compras/domain/expense-budget-238"
+import Link from "next/link"
 import { ClipboardCopy, ReceiptText, Save } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/client"
 import { formatSupplierOrder } from "@/domains/compras/domain/purchase-order-messages"
@@ -17,12 +19,12 @@ export type ExpenseDraft238 = {
   observacao: string | null; criado_em: string
 }
 type Props = { branch: string; catalog: ExpenseCatalogEntry[]; unavailable?: boolean
-  drafts?: readonly ExpenseDraft238[]; draftsUnavailable?: boolean }
+  drafts?: readonly ExpenseDraft238[]; draftsUnavailable?: boolean; budget?:ExpenseBudgetSnapshot238|null; budgetUnavailable?:boolean }
 const currency = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"})
 const empty:ExpenseLine = {codigo:"",quantidade:"",valorUnitario:""}
 const ref = (i:number):ExpenseLine=>({...empty,codigo:"",quantidade:"",valorUnitario:""})
 
-export function AtendimentoDespesas({branch,catalog,unavailable=false,drafts=[],draftsUnavailable=false}:Props){
+export function AtendimentoDespesas({branch,catalog,unavailable=false,drafts=[],draftsUnavailable=false,budget=null,budgetUnavailable=false}:Props){
   const router=useRouter()
   const [rows,setRows]=useState<ExpenseLine[]>(Array.from({length:8},(_,i)=>ref(i)))
   const [notes,setNotes]=useState("")
@@ -76,10 +78,12 @@ export function AtendimentoDespesas({branch,catalog,unavailable=false,drafts=[],
         <h2 className="mt-2 flex items-center gap-2 text-xl font-bold text-slate-100"><ReceiptText size={20}/> Despesas, serviços e investimentos</h2>
         <p className="mt-2 max-w-3xl text-xs leading-6 text-slate-400">Cad_Despesas!A5:H46 e Atendimento!A48:I58: cadastro complementar de 42 códigos, até oito linhas, valor = quantidade × custo unitário. Grupos 5 e 6 ficam fora da verba de mercadorias da OTB.</p>
       </div>
+      <Link href="/compras/atendimento/orcamento" className="rounded-xl border border-cyan-300/25 bg-cyan-300/10 px-4 py-2 text-xs font-bold text-cyan-200">Orçamento Replanejado</Link>
       <button type="button" onClick={()=>setActive(v=>!v)} className="rounded-xl border border-amber-300/25 bg-amber-300/10 px-4 py-2 text-xs font-bold text-amber-100">{active?"Recolher bloco":"Abrir bloco ⑨"}</button>
     </div>
     {active&&<>
       {unavailable&&<p role="alert" className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-xs text-amber-200">Catálogo indisponível: simulação e gravação bloqueadas.</p>}
+      {budgetUnavailable&&<p role="alert" className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-xs text-amber-200">Orçamento Replanejado indisponível no Supabase. Nenhum teto financeiro foi inferido.</p>}
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <label className="text-xs font-semibold text-slate-300">Fornecedor
           <input value={supplier} maxLength={100} onChange={e=>setSupplier(e.target.value)} className="erp-field mt-2 w-full px-3" placeholder="Identificação para a negociação"/>
@@ -99,7 +103,8 @@ export function AtendimentoDespesas({branch,catalog,unavailable=false,drafts=[],
               <option value="">Escolher item</option>
               {catalog.map(c=><option key={c.codigo} value={c.codigo}>{c.codigo} · {c.descricao}</option>)}
             </select></td>
-            <td className="p-3 text-[11px] leading-5 text-slate-400">{e.item?<>{e.item.grupo}<span className="block text-slate-500">{e.item.area} / {e.item.conta}</span></>:"—"}</td>
+            <td className="p-3 text-[11px] leading-5 text-slate-400">{e.item?<>{e.item.grupo}<span className="block text-slate-500">{e.item.area} / {e.item.conta}</span>
+              <span className="mt-1 block font-semibold text-cyan-200">Orc_Dados · {budgetGroupForArea238(e.item.area)??"Não mapeado"}: {budgetForExpense238(budget,e.item.area)===null?"Fonte pendente":currency.format(budgetForExpense238(budget,e.item.area)!)}</span></>:"—"}</td>
             <td className="p-3"><input aria-label={"Quantidade despesa "+(index+1)} type="number" min="0" step="0.01" value={e.row.quantidade} onChange={v=>setRow(index,"quantidade",v.target.value)} className="erp-field w-24 px-2 py-2"/></td>
             <td className="p-3"><input aria-label={"Custo despesa "+(index+1)} type="number" min="0" step="0.01" value={e.row.valorUnitario} onChange={v=>setRow(index,"valorUnitario",v.target.value)} className="erp-field w-32 px-2 py-2"/></td>
             <td className="p-3 text-right font-semibold text-slate-100">{e.valid?currency.format(e.value):"—"}</td>

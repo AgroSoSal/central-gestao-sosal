@@ -131,7 +131,8 @@ export function PurchaseDecisionEditor({ loja, pedido, produtoCodigo, record, av
 
   return (
     <div className="min-w-[170px]">
-      <span className={`inline-flex rounded-lg border px-2.5 py-1 text-[11px] font-bold ${current === "Aguardando aprovação" ? "border-amber-400/25 bg-amber-400/10 text-amber-200" : palette[current]}`}>{available ? current : "Indisponível"}</span>
+      <span className={`inline-flex rounded-lg border px-2.5 py-1 text-[11px] font-bold ${current === "Aprovado (padrão Zacarini)" ? "border-amber-400/25 bg-amber-400/10 text-amber-200" : palette[current]}`}>{available ? current : "Indisponível"}</span>
+      {available && !saved && <p className="mt-2 text-[11px] leading-4 text-amber-200">A coluna AP vazia equivale a Aprovado na Zacarini 2.3.8. Isto não é autorização financeira de compra.</p>}
       {available && (expanded ? form : (
         <details className="group/decision relative mt-2">
           <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold text-cyan-300 transition hover:text-cyan-100 focus-visible:outline-2 focus-visible:outline-cyan-300">

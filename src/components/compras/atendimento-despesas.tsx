@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { ClipboardCopy, ReceiptText, Save } from "lucide-react"
 import { createSupabaseBrowserClient } from "@/lib/supabase/client"
 import { formatSupplierOrder } from "@/domains/compras/domain/purchase-order-messages"
@@ -11,12 +12,17 @@ export type ExpenseCatalogEntry = {
   grupo: "5.DESPESAS"|"6.INVESTIMENTO"; area: string; conta: string
 }
 type ExpenseLine = { codigo: string; quantidade: string; valorUnitario: string }
-type Props = { branch: string; catalog: ExpenseCatalogEntry[]; unavailable?: boolean }
+export type ExpenseDraft238 = {
+  id: number; filial: string; total: number | string; itens_count: number
+  observacao: string | null; criado_em: string
+}
+type Props = { branch: string; catalog: ExpenseCatalogEntry[]; unavailable?: boolean
+  drafts?: readonly ExpenseDraft238[]; draftsUnavailable?: boolean }
 const currency = new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"})
 const empty:ExpenseLine = {codigo:"",quantidade:"",valorUnitario:""}
 const ref = (i:number):ExpenseLine=>({...empty,codigo:"",quantidade:"",valorUnitario:""})
 
-export function AtendimentoDespesas({branch,catalog,unavailable=false}:Props){
+export function AtendimentoDespesas({branch,catalog,unavailable=false,drafts=[],draftsUnavailable=false}:Props){
   const router=useRouter()
   const [rows,setRows]=useState<ExpenseLine[]>(Array.from({length:8},(_,i)=>ref(i)))
   const [notes,setNotes]=useState("")
@@ -113,5 +119,17 @@ export function AtendimentoDespesas({branch,catalog,unavailable=false}:Props){
         <button type="button" onClick={()=>navigator.clipboard.writeText(draftMessage.email).then(()=>setStatus("E-mail copiado (rascunho).")).catch(()=>setStatus("Não foi possível copiar."))} className="rounded-xl border border-white/15 px-4 py-2 text-xs text-slate-100">Copiar e-mail</button>
       </div>}
     </>}
+    <div className="mt-5 border-t border-slate-700/60 pt-5">
+      <h3 className="text-sm font-bold text-white">Despesas e investimentos salvos</h3>
+      <p className="mt-1 text-xs leading-5 text-slate-400">Consulte os itens e valores dos rascunhos anteriores. Nenhum registro é pedido autorizado nem título financeiro.</p>
+      {draftsUnavailable&&<p role="alert" className="mt-3 text-xs text-amber-200">Histórico de despesas indisponível no momento. Nenhum dado foi presumido.</p>}
+      {!draftsUnavailable&&drafts.length===0&&<p className="mt-3 text-xs text-slate-500">Nenhum rascunho de despesa registrado nesta carteira.</p>}
+      {!draftsUnavailable&&drafts.length>0&&<div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{drafts.map(d=><article key={d.id} className="rounded-xl border border-amber-300/15 bg-[#0b1b2e] p-4">
+        <p className="font-semibold text-cyan-200">#{d.id} · {d.filial}</p>
+        <p className="mt-2 text-sm font-bold tabular-nums text-white">{currency.format(Number(d.total))} · {d.itens_count} linha(s)</p>
+        <p className="mt-1 text-[11px] text-slate-400">{new Date(d.criado_em).toLocaleString("pt-BR",{timeZone:"America/Campo_Grande"})}</p>
+        <Link href={`/compras/atendimento/despesa/${d.id}`} className="mt-3 inline-block text-xs font-bold text-cyan-200 underline">Conferir despesa salva</Link>
+      </article>)}</div>}
+    </div>
   </section>
 }

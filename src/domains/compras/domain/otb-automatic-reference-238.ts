@@ -111,8 +111,12 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
     return unavailable(orders?.state==="indisponivel"?orders.reason:
       "Carteira de pedidos não conciliada; a OTB não pode presumir saldo pendente igual a zero.")
   }
-  if(tiedSales?.state==="indisponivel"){
-    return unavailable("Vendas casadas U/AD/AM indisponíveis; o cálculo não pode assumir valores zerados.")
+  // U/AD/AM são zero somente quando a consulta Master auditada voltou
+  // CONECTADA e sem lançamentos, como na planilha Zacarini. Uma fonte
+  // ausente não é um lançamento de valor zero.
+  const expectedTiedStart=nextMonth(baseDate,1)
+  if(!tiedSales||tiedSales.state!=="conectado"||tiedSales.start!==expectedTiedStart){
+    return unavailable("Vendas casadas U/AD/AM não confirmadas no Supabase para a competência; não presumir zero.")
   }
   const groupMatch=matchOtbOrders238(orders,preview.rows.map(row=>row.name))
   const unmatchedPending=groupMatch.unmatched.reduce((s,g)=>s+g.prior,0)
@@ -197,8 +201,7 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
   }
   let mpNeeds=calculateMpNeedsWithCaps()
   const mpTiedSales=[0,1,2].map(i=>rawGroups.reduce((total,row)=>
-    total+(tiedSales?.state==="conectado"?
-      tiedSalesForSubgroup238(tiedSales,row.name,otbMonths)[i]:0),0)) as [number,number,number]
+    total+tiedSalesForSubgroup238(tiedSales,row.name,otbMonths)[i],0)) as [number,number,number]
   const missing:string[]=[]
   const merchandise:OtbSubgroupInput[]=[]
   const dueNeedBySubgroup=new Map<string,number[]>()
@@ -231,8 +234,7 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
       alreadyRecorded:(order?.recorded??[0,0,0]) as OtbTriple<number>,
       // OTB!U/AD/AM são entradas manuais no XLSX; não existem
       // autorizações de venda casada integradas na carteira.
-      tiedSalesApproved:tiedSales?.state==="conectado"?
-        tiedSalesForSubgroup238(tiedSales,row.name,otbMonths):[0,0,0],
+      tiedSalesApproved:tiedSalesForSubgroup238(tiedSales,row.name,otbMonths),
     })
   }
   if(!merchandise.length)return unavailable("Nenhum subgrupo S com DDE, CMV e curva ABC completos.")
@@ -316,9 +318,7 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
     limitations:[
       "Saldo pendente J48/J173 e gravados V48/V173 dos pedidos ainda em aberto agora vêm da carteira real do Supabase. Recebimentos futuros e pedidos já totalmente recebidos não estão disponíveis na fotografia.",
       "Pedidos de MP e de núcleos/premix classificados foram incluídos na abertura da matéria-prima, sem presunção de chegada futura.",
-      tiedSales?.state==="conectado"?
-        `OTB!U/AD/AM: vendas casadas carregadas do cadastro Master (${tiedSales.entries} lançamento(s), R$ ${tiedSales.total.toFixed(2)}); ausência de lançamento vale zero, como na planilha 2.3.8.`:
-        "OTB!U/AD/AM: vendas casadas iniciadas em zero como na planilha; não há fonte externa de aprovações neste teste.",
+      `OTB!U/AD/AM: vendas casadas carregadas do cadastro Master (${tiedSales.entries} lançamento(s), R$ ${tiedSales.total.toFixed(2)}); ausência de lançamento confirmado vale zero, como na planilha 2.3.8.`,
       `${orders.unmappedItems} itens, R$ ${orders.unmappedValue.toFixed(2)}, sem subgrupo identificado; não foram imputados em nenhuma linha.`,
       ...(groupMatch.unmatched.length?[`${groupMatch.unmatched.length} grupo(s) da carteira não tiveram correspondência segura com a posição de estoque. Pendência R$ ${unmatchedPending.toFixed(2)}.`]:[]),
       `A trava de caixa desconta o mínimo de R$ ${freeCashReconciliation.safetyFloor.toLocaleString("pt-BR",{minimumFractionDigits:2})} e devolve R$ ${freeCashReconciliation.returnedPaymentsTotal.toLocaleString("pt-BR",{minimumFractionDigits:2})} de compras previstas que a OTB recalcula, evitando dupla contagem (Projeção 12M!607:613).`,

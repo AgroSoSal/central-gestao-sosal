@@ -501,7 +501,24 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
         <p className="font-bold text-amber-200">Cálculo automático pela lógica Zacarini 2.3.8, com ressalvas</p>
         <p className="mt-2">A sequência financeira foi executada sem inserir tetos manualmente: 12 meses de pior caso, prazos de pagamento por linha, necessidade de MP, três tetos de caixa e divisão de comprador. Nenhum número abaixo constitui aprovação.</p>
         <ul className="mt-2 list-inside list-disc space-y-1">{automaticReference.limitations.map(text=><li key={text}>{text}</li>)}</ul>
-        <p className="mt-2">Subgrupos com cálculo incompleto: {automaticReference.excludedSubgroups.length}. Para concluir a verba real precisamos reconciliar os pedidos existentes e saldos bancários oficiais.</p>
+        <p className="mt-2">Subgrupos com cálculo incompleto: {automaticReference.excludedSubgroups.length}. A carteira atualizada foi considerada no estoque disponível (OTB!J) e no gravado dos três meses (OTB!V/AE/AN), mas pedidos totalmente recebidos e vendas casadas ainda exigem confirmação documental.</p>
+        <div className="mt-4 rounded-xl border border-cyan-300/20 bg-[#0d1d30] p-4">
+          <p className="text-xs font-bold text-cyan-200">Carteira de pedidos Supabase · conciliação operacional</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-4">
+            <div><p className="text-[11px] text-slate-400">Itens lidos</p><p className="font-bold tabular-nums">{integer.format(automaticReference.orderSummary.items)}</p></div>
+            <div><p className="text-[11px] text-slate-400">Saldo em aberto</p><p className="font-bold tabular-nums">{money.format(automaticReference.orderSummary.pending)}</p></div>
+            <div><p className="text-[11px] text-slate-400">Subgrupos vinculados</p><p className="font-bold tabular-nums">{automaticReference.orderSummary.matchedSubgroups}</p></div>
+            <div><p className="text-[11px] text-slate-400">Sem subgrupo</p><p className="font-bold text-amber-200 tabular-nums">{automaticReference.orderSummary.unmappedItems} · {money.format(automaticReference.orderSummary.unmappedValue)}</p></div>
+          </div>
+          <p className="mt-3 text-[11px] leading-5 text-slate-400">Pedidos sem classificação não foram distribuídos no OTB; itens que não correspondem a grupos de estoque também permanecem fora. Para classificar, abra o pedido em Gerenciar e registre o subgrupo oficial e o motivo.</p>
+          {automaticReference.orderSummary.unmappedTop.length>0 && <div className="mt-3 flex flex-wrap gap-2">
+            {automaticReference.orderSummary.unmappedTop.slice(0,8).map(item=><Link
+              key={item.code}
+              href={`/compras/gerenciar?busca=${encodeURIComponent(item.code)}`}
+              className="rounded-lg border border-amber-400/20 bg-amber-300/5 px-3 py-2 text-[11px] text-amber-100 hover:bg-amber-300/10"
+              title={item.description}>SKU {item.code} · {money.format(item.pending)}</Link>)}
+          </div>}
+        </div>
       </section>}
       <div role="status" className={`flex flex-wrap items-center gap-2 rounded-xl border px-4 py-3 text-xs leading-5 ${(testActive || indicativeActive) ? "border-amber-300/40 bg-amber-400/10 text-amber-100" : "border-cyan-300/25 bg-cyan-400/10 text-cyan-100"}`}>
         <ShieldCheck size={17} className="shrink-0" /> {testActive ? "RESULTADO SIMULADO: valores demonstrativos, sem orçamento aprovado ou autorização de pedido." :

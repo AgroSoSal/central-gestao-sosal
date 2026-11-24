@@ -24,6 +24,8 @@ import { OtbProjectionDraft } from "@/components/compras/otb-projection-draft"
 import { OtbBuyer238Panel } from "@/components/compras/otb-buyer-238-panel"
 import { OtbTiedSalesEditor238 } from "@/components/compras/otb-tied-sales-editor-238"
 import { OtbDeliveryCalendarPanel238 } from "@/components/compras/otb-delivery-calendar-panel-238"
+import { OtbApReconciliationPanel239 } from "@/components/compras/otb-ap-reconciliation-panel-239"
+import type { OtbApAudit239 } from "@/domains/compras/domain/otb-ap-reconciliation-239"
 import type { OtbTiedSales238, OtbDeliveryCalendar238 } from "@/domains/compras/domain/otb-manual-calendar-238"
 import type { OtbAutomaticReference238 } from "@/domains/compras/domain/otb-automatic-reference-238"
 import type { Otb12mDraftHeader } from "@/domains/compras/domain/otb-projection-draft-12m"
@@ -59,6 +61,7 @@ type Props = {
   tiedSales?:OtbTiedSales238
   tiedSalesStart?:string
   plannedDeliveries?:OtbDeliveryCalendar238
+  apReconciliation?:OtbApAudit239
   /** Data-base do servidor, para manter a simulação estável e sem dependência do relógio do cliente. */
   simulationBaseDate?: string
 }
@@ -107,7 +110,7 @@ function Metric({ label, value, sub, icon }: { label: string; value: string; sub
   </div>
 }
 
-export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, indicativeMonths, forecastIssues, forecast, readinessStatus, recentDrafts, draftSourceError, subgroupPreview, seasonalHistory, abcProjection, consignedPosition, officialScenario, automaticReference, simulationBaseDate, tiedSales, tiedSalesStart, plannedDeliveries }: Props) {
+export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, indicativeMonths, forecastIssues, forecast, readinessStatus, recentDrafts, draftSourceError, subgroupPreview, seasonalHistory, abcProjection, consignedPosition, officialScenario, automaticReference, simulationBaseDate, tiedSales, tiedSalesStart, plannedDeliveries, apReconciliation }: Props) {
   const goLive = assessOtbGoLive(readinessStatus ?? null)
   const [testActive, setTestActive] = useState(false)
   const [testCashCaps, setTestCashCaps] = useState<[string, string, string]>(["120000", "150000", "180000"])
@@ -481,6 +484,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
         subgroupPreview.rows.filter(r=>r.kind==="S").map(r=>r.name):[]}
       sales={tiedSales}/>}
     {plannedDeliveries&&<OtbDeliveryCalendarPanel238 calendar={plannedDeliveries}/>}
+    {apReconciliation&&<OtbApReconciliationPanel239 audit={apReconciliation}/>}
 
     {!month ? <>
       {automaticReference?.state==="indisponivel" && !testActive && !officialScenario && <p role="alert" className="rounded-xl border border-amber-300/25 bg-amber-400/10 p-4 text-xs leading-6 text-amber-100">

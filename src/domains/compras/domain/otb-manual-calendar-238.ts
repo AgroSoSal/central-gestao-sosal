@@ -46,6 +46,7 @@ export type OtbDeliveryCalendar238=
  | {state:"indisponivel";reason:string}
  | {state:"conectado";base:string;itemCount:number;pendingValue:number;
     assumedArrivalItems:number;explicitArrivalItems:number;termsToReview:number;
+    bonificationItems?:number;bonificationValue?:number;fixedDueDateItems?:number;
     weeks:readonly {start:string;end:string;amount:number;installments:number}[];
     months:readonly {month:string;amount:number;installments:number}[]}
 export function interpretOtbDeliveryCalendar238(
@@ -81,7 +82,19 @@ export function interpretOtbDeliveryCalendar238(
   return {month:t.month as string,amount,installments}
  })
  if(weeks.some(x=>x===null)||months.some(x=>x===null))return fail("Parcelas inválidas.")
+ const optional=(key:string):number|undefined=>{
+  if(x[key]===undefined)return undefined
+  const n=read(key)
+  return n!==null?n:undefined
+ }
+ const bonuses=optional("bonificationItems"),bonusValue=optional("bonificationValue"),
+   fixed=optional("fixedDueDateItems")
+ if((x.bonificationItems!==undefined&&(bonuses===undefined||!Number.isSafeInteger(bonuses)))||
+   (x.bonificationValue!==undefined&&bonusValue===undefined)||
+   (x.fixedDueDateItems!==undefined&&(fixed===undefined||!Number.isSafeInteger(fixed))))
+   return fail("Classificação de parcelas não financeiras inconsistente.")
  return {state:"conectado",base,itemCount:n,pendingValue:pending,assumedArrivalItems:assumed,
   explicitArrivalItems:explicit,termsToReview:review,
+  bonificationItems:bonuses,bonificationValue:bonusValue,fixedDueDateItems:fixed,
   weeks:weeks as Exclude<typeof weeks[number],null>[],months:months as Exclude<typeof months[number],null>[]}
 }

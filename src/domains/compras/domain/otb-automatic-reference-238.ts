@@ -96,7 +96,7 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
   if(forecast.state!=="simulado"||!preview||preview.state!=="calculado") {
     return unavailable("Projeção 12M ou subgrupos ainda não calculados pelas fontes do Supabase.")
   }
-  const otbMonths=[1,2,3].map(i=>nextMonth(baseDate,i)) as OtbTriple<string>
+  const otbMonths=[nextMonth(baseDate,1),nextMonth(baseDate,2),nextMonth(baseDate,3)] as const
   if(preview.months.some((month,i)=>month!==otbMonths[i])||
      forecast.monthLabels.length!==12||forecast.monthLabels.some((m,i)=>m!==nextMonth(baseDate,i))||
      !Array.isArray(forecast.monthlyWorst)||forecast.monthlyWorst.length!==12||
@@ -158,6 +158,7 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
     mpOpening=Math.max(0,mpOpening+need-currentCost)
   }
 
+  const mpTriple:OtbTriple<number>=[mpNeeds[0],mpNeeds[1],mpNeeds[2]]
   const missing:string[]=[]
   const merchandise:OtbSubgroupInput[]=[]
   for(const row of preview.rows){
@@ -210,7 +211,7 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
     })
     result=calculateOtb({
       source:"OTB_SOSAL_PREVIA_AUTOMATICA_NAO_HOMOLOGADA_238",
-      baseDate,months:otbMonths,cashCaps:caps.cashCaps,mpNeeds:mpNeeds as OtbTriple<number>,
+      baseDate,months:otbMonths,cashCaps:caps.cashCaps,mpNeeds:mpTriple,
       buyerShare:0.9,subgroups:merchandise,
     })
   }catch(error){
@@ -219,7 +220,7 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
   return {
     state:"referencia_parcial",authorizesPurchases:false,result,cash:caps,
     mpMethod:"PRODUCAO_P_MULTIPLICADA_H12_ESTOQUE_MP_SEM_PEDIDOS",
-    rawMaterialNeeds:mpNeeds as OtbTriple<number>,
+    rawMaterialNeeds:mpTriple,
     excludedSubgroups:missing,
     limitations:[
       "Pedido anterior, pedido gravado, entrega e venda casada ainda não conciliados por subgrupo; simulação considera esses campos nulos e NÃO serve para autorização.",

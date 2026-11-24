@@ -16,9 +16,9 @@ vi.mock("@/lib/supabase/client", () => ({
 afterEach(() => { cleanup(); fake.refresh.mockClear() })
 
 describe("editor de decisão da fila", () => {
-  it("exibe aguardando aprovação e habilita salvar a primeira aprovação explícita", () => {
+  it("exibe aprovado por padrão e permite registrar decisão explícita", () => {
     render(<PurchaseDecisionEditor loja="SO SAL" pedido="10" produtoCodigo="A" record={null} available />)
-    expect(screen.getByText("Aguardando aprovação")).toBeInTheDocument()
+    expect(screen.getByText("Aprovado (padrão Zacarini)")).toBeInTheDocument()
     fireEvent.click(screen.getByText("Gerenciar pedido"))
     const decision = screen.getByLabelText("Decisão do item")
     const save = screen.getByRole("button", { name: "Salvar decisão" })

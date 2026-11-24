@@ -8,6 +8,7 @@ import { getBranchDisplayName } from "@/domains/compras/domain/branches"
 import { decisionKey, operationalDecision, type PurchaseDecisionRecord } from "@/domains/compras/domain/purchase-decisions"
 import { PurchaseDecisionEditor } from "./purchase-decision-editor"
 import { PurchaseSubgroupEditor } from "./purchase-subgroup-editor"
+import { PurchaseNfEvidence } from "./purchase-nf-evidence"
 
 export type ManagementPurchaseItem = {
   loja: string | null; pedido: string | null; produto_codigo: string | null
@@ -123,6 +124,7 @@ export function ManagementTable({ rows, activeTab, tabHrefs }: { rows: Managemen
                 <PurchaseDecisionEditor key={rowId(selected)} loja={selected.item.loja!} pedido={selected.item.pedido!} produtoCodigo={selected.item.produto_codigo!} record={selected.record} available expanded />
               </div>
               <PurchaseSubgroupEditor key={"otb-"+rowId(selected)} loja={selected.item.loja!} pedido={selected.item.pedido!} produtoCodigo={selected.item.produto_codigo!}/>
+              <PurchaseNfEvidence key={"nf-"+rowId(selected)} loja={selected.item.loja!} pedido={selected.item.pedido!} produtoCodigo={selected.item.produto_codigo!}/>
             </div>
           </Dialog.Content>
         </Dialog.Portal>}

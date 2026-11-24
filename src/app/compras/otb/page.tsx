@@ -196,18 +196,20 @@ export async function OtbContent() {
   // Fluxo completo em modo REFERÊNCIA: fontes SISCOM + projeção 12M +
   // vencimentos 3M e MP + teto do pior caso + orçamento por subgrupo.
   // NÃO autoriza pedidos e expõe lacunas de conciliação/entradas pendentes.
+  const tiedSource=interpretOtbTiedSales238(tied.data,tied.error,firstOtbMonth)
+  const plannedSource=interpretOtbDeliveryCalendar238(plannedDues.data,plannedDues.error,todayISO)
   const automaticReference=buildOtbAutomaticReference238({
     baseDate:todayISO,preview:subgroupPreview,forecast,
     references:config.error?[]:(config.data??[]) as DashboardReferenceRow[],
     orders:interpretOtbOrderSource238(openOrders.data,openOrders.error,todayISO),
-    tiedSales:interpretOtbTiedSales238(tied.data,tied.error,firstOtbMonth),
+    tiedSales:tiedSource,
   })
 
   return <OtbDashboard email={user.email ?? ""} purchaseSource={purchaseSource} historicalSource={historicalSource}
     stockPosition={stockPosition} indicativeMonths={indicativeMonths} subgroupPreview={subgroupPreview}
     seasonalHistory={seasonalHistory} abcProjection={abcProjection} consignedPosition={consignedPosition}
     simulationBaseDate={todayISO} forecast={forecast} automaticReference={automaticReference}
-    plannedDeliveries={interpretOtbDeliveryCalendar238(plannedDues.data,plannedDues.error,todayISO)}
+    plannedDeliveries={plannedSource} tiedSales={tiedSource} tiedSalesStart={firstOtbMonth}
     readinessStatus={readiness.error?null:(readiness.data as OtbGoLiveStatus|null)}
     recentDrafts={drafts.error?[]:((drafts.data??[]) as Otb12mDraftHeader[])} draftSourceError={!!drafts.error}
     forecastIssues={forecast.state==="indisponivel"?forecast.reasons:

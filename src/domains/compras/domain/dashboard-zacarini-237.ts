@@ -56,7 +56,12 @@ export const DASHBOARD_CHARTS = [
 const absent: ReferenceValue = { valor: null, estado: "indisponivel", origem: null }
 
 export function dashboardReference(rows: readonly DashboardReferenceRow[], codigo: string, competencia: string | null): ReferenceValue {
-  const candidates = rows.filter(row => row.codigo === codigo && row.competencia === competencia && row.versao === "2.3.7")
+  // A versão efetiva da carga é única para toda a consulta. Nunca misturar
+  // premissas 2.3.8 com meses/linhas antigos da 2.3.7 para fechar 12M.
+  // Sem uma carga 2.3.8, a base legada continua identificada como 2.3.7.
+  const version = rows.some(row => row.versao === "2.3.8") ? "2.3.8" : "2.3.7"
+  const candidates = rows.filter(row => row.codigo === codigo &&
+    row.competencia === competencia && row.versao === version)
   if (candidates.length !== 1) return absent
   const row = candidates[0]
   const valor = row.valor === null || row.valor === "" ? NaN : Number(row.valor)

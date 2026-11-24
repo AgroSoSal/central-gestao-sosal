@@ -21,6 +21,7 @@ import { buildOtbTestSimulation } from "@/domains/compras/domain/otb-test-simula
 import type { CashForecastResult } from "@/domains/compras/domain/zacarini-cash-forecast"
 import { assessOtbGoLive, type OtbGoLiveStatus } from "@/domains/compras/domain/otb-go-live-readiness"
 import { OtbProjectionDraft } from "@/components/compras/otb-projection-draft"
+import { CashLedgerPanel238 } from "@/components/compras/cash-ledger-panel-238"
 import { OtbBuyer238Panel } from "@/components/compras/otb-buyer-238-panel"
 import { OtbTiedSalesEditor238 } from "@/components/compras/otb-tied-sales-editor-238"
 import { OtbDeliveryCalendarPanel238 } from "@/components/compras/otb-delivery-calendar-panel-238"
@@ -310,7 +311,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
         <div>
           <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.17em] text-cyan-300"><ChartNoAxesCombined size={15}/> Motor Zacarini · 12 competências</p>
           <h2 className="mt-2 text-xl font-bold text-white">Projeção 12M simulada · três cenários e pior caso</h2>
-          <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-400">Motor financeiro existente da versão 2.3.7: combina saldos e títulos identificados, estoque a custo, CMV e premissas de referência para projetar cenários de caixa. Os resultados são estudos de sensibilidade, não o caixa real futuro nem o teto oficial de compras.</p>
+          <p className="mt-2 max-w-4xl text-xs leading-6 text-slate-400">Motor financeiro referenciado na última Zacarini 2.3.8: combina saldos e títulos identificados, estoque a custo, CMV e premissas de referência para projetar cenários de caixa. Os resultados são estudos de sensibilidade, não o caixa real futuro nem o teto oficial de compras.</p>
         </div>
         <span className="rounded-lg border border-amber-300/25 bg-amber-400/10 px-3 py-2 text-[11px] font-bold text-amber-100">Referência · não autoriza compras</span>
       </div>
@@ -344,6 +345,8 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
           <p className="mt-3 text-slate-400">A tabela de títulos já contratados permanece disponível no fluxo de caixa. Não foi preenchido nenhum mês com dados de exemplo.</p>
         </div>}
     </section>
+
+    <CashLedgerPanel238 forecast={forecast}/>
 
     <OtbProjectionDraft forecast={forecast} baseDate={simulationBaseDate??""} recent={recentDrafts??[]} sourceError={!!draftSourceError}/>
 

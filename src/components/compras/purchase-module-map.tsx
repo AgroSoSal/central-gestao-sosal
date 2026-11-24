@@ -10,7 +10,7 @@ type Coverage = {
   action?: string
 }
 
-/** Auditoria funcional da Gestão Zacarini 2.3.7. Status de implementação, não de saúde da conexão. */
+/** Auditoria funcional da Gestão Zacarini 2.3.8. Status de implementação, não de saúde da conexão. */
 const coverage: readonly Coverage[] = [
   { title: "Dashboard de Compras", workbook: "Dashboard", state: "parcial", details: "Sete blocos replicados: metas de vendas por linha/loja, margem operacional, DDE, carteira, bancos, DRE e tendências. Fluxo projetado e DRE oficial aguardam premissas homologadas.", href: "/compras/dashboard", action: "Abrir dashboard" },
   { title: "Pedidos de compra", workbook: "Pedidos de Compra", state: "operacional", details: "Consulta, NFs recebidas, saldo e filtros por filial, fornecedor, produto e data.", href: "/compras", action: "Consultar pedidos" },
@@ -23,7 +23,7 @@ const coverage: readonly Coverage[] = [
   { title: "OTB por subgrupo", workbook: "Painel OTB · OTB", state: "parcial", details: "Estoque, CMV e DDE observado conectados. Teto de caixa e verba liberada pendentes de cenário financeiro homologado.", href: "/compras/otb", action: "Ver posição operacional do OTB" },
   { title: "Verba do comprador", workbook: "Verba Comprador", state: "parcial", details: "OTB!R24 usa 90%/10%; proteção por DDE e corte testados; sem saldo financeiro oficial por linha.", href: "/compras/otb", action: "Conferir OTB" },
   { title: "Plano de estoque", workbook: "Plano de Estoque", state: "parcial", details: "Painel de seis meses com 56 metas versionadas, estoque e CMV a custo reais. Faltam conciliar divergências literais de nomes, previsões e aprovar alçadas.", href: "/compras/plano-estoque", action: "Abrir plano mensal" },
-  { title: "Projeção financeira 12M", workbook: "Projeção 12M · Premissas 12M", state: "pendente", details: "Modelo matemático conferido; faltam cenários futuros, obrigações reconciliadas e homologação. Atualizar extratos ajuda, mas não basta." },
+  { title: "Projeção financeira 12M", workbook: "Projeção 12M · Premissas 12M", state: "parcial", details: "Motor de três cenários e pior caso, memória de entradas/saídas por 12 meses, conferência do fechamento e rascunhos versionados. Fontes financeiras e homologação de caixa/limites ainda pendentes.", href: "/compras/otb", action: "Consultar Projeção 12M" },
   { title: "Produção própria", workbook: "Produção Própria", state: "parcial", details: "Catálogo real SO SAL e calculadora de industrialização por kg/un e R$/t. Peso, frete e preço final aguardam cadastro homologado.", href: "/compras/producao-propria", action: "Simular fabricação" },
   { title: "Estoque parado", workbook: "Estoque Parado · Liq_Rede", state: "parcial", details: "Radar da rede por SKU, sem giro e excesso com estimativa sazonal e regras de comparabilidade por filial. Transferências reais ainda dependem do SISCOM.", href: "/compras/estoque-parado", action: "Ver estoque parado" },
   { title: "Liquidação por filial", workbook: "Liquidação Lojas · Liq_Base", state: "parcial", details: "Excesso e sem giro por SKU/filial, comparação de posições e navegação entre lojas. Transferências não são efetivadas.", href: "/compras/liquidacao-lojas", action: "Consultar filiais" },
@@ -39,7 +39,7 @@ const badge = {
 export function PurchaseModuleMap() {
   return <section aria-label="Cobertura da planilha Zacarini" className="space-y-5">
     <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/[.06] p-5 text-sm leading-6 text-slate-300">
-      <p className="font-bold text-cyan-100">Referência: Gestão Zacarini 2.3.7</p>
+      <p className="font-bold text-cyan-100">Referência: Gestão Zacarini 2.3.8</p>
       <p className="mt-1">Conferência das funções de Compras com as abas da planilha. Os cálculos usam dados operacionais do Supabase, nunca números históricos importados do Excel. O status abaixo indica a cobertura implementada, não a disponibilidade momentânea de cada consulta.</p>
     </div>
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

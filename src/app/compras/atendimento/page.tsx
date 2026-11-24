@@ -66,7 +66,7 @@ async function Content({ searchParams }: { searchParams: Promise<Params> }) {
       <ComprasSair />
     </div>
     <section className="erp-surface erp-reveal rounded-3xl p-6 sm:p-9">
-      <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.18em] text-cyan-300"><Store size={16}/> Compras · Gestão Zacarini 2.3.7</span>
+      <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.18em] text-cyan-300"><Store size={16}/> Compras · Gestão Zacarini 2.3.8</span>
       <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">Atendimento <span className="text-cyan-300">Fornecedor</span></h1>
       <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-400">Consulta Master de produtos, estoque, pedidos pendentes, venda de 90 dias e último custo do Supabase. Simule quantidades, descontos e parcelas; a gravação no SISCOM permanece bloqueada até aprovação financeira oficial.</p>
       <form method="get" action="/compras/atendimento" className="mt-6 flex flex-wrap items-end gap-3">

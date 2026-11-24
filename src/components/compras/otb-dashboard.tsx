@@ -21,6 +21,7 @@ import { buildOtbTestSimulation } from "@/domains/compras/domain/otb-test-simula
 import type { CashForecastResult } from "@/domains/compras/domain/zacarini-cash-forecast"
 import { assessOtbGoLive, type OtbGoLiveStatus } from "@/domains/compras/domain/otb-go-live-readiness"
 import { OtbProjectionDraft } from "@/components/compras/otb-projection-draft"
+import { OtbBuyer238Panel } from "@/components/compras/otb-buyer-238-panel"
 import type { Otb12mDraftHeader } from "@/domains/compras/domain/otb-projection-draft-12m"
 
 type Props = {
@@ -549,6 +550,8 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
           </tbody>
         </table></div>
       </section>
+
+      <OtbBuyer238Panel month={month} simulated={testActive} />
 
       <section className="erp-surface overflow-hidden rounded-[24px]">
         <div className="border-b border-[#25354e] p-5 sm:p-7">

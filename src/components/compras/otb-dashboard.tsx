@@ -513,6 +513,20 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
       {indicativeActive && automaticReference?.state==="referencia_parcial" && <section className="rounded-2xl border border-amber-400/25 bg-amber-400/5 p-5 text-xs leading-6 text-amber-100" aria-label="Limitações da prévia automática">
         <p className="font-bold text-amber-200">Cálculo automático pela lógica Zacarini 2.3.8, com ressalvas</p>
         <p className="mt-2">A sequência financeira foi executada sem inserir tetos manualmente: 12 meses de pior caso, prazos de pagamento por linha, necessidade de MP, três tetos de caixa e divisão de comprador. Nenhum número abaixo constitui aprovação.</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3" aria-label="Conciliação das premissas financeiras do cálculo">
+          <div className="rounded-xl border border-white/15 bg-[#102134] p-4">
+            <p className="text-[11px] text-slate-400">Caixa mínimo da Zacarini · B10 / Projeção B7</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-slate-100">{money.format(automaticReference.freeCashReconciliation.safetyFloor)}</p>
+          </div>
+          <div className="rounded-xl border border-white/15 bg-[#102134] p-4">
+            <p className="text-[11px] text-slate-400">Compras já pagas no modelo e devolvidas à nova OTB</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-slate-100">{money.format(automaticReference.freeCashReconciliation.returnedPaymentsTotal)}</p>
+          </div>
+          <div className="rounded-xl border border-white/15 bg-[#102134] p-4">
+            <p className="text-[11px] text-slate-400">Caixa livre do pior caso · mês-base</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-slate-100">{money.format(automaticReference.freeCashReconciliation.freeCashForOtb[0])}</p>
+          </div>
+        </div>
         <ul className="mt-2 list-inside list-disc space-y-1">{automaticReference.limitations.map(text=><li key={text}>{text}</li>)}</ul>
         <p className="mt-2">Subgrupos com cálculo incompleto: {automaticReference.excludedSubgroups.length}. A carteira atualizada foi considerada no estoque disponível (OTB!J) e no gravado dos três meses (OTB!V/AE/AN), mas pedidos totalmente recebidos e vendas casadas ainda exigem confirmação documental.</p>
         <div className="mt-4 rounded-xl border border-cyan-300/20 bg-[#0d1d30] p-4">

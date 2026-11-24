@@ -71,7 +71,12 @@ export function assessOtbGoLive(data: OtbGoLiveStatus | null): OtbGoLiveAssessme
   if (data.pendencias.length > 0) {
     blockers.push("Resolver as pendências operacionais explícitas do caixa no Supabase.")
   }
-  if (data.premissas.referencias > 0 || data.premissas.homologadas === 0 || data.premissas.versoes_financeiras === 0) {
+  // As 749 referências da Zacarini são o histórico de comparação, não
+  // premissas financeiras ativas. Elas permanecem no Supabase após homologar
+  // o cenário; não podem ser exigidas a zero para liberar o software.
+  // A aprovação segue exigindo versão financeira vigente e homologações reais,
+  // além de conciliação, horizonte 12M e alçada explícita do teto OTB.
+  if (data.premissas.homologadas === 0 || data.premissas.versoes_financeiras === 0) {
     blockers.push("Homologar as premissas financeiras atuais (as referências Zacarini não são aprovação operacional).")
   }
   if (data.projecao.linhas_homologadas < 12 || !data.projecao.horizonte_completo) {

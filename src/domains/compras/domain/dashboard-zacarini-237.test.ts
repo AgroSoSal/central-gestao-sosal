@@ -43,6 +43,22 @@ describe("Dashboard Zacarini 2.3.7", () => {
     expect(dashboardReference([base], "meta_linha_1", "2026-12-01")).toEqual({ valor: null, estado: "indisponivel", origem: null })
   })
 
+  it("prioriza carga integral 2.3.8 sem usar a célula 2.3.7 para o mesmo código", () => {
+    const current = {...base, versao: "2.3.8", valor: 3200000, origem_celula: "E36"}
+    expect(dashboardReference([base, current], base.codigo, base.competencia)).toEqual({
+      valor: 3200000, estado: "referencia", origem: "Dashboard!E36 · Zacarini 2.3.8",
+    })
+  })
+  it("bloqueia a mescla de versões quando a carga 2.3.8 está incompleta", () => {
+    const another = {...base, codigo: "meta_linha_2", versao: "2.3.8", valor: 100}
+    expect(dashboardReference([base, another], base.codigo, base.competencia))
+      .toEqual({valor: null, estado: "indisponivel", origem: null})
+  })
+  it("não escolhe uma célula arbitrária quando a versão 2.3.8 traz valores duplicados", () => {
+    const row = {...base, versao: "2.3.8", valor: 3200000}
+    expect(dashboardReference([base, row, {...row, valor: 3100000}], base.codigo, base.competencia).valor)
+      .toBeNull()
+  })
   it("não transforma referência de Excel em orçamento homologado", () => {
     expect(metricWithTarget(1420000, dashboardReference([base], base.codigo, base.competencia))).toEqual({
       realizado: 1420000, meta: 2840000, percentual: 0.5, estado: "referencia",

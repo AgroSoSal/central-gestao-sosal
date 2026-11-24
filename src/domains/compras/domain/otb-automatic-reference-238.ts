@@ -247,7 +247,7 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
     }
     return lineNeeds.map(v=>Math.max(0,v))
   })
-  let caps:OtbWorstCashResult
+  let caps!:OtbWorstCashResult
   let result:OtbResult
   let freeCashReconciliation:OtbFreeCash238
   try{

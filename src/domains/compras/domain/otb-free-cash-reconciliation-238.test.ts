@@ -19,7 +19,12 @@ const forecast={
  monthlyWorst:months.map((_,i)=>1_500_000
    -(i>=2?200000:0)-(i>=4?150000:0)
    -(i>=7?100000:0)-(i>=5?99000:0)),
- monthlyNewPurchasesByLine:{noventa:purchases,plano:[],historico:[]},
+ monthlyNewPurchasesByLine:{noventa:purchases,plano:purchases.map(row=>[...row]),historico:purchases.map(row=>[...row])},
+ monthly:{
+  noventa:months.map((_,i)=>1_500_000-(i>=2?200000:0)-(i>=4?150000:0)-(i>=7?100000:0)-(i>=5?99000:0)),
+  plano:months.map((_,i)=>1_700_000-(i>=2?200000:0)-(i>=4?150000:0)-(i>=7?100000:0)-(i>=5?99000:0)),
+  historico:months.map((_,i)=>1_800_000-(i>=2?200000:0)-(i>=4?150000:0)-(i>=7?100000:0)-(i>=5?99000:0)),
+ },
 } as unknown as CashForecastResult
 describe("Projeção 12M!C607:C613 e OTB!B10/B11 - caixa livre sem duplicidade",()=>{
  it("deduz o mínimo de caixa uma única vez e recompõe a compra futura já subtraída",()=>{
@@ -41,11 +46,21 @@ describe("Projeção 12M!C607:C613 e OTB!B10/B11 - caixa livre sem duplicidade",
  })
  it("nunca libera teto maior omitindo o mínimo, e não confunde B10 com B11",()=>{
   const noPurchase={...forecast,
-    monthlyNewPurchasesByLine:{noventa:months.map(()=>[0,0,0,0]),plano:[],historico:[]},
+    monthlyNewPurchasesByLine:{noventa:months.map(()=>[0,0,0,0]),plano:months.map(()=>[0,0,0,0]),historico:months.map(()=>[0,0,0,0])},
   } as unknown as CashForecastResult
   const out=calculateFreeCashForOtb238(noPurchase,[47,73,78,146])
   expect(out.returnedPaymentsTotal).toBe(0)
   expect(out.freeCashForOtb[0]).toBe(1000000)
+ })
+ it("usa o menor entre três cenários e pior caso corrigido, como C613 da Zacarini",()=>{
+  const candidate={...forecast,monthly:{
+    ...(forecast as Extract<CashForecastResult,{state:"simulado"}>).monthly,
+    plano:months.map((_,i)=>i===2?600000:2000000),
+  }} as CashForecastResult
+  const out=calculateFreeCashForOtb238(candidate,[47,73,78,146])
+  // Jan/27 é definido pelo cenário plano (600k + 200k devolvidos - 500k)
+  expect(out.freeCashForOtb[2]).toBe(300000)
+  expect(out.authorizesPurchases).toBe(false)
  })
  it("falha fechado com caixa faltante, parcelas negativas ou mês truncado",()=>{
   expect(()=>calculateFreeCashForOtb238({
@@ -56,7 +71,7 @@ describe("Projeção 12M!C607:C613 e OTB!B10/B11 - caixa livre sem duplicidade",
     ...forecast,monthLabels:months.slice(0,11),
   } as CashForecastResult,[47,73,78,146])).toThrow()
   expect(()=>calculateFreeCashForOtb238({
-    ...forecast,monthlyNewPurchasesByLine:{noventa:months.map(()=>[0,0,0,0]).slice(0,11),plano:[],historico:[]},
+    ...forecast,monthlyNewPurchasesByLine:{noventa:months.map(()=>[0,0,0,0]).slice(0,11),plano:purchases,historico:purchases},
   } as CashForecastResult,[47,73,78,146])).toThrow()
  })
 })

@@ -18,7 +18,7 @@ type OperationalCashAccount = {
   empresa_auxiliar: string | null
   data_ultimo_saldo: string | null
   data_importacao_local: string | null
-  situacao_carga: "SEM_ARQUIVO" | "CARGA_ANTERIOR" | "CARGA_HOJE" | "CARGA_HOJE_SEM_MOVIMENTO_NA_DATA"
+  situacao_carga: "SEM_ARQUIVO" | "CARGA_ANTERIOR" | "CARGA_HOJE" | "CARGA_HOJE_SEM_MOVIMENTO_NA_DATA" | "REENVIO_IDENTICO_CONFIRMADO"
   situacao_operacional: string
 }
 type OperationalCashSummary = {
@@ -29,6 +29,7 @@ type OperationalCashSummary = {
   contas_com_saldo_defasado: number
   contas_com_carga_na_data: number
   contas_com_carga_anterior: number
+  contas_com_reenvio_conferido: number
   importacoes_conferidas_internamente: number
   importacoes_com_divergencia: number
   contas_conciliadas: number
@@ -96,6 +97,7 @@ async function Content(){
       <p className="mt-4 text-xs leading-6 text-amber-200">Situação: {operationalSummary.situacao_consolidado.replaceAll("_"," ").toLowerCase()}. Apenas {operationalSummary.contas_conciliadas} contas têm saldo conciliado com o banco. Esse saldo parcial não libera compras pela OTB.</p>
       {(operational?.contas??[]).some(c=>c.situacao_operacional==="SEM_EXTRATO")&&<p className="mt-2 text-xs text-slate-400">Sem extrato: {(operational?.contas??[]).filter(c=>c.situacao_operacional==="SEM_EXTRATO").map(c=>c.numero_conta).join(", ")}.</p>}
       {(operational?.contas??[]).some(c=>c.situacao_carga==="CARGA_ANTERIOR")&&<p className="mt-2 text-xs text-amber-200">Contas com carga anterior à data-base: {(operational?.contas??[]).filter(c=>c.situacao_carga==="CARGA_ANTERIOR").map(c=>c.numero_conta+" ("+br(c.data_importacao_local)+")").join(", ")}.</p>}
+      {(operational?.contas??[]).some(c=>c.situacao_carga==="REENVIO_IDENTICO_CONFIRMADO")&&<p className="mt-2 text-xs text-emerald-200">Extratos reenviados e conferidos sem novos lançamentos, conforme confirmação do usuário: {(operational?.contas??[]).filter(c=>c.situacao_carga==="REENVIO_IDENTICO_CONFIRMADO").map(c=>c.numero_conta+" (último lançamento em "+br(c.data_ultimo_saldo)+")").join(", ")}. Isso não significa conciliação com os bancos nem emissão de novo extrato.</p>}
       {(operational?.contas??[]).some(c=>c.situacao_carga==="CARGA_HOJE_SEM_MOVIMENTO_NA_DATA")&&<p className="mt-2 text-xs text-slate-300">Arquivo recebido hoje com último movimento anterior: {(operational?.contas??[]).filter(c=>c.situacao_carga==="CARGA_HOJE_SEM_MOVIMENTO_NA_DATA").map(c=>c.numero_conta+" (mov. "+br(c.data_ultimo_saldo)+")").join(", ")}. A importação não comprova a data de emissão do extrato.</p>}
     </section>:<section role="alert" className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-5 text-xs text-amber-100">O Supabase não retornou uma posição operacional válida. Nenhum saldo foi presumido.</section>}
     <div className="grid gap-4 md:grid-cols-3">

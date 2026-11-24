@@ -6,6 +6,7 @@ import { CircleCheck, ClipboardPenLine, PackageOpen, X } from "lucide-react"
 import { getBranchDisplayName } from "@/domains/compras/domain/branches"
 import { decisionKey, operationalDecision, type PurchaseDecisionRecord } from "@/domains/compras/domain/purchase-decisions"
 import { PurchaseDecisionEditor } from "./purchase-decision-editor"
+import { PurchaseSubgroupEditor } from "./purchase-subgroup-editor"
 
 export type ManagementPurchaseItem = {
   loja: string | null; pedido: string | null; produto_codigo: string | null
@@ -123,6 +124,7 @@ export function ManagementTable({ rows }: { rows: ManagementTableRow[] }) {
                 <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-white"><ClipboardPenLine size={16} className="text-cyan-300" /> Decisão do comprador</h3>
                 <PurchaseDecisionEditor key={rowId(selected)} loja={selected.item.loja!} pedido={selected.item.pedido!} produtoCodigo={selected.item.produto_codigo!} record={selected.record} available expanded />
               </div>
+              <PurchaseSubgroupEditor key={"otb-"+rowId(selected)} loja={selected.item.loja!} pedido={selected.item.pedido!} produtoCodigo={selected.item.produto_codigo!}/>
             </div>
           </Dialog.Content>
         </Dialog.Portal>}

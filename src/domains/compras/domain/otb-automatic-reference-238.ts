@@ -3,6 +3,7 @@ import { calculateWorstCaseOtbCaps, type OtbWorstCashResult } from "./otb-cash-p
 import { dashboardReference, type DashboardReferenceRow } from "./dashboard-zacarini-237"
 import type { OtbSubgroupPreview } from "./otb-subgroup-preview"
 import type { CashForecastResult } from "./zacarini-cash-forecast"
+import { matchOtbOrders238, type OtbOrderSource238 } from "./otb-order-source-238"
 
 /**
  * Executa AUTOMATICAMENTE a OTB no modo demonstrativo operacional com dados do
@@ -23,8 +24,13 @@ export type OtbAutomaticReference238 =
       result:OtbResult
       cash:OtbWorstCashResult
       excludedSubgroups:string[]
-      mpMethod:"PRODUCAO_P_MULTIPLICADA_H12_ESTOQUE_MP_SEM_PEDIDOS"
+      mpMethod:"PRODUCAO_P_MULTIPLICADA_H12_ESTOQUE_MP_COM_PEDIDOS"
       rawMaterialNeeds:OtbTriple<number>
+      mpPriorOrders:number
+      mpRecorded:OtbTriple<number>
+      orderSummary:{items:number;pending:number;unmappedItems:number;unmappedValue:number;
+        matchedSubgroups:number;unmatchedSubgroups:number;unmatchedPending:number;
+        unmappedTop:readonly {code:string;description:string;items:number;pending:number}[]}
       limitations:readonly string[]
     }
 
@@ -33,6 +39,7 @@ export type AutomaticInput238 = {
   preview:OtbSubgroupPreview|null
   forecast:CashForecastResult
   references:readonly DashboardReferenceRow[]
+  orders?:OtbOrderSource238|null
 }
 
 const DAY=86400000
@@ -89,13 +96,20 @@ export function buildZacarini238CumulativeDues(input:{
 
 /** Apenas a prévia; NUNCA usar o retorno para gravar aprovações no sistema. */
 export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutomaticReference238 {
-  const {baseDate,preview,forecast,references}=input
+  const {baseDate,preview,forecast,references,orders}=input
   const baseMs=isoMs(baseDate)
   if(!/^20\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(baseDate)||
     !Number.isFinite(baseMs)||dateAt(baseMs)!==baseDate)return unavailable("Data-base inválida.")
   if(forecast.state!=="simulado"||!preview||preview.state!=="calculado") {
     return unavailable("Projeção 12M ou subgrupos ainda não calculados pelas fontes do Supabase.")
   }
+  if(!orders||orders.state!=="conectado"||orders.base!==baseDate){
+    return unavailable(orders?.state==="indisponivel"?orders.reason:
+      "Carteira de pedidos não conciliada; a OTB não pode presumir saldo pendente igual a zero.")
+  }
+  const groupMatch=matchOtbOrders238(orders,preview.rows.map(row=>row.name))
+  const unmatchedPending=groupMatch.unmatched.reduce((s,g)=>s+g.prior,0)
+  const matched=(name:string)=>groupMatch.matched.get(name)
   const otbMonths=[nextMonth(baseDate,1),nextMonth(baseDate,2),nextMonth(baseDate,3)] as const
   if(preview.months.some((month,i)=>month!==otbMonths[i])||
      forecast.monthLabels.length!==12||forecast.monthLabels.some((m,i)=>m!==nextMonth(baseDate,i))||
@@ -135,11 +149,15 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
     if(index>=1&&index<=3)return rawProduction[index-1]
     return forecast.monthlyCmvByLine.noventa[index].reduce((s,v)=>s+v,0)*productionShare
   }
-  // A planilha soma estoques dos grupos M à posição de MP. Pedidos MP
-  // em aberto NÃO estão no contrato deste estágio, portanto o resultado
-  // é explicitamente uma estimativa, nunca uma necessidade autorizada.
+  // OTB!I173/J173: posição de MP + núcleos/premix (M) e todos os pedidos
+  // anteriores ainda pendentes desses subgrupos. Excluir Segurar/Cancelar
+  // já é responsabilidade da RPC, não há desconto implícito de recebimento.
+  const rawGroups=[mp,...preview.rows.filter(row=>row.kind==="M")]
+  const mpPriorOrders=rawGroups.reduce((sum,row)=>sum+(matched(row.name)?.prior??0),0)
+  const mpRecorded:[number,number,number]=[0,1,2].map(i=>rawGroups.reduce((sum,row)=>
+    sum+(matched(row.name)?.recorded[i]??0),0)) as [number,number,number]
   let mpOpening=mp.stockCost+preview.rows.filter(row=>row.kind==="M")
-    .reduce((sum,row)=>sum+row.stockCost,0)
+    .reduce((sum,row)=>sum+row.stockCost,0)+mpPriorOrders
   const mpNeeds:number[]=[]
   for(let monthIndex=0;monthIndex<3;monthIndex++){
     const i=monthIndex+1
@@ -161,6 +179,7 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
   const mpTriple:OtbTriple<number>=[mpNeeds[0],mpNeeds[1],mpNeeds[2]]
   const missing:string[]=[]
   const merchandise:OtbSubgroupInput[]=[]
+  const dueNeedBySubgroup=new Map<string,number[]>()
   for(const row of preview.rows){
     if(row.kind!=="S"||row===mp)continue
     if(!row.months||row.months.length!==3||row.curveAShare===null||
@@ -170,13 +189,27 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
       missing.push(`${row.line} · ${row.name}`)
       continue
     }
+    const order=matched(row.name)
+    const priorOrders=order?.prior??0
+    // OTB!S/AB/AK: simular necessidade física mês a mês com J48 real.
+    let opening=row.stockCost+priorOrders
+    const needs:number[]=[]
+    for(const m of row.months){
+      const need=Math.max(0,m.forecastCost+m.targetStock-opening)
+      needs.push(need)
+      opening=Math.max(0,opening+need-m.forecastCost)
+    }
+    dueNeedBySubgroup.set(`${row.line}\0${row.name}`,needs)
     merchandise.push({
       line:`Linha ${row.line}`,name:row.name,kind:"S",
-      openingStock:row.stockCost,priorOrders:0,
+      openingStock:row.stockCost,priorOrders,
       forecastCost:row.months.map(m=>m.forecastCost) as unknown as OtbTriple<number>,
       targetStock:row.months.map(m=>m.targetStock) as unknown as OtbTriple<number>,
       curveAShare:row.curveAShare,
-      alreadyRecorded:[0,0,0],tiedSalesApproved:[0,0,0],
+      alreadyRecorded:(order?.recorded??[0,0,0]) as OtbTriple<number>,
+      // OTB!U/AD/AM são entradas manuais no XLSX; não existem
+      // autorizações de venda casada integradas na carteira.
+      tiedSalesApproved:[0,0,0],
     })
   }
   if(!merchandise.length)return unavailable("Nenhum subgrupo S com DDE, CMV e curva ABC completos.")
@@ -185,9 +218,9 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
     for(const row of merchandise){
       const line=Number(row.line.slice(6))-1
       if(!Number.isInteger(line)||line<0||line>3)return [] // inválido: validação abaixo
-      const item=preview.rows.find(p=>p.name===row.name&&p.line===line+1)
-      if(!item?.months) return []
-      lineNeeds[line]+=item.months[index].need
+      const needs=dueNeedBySubgroup.get(`${line+1}\0${row.name}`)
+      if(!needs) return []
+      lineNeeds[line]+=needs[index]
     }
     return lineNeeds.map(v=>Math.max(0,v))
   })
@@ -219,12 +252,22 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
   }
   return {
     state:"referencia_parcial",authorizesPurchases:false,result,cash:caps,
-    mpMethod:"PRODUCAO_P_MULTIPLICADA_H12_ESTOQUE_MP_SEM_PEDIDOS",
-    rawMaterialNeeds:mpTriple,
+    mpMethod:"PRODUCAO_P_MULTIPLICADA_H12_ESTOQUE_MP_COM_PEDIDOS",
+    rawMaterialNeeds:mpTriple,mpPriorOrders,mpRecorded,
+    orderSummary:{
+      items:orders.items,pending:orders.pending,
+      unmappedItems:orders.unmappedItems,unmappedValue:orders.unmappedValue,
+      matchedSubgroups:groupMatch.matched.size,
+      unmatchedSubgroups:groupMatch.unmatched.length,unmatchedPending,
+      unmappedTop:orders.unmappedTop,
+    },
     excludedSubgroups:missing,
     limitations:[
-      "Pedido anterior, pedido gravado, entrega e venda casada ainda não conciliados por subgrupo; simulação considera esses campos nulos e NÃO serve para autorização.",
-      "A necessidade de MP é estimada com o consumo P e estoque informado, sem abater pedidos MP pendentes; não usar como pedido autorizado.",
+      "Saldo pendente J48/J173 e gravados V48/V173 dos pedidos ainda em aberto agora vêm da carteira real do Supabase. Recebimentos futuros e pedidos já totalmente recebidos não estão disponíveis na fotografia.",
+      "Pedidos de MP e de núcleos/premix classificados foram incluídos na abertura da matéria-prima, sem presunção de chegada futura.",
+      "OTB!U/AD/AM (vendas casadas aprovadas) não possuem lançamentos integrados; a planilha 2.3.8 tinha esses campos zerados. Aprovações futuras exigem registro explícito.",
+      `${orders.unmappedItems} itens, R$ ${orders.unmappedValue.toFixed(2)}, sem subgrupo identificado; não foram imputados em nenhuma linha.`,
+      ...(groupMatch.unmatched.length?[`${groupMatch.unmatched.length} grupo(s) da carteira não tiveram correspondência segura com a posição de estoque. Pendência R$ ${unmatchedPending.toFixed(2)}.`]:[]),
       "O saldo do pior caso é simulação com referências financeiras, não saldo bancário homologado. A programação de pagamentos replica os prazos por linha da Zacarini.",
       ...(missing.length?[`${missing.length} subgrupo(s) S incompleto(s) excluído(s); valores são parciais.`]:[]),
     ],

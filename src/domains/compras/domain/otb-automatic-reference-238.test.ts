@@ -3,6 +3,7 @@ import { buildZacarini238CumulativeDues, buildOtbAutomaticReference238 } from ".
 import type { OtbSubgroupPreview } from "./otb-subgroup-preview"
 import type { CashForecastResult } from "./zacarini-cash-forecast"
 import type { DashboardReferenceRow } from "./dashboard-zacarini-237"
+import type { OtbOrderSource238 } from "./otb-order-source-238"
 
 const months=Array.from({length:12},(_,i)=>new Date(Date.UTC(2026,10+i,1)).toISOString().slice(0,10))
 const paymentDays=[47,73,78,146]
@@ -50,6 +51,16 @@ function preview():OtbSubgroupPreview {
    reconciledPlanGroups:[],seasonality:"cmv_90d"}
 }
 
+function openOrders():OtbOrderSource238 {
+ return {state:"conectado",base:"2026-11-24",snapshot:"2026-11-24T07:37:05Z",
+   items:4,pending:42000,unmappedItems:1,unmappedValue:500,
+   unmappedTop:[{code:"X1",description:"Produto não identificado",items:1,pending:500}],
+   groups:[
+    {name:"1.LINHA NUTRIÇÃO / MATERIA PRIMA",items:1,pending:10000,prior:10000,recorded:[0,0,0]},
+    {name:"1.LINHA NUTRIÇÃO / MINERAL",items:1,pending:2000,prior:2000,recorded:[400,0,0]},
+    {name:"2.SAUDE / VETERINÁRIO",items:1,pending:29500,prior:29500,recorded:[0,0,0]},
+   ],authorizesPurchases:false}
+}
 describe("Zacarini 2.3.8: vencimentos por linha iguais aos valores da planilha",()=>{
  it("reproduz os vencimentos acumulados, inclusive virada de ano e prazos de 146 dias",()=>{
   const out=buildZacarini238CumulativeDues({
@@ -78,7 +89,7 @@ describe("Zacarini 2.3.8: vencimentos por linha iguais aos valores da planilha",
 describe("OTB operacional automática, sem liberação",()=>{
  it("monta os três meses usando CMV real e MP por produção, nunca exemplo local",()=>{
   const out=buildOtbAutomaticReference238({
-   baseDate:"2026-11-24",preview:preview(),forecast:forecast(),references:refs,
+   baseDate:"2026-11-24",preview:preview(),forecast:forecast(),references:refs,orders:openOrders(),
   })
   expect(out.state,out.state==="indisponivel"?out.reason:"").toBe("referencia_parcial")
   expect(out.authorizesPurchases).toBe(false)
@@ -87,16 +98,21 @@ describe("OTB operacional automática, sem liberação",()=>{
   expect(out.result.source).toContain("NAO_HOMOLOGADA")
   expect(out.result.months[0].month).toBe("2026-12-01")
   expect(out.rawMaterialNeeds[0]).toBeGreaterThan(0)
+  expect(out.mpPriorOrders).toBe(10000)
+  expect(out.result.months[0].subgroups.find(s=>s.name==="1.LINHA NUTRIÇÃO / MINERAL")?.openingStock).toBe(22000)
+  expect(out.result.months[0].subgroups.find(s=>s.name==="1.LINHA NUTRIÇÃO / MINERAL")?.recorded).toBe(400)
+  expect(out.orderSummary.unmappedItems).toBe(1)
   expect(out.result.months[0].mpNeed).toBe(out.rawMaterialNeeds[0])
   expect(out.result.months[0].subgroups.some(s=>s.name==="1.LINHA NUTRIÇÃO / MATERIA PRIMA")).toBe(false)
-  expect(out.limitations.some(t=>t.includes("Pedidos"))).toBe(false) // texto explícito sobre "Pedido"
-  expect(out.limitations.join(" ")).toContain("Pedido anterior")
+  expect(out.limitations.join(" ")).toContain("Pedidos de MP")
+  expect(out.limitations.join(" ")).toContain("totalmente recebidos")
+  expect(out.limitations.join(" ")).toContain("V48/V173")
  })
  it("se não existe estoque de MP, produção, juros ou projeção, não gera teto de caixa falso",()=>{
   const broken=preview()
   if(broken.state==="calculado")broken.rows[0].targets=[]
   expect(buildOtbAutomaticReference238({
-   baseDate:"2026-11-24",preview:broken,forecast:forecast(),references:refs,
+   baseDate:"2026-11-24",preview:broken,forecast:forecast(),references:refs,orders:openOrders(),
   }).state).toBe("indisponivel")
   expect(buildOtbAutomaticReference238({
    baseDate:"2026-11-24",preview:preview(),forecast:forecast(),references:[],

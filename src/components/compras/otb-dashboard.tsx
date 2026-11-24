@@ -21,6 +21,7 @@ import { buildOtbTestSimulation } from "@/domains/compras/domain/otb-test-simula
 import type { CashForecastResult } from "@/domains/compras/domain/zacarini-cash-forecast"
 import { assessOtbGoLive, type OtbGoLiveStatus } from "@/domains/compras/domain/otb-go-live-readiness"
 import { OtbProjectionDraft } from "@/components/compras/otb-projection-draft"
+import { CashLedgerPanel238 } from "@/components/compras/cash-ledger-panel-238"
 import { OtbBuyer238Panel } from "@/components/compras/otb-buyer-238-panel"
 import { OtbTiedSalesEditor238 } from "@/components/compras/otb-tied-sales-editor-238"
 import { OtbDeliveryCalendarPanel238 } from "@/components/compras/otb-delivery-calendar-panel-238"
@@ -344,6 +345,8 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
           <p className="mt-3 text-slate-400">A tabela de títulos já contratados permanece disponível no fluxo de caixa. Não foi preenchido nenhum mês com dados de exemplo.</p>
         </div>}
     </section>
+
+    <CashLedgerPanel238 forecast={forecast}/>
 
     <OtbProjectionDraft forecast={forecast} baseDate={simulationBaseDate??""} recent={recentDrafts??[]} sourceError={!!draftSourceError}/>
 

@@ -4,6 +4,7 @@ import { dashboardReference, type DashboardReferenceRow } from "./dashboard-zaca
 import type { OtbSubgroupPreview } from "./otb-subgroup-preview"
 import type { CashForecastResult } from "./zacarini-cash-forecast"
 import { matchOtbOrders238, type OtbOrderSource238 } from "./otb-order-source-238"
+import { tiedSalesForSubgroup238, type OtbTiedSales238 } from "./otb-manual-calendar-238"
 
 /**
  * Executa AUTOMATICAMENTE a OTB no modo demonstrativo operacional com dados do
@@ -40,6 +41,7 @@ export type AutomaticInput238 = {
   forecast:CashForecastResult
   references:readonly DashboardReferenceRow[]
   orders?:OtbOrderSource238|null
+  tiedSales?:OtbTiedSales238|null
 }
 
 const DAY=86400000
@@ -96,7 +98,7 @@ export function buildZacarini238CumulativeDues(input:{
 
 /** Apenas a prévia; NUNCA usar o retorno para gravar aprovações no sistema. */
 export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutomaticReference238 {
-  const {baseDate,preview,forecast,references,orders}=input
+  const {baseDate,preview,forecast,references,orders,tiedSales}=input
   const baseMs=isoMs(baseDate)
   if(!/^20\d{2}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(baseDate)||
     !Number.isFinite(baseMs)||dateAt(baseMs)!==baseDate)return unavailable("Data-base inválida.")
@@ -106,6 +108,9 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
   if(!orders||orders.state!=="conectado"||orders.base!==baseDate){
     return unavailable(orders?.state==="indisponivel"?orders.reason:
       "Carteira de pedidos não conciliada; a OTB não pode presumir saldo pendente igual a zero.")
+  }
+  if(tiedSales?.state==="indisponivel"){
+    return unavailable("Vendas casadas U/AD/AM indisponíveis; o cálculo não pode assumir valores zerados.")
   }
   const groupMatch=matchOtbOrders238(orders,preview.rows.map(row=>row.name))
   const unmatchedPending=groupMatch.unmatched.reduce((s,g)=>s+g.prior,0)
@@ -177,6 +182,9 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
   }
 
   const mpTriple:OtbTriple<number>=[mpNeeds[0],mpNeeds[1],mpNeeds[2]]
+  const mpTiedSales=[0,1,2].map(i=>rawGroups.reduce((total,row)=>
+    total+(tiedSales?.state==="conectado"?
+      tiedSalesForSubgroup238(tiedSales,row.name,otbMonths)[i]:0),0)) as [number,number,number]
   const missing:string[]=[]
   const merchandise:OtbSubgroupInput[]=[]
   const dueNeedBySubgroup=new Map<string,number[]>()
@@ -209,7 +217,8 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
       alreadyRecorded:(order?.recorded??[0,0,0]) as OtbTriple<number>,
       // OTB!U/AD/AM são entradas manuais no XLSX; não existem
       // autorizações de venda casada integradas na carteira.
-      tiedSalesApproved:[0,0,0],
+      tiedSalesApproved:tiedSales?.state==="conectado"?
+        tiedSalesForSubgroup238(tiedSales,row.name,otbMonths):[0,0,0],
     })
   }
   if(!merchandise.length)return unavailable("Nenhum subgrupo S com DDE, CMV e curva ABC completos.")
@@ -245,6 +254,7 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
     result=calculateOtb({
       source:"OTB_SOSAL_PREVIA_AUTOMATICA_NAO_HOMOLOGADA_238",
       baseDate,months:otbMonths,cashCaps:caps.cashCaps,mpNeeds:mpTriple,
+      mpRecorded,mpTiedSales,
       buyerShare:0.9,subgroups:merchandise,
     })
   }catch(error){
@@ -265,7 +275,9 @@ export function buildOtbAutomaticReference238(input:AutomaticInput238):OtbAutoma
     limitations:[
       "Saldo pendente J48/J173 e gravados V48/V173 dos pedidos ainda em aberto agora vêm da carteira real do Supabase. Recebimentos futuros e pedidos já totalmente recebidos não estão disponíveis na fotografia.",
       "Pedidos de MP e de núcleos/premix classificados foram incluídos na abertura da matéria-prima, sem presunção de chegada futura.",
-      "OTB!U/AD/AM (vendas casadas aprovadas) não possuem lançamentos integrados; a planilha 2.3.8 tinha esses campos zerados. Aprovações futuras exigem registro explícito.",
+      tiedSales?.state==="conectado"?
+        `OTB!U/AD/AM: vendas casadas carregadas do cadastro Master (${tiedSales.entries} lançamento(s), R$ ${tiedSales.total.toFixed(2)}); ausência de lançamento vale zero, como na planilha 2.3.8.`:
+        "OTB!U/AD/AM: vendas casadas iniciadas em zero como na planilha; não há fonte externa de aprovações neste teste.",
       `${orders.unmappedItems} itens, R$ ${orders.unmappedValue.toFixed(2)}, sem subgrupo identificado; não foram imputados em nenhuma linha.`,
       ...(groupMatch.unmatched.length?[`${groupMatch.unmatched.length} grupo(s) da carteira não tiveram correspondência segura com a posição de estoque. Pendência R$ ${unmatchedPending.toFixed(2)}.`]:[]),
       "O saldo do pior caso é simulação com referências financeiras, não saldo bancário homologado. A programação de pagamentos replica os prazos por linha da Zacarini.",

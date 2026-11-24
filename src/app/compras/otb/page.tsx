@@ -13,6 +13,7 @@ import { buildPartialCashSeries, type ContractedWeek } from "@/domains/compras/d
 import { buildZacariniCashForecast } from "@/domains/compras/domain/zacarini-cash-forecast"
 import { buildOtbAutomaticReference238 } from "@/domains/compras/domain/otb-automatic-reference-238"
 import { interpretOtbOrderSource238 } from "@/domains/compras/domain/otb-order-source-238"
+import { interpretOtbTiedSales238, interpretOtbDeliveryCalendar238 } from "@/domains/compras/domain/otb-manual-calendar-238"
 import { resolveReceivablesRecovery, type RecoverableReceivablesLine } from "@/domains/compras/domain/receivables-recovery-237"
 import { nextOtbPurchaseNeeds } from "@/domains/compras/domain/otb-indicative-months"
 import { dashboardReference, type DashboardReferenceRow } from "@/domains/compras/domain/dashboard-zacarini-237"
@@ -68,10 +69,12 @@ export async function OtbContent() {
   }).formatToParts(new Date())
   const today = (type: string) => todayParts.find((part) => part.type === type)?.value ?? ""
   const todayISO = `${today("year")}-${today("month")}-${today("day")}`
+  const firstOtbMonth=new Date(Date.UTC(Number(today("year")),Number(today("month")),1))
+    .toISOString().slice(0,10)
 
   // Duas fontes agregadas, somente leitura, verificadas pelo banco como Master.
   // O histórico NÃO contém fluxo de caixa futuro nem substitui a Projeção 12M.
-  const [summary, historical, stock, config, bank, weeks, months, recovery, consigned, readiness, drafts, openOrders] = await Promise.all([
+  const [summary, historical, stock, config, bank, weeks, months, recovery, consigned, readiness, drafts, openOrders, tied, plannedDues] = await Promise.all([
     supabase.rpc("fn_listar_pedidos_compra", {
     p_busca: null,
     p_loja: null,
@@ -91,6 +94,8 @@ export async function OtbContent() {
     supabase.rpc("fn_otb_situacao_homologacao"),
     supabase.rpc("fn_otb_projecao_rascunhos_listar",{p_limite:10}),
     supabase.rpc("fn_otb_carteira_subgrupos_238",{p_data_base:todayISO}),
+    supabase.rpc("fn_otb_vendas_casadas_listar_238",{p_inicio:firstOtbMonth}),
+    supabase.rpc("fn_otb_pedidos_vencimentos_238",{p_inicio:todayISO}),
   ])
   const purchaseSource = interpretOtbPurchaseSource(summary.data, summary.error)
   const historicalSource = interpretOtbHistoricalSource(historical.data, historical.error, lastClosedMonth)
@@ -191,16 +196,20 @@ export async function OtbContent() {
   // Fluxo completo em modo REFERÊNCIA: fontes SISCOM + projeção 12M +
   // vencimentos 3M e MP + teto do pior caso + orçamento por subgrupo.
   // NÃO autoriza pedidos e expõe lacunas de conciliação/entradas pendentes.
+  const tiedSource=interpretOtbTiedSales238(tied.data,tied.error,firstOtbMonth)
+  const plannedSource=interpretOtbDeliveryCalendar238(plannedDues.data,plannedDues.error,todayISO)
   const automaticReference=buildOtbAutomaticReference238({
     baseDate:todayISO,preview:subgroupPreview,forecast,
     references:config.error?[]:(config.data??[]) as DashboardReferenceRow[],
     orders:interpretOtbOrderSource238(openOrders.data,openOrders.error,todayISO),
+    tiedSales:tiedSource,
   })
 
   return <OtbDashboard email={user.email ?? ""} purchaseSource={purchaseSource} historicalSource={historicalSource}
     stockPosition={stockPosition} indicativeMonths={indicativeMonths} subgroupPreview={subgroupPreview}
     seasonalHistory={seasonalHistory} abcProjection={abcProjection} consignedPosition={consignedPosition}
     simulationBaseDate={todayISO} forecast={forecast} automaticReference={automaticReference}
+    plannedDeliveries={plannedSource} tiedSales={tiedSource} tiedSalesStart={firstOtbMonth}
     readinessStatus={readiness.error?null:(readiness.data as OtbGoLiveStatus|null)}
     recentDrafts={drafts.error?[]:((drafts.data??[]) as Otb12mDraftHeader[])} draftSourceError={!!drafts.error}
     forecastIssues={forecast.state==="indisponivel"?forecast.reasons:

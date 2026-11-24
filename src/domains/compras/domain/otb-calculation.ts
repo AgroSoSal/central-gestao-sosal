@@ -39,6 +39,10 @@ export type OtbInput = {
   cashCaps: OtbTriple<number>
   /** Necessidades mensais da matéria-prima agregada (OTB!S/AB/AK173). */
   mpNeeds: OtbTriple<number>
+  /** Pedidos de MP já gravados, OTB!V/AE/AN173. */
+  mpRecorded?: OtbTriple<number>
+  /** Venda casada manual de MP, OTB!U/AD/AM173. */
+  mpTiedSales?: OtbTriple<number>
   buyerShare: number
   subgroups: readonly OtbSubgroupInput[]
 }
@@ -79,6 +83,9 @@ export type OtbMonth = {
   cashCap: number
   mpNeed: number
   mpReleased: number
+  mpRecorded: number
+  mpTiedSales: number
+  mpFreeBalance: number
   needMerchandise: number
   curveANeedMerchandise: number
   totalNeed: number
@@ -139,6 +146,8 @@ export function calculateOtb(input: OtbInput): OtbResult {
   checkMonths(input.months)
   requireTriple(input.cashCaps, "teto de caixa", 0)
   requireTriple(input.mpNeeds, "necessidade de matéria-prima", 0)
+  if(input.mpRecorded!==undefined) requireTriple(input.mpRecorded, "MP já gravada", 0)
+  if(input.mpTiedSales!==undefined) requireTriple(input.mpTiedSales, "MP venda casada aprovada", 0)
   requireNumber(input.buyerShare, "parcela do comprador", 0, 1)
   if (Math.abs(input.buyerShare - 0.9) > 1e-9) throw new RangeError("OTB: regra de OTB!R24 (90% comprador / 10% diretoria) violada.")
   if (!Array.isArray(input.subgroups)) throw new RangeError("OTB: subgrupos não disponíveis.")
@@ -171,6 +180,9 @@ export function calculateOtb(input: OtbInput): OtbResult {
     const mpNeed = input.mpNeeds[monthIndex]
     const cashCap = input.cashCaps[monthIndex]
     const mpReleased = Math.min(mpNeed, cashCap)
+    const mpRecorded = input.mpRecorded?.[monthIndex]??0
+    const mpTiedSales = input.mpTiedSales?.[monthIndex]??0
+    const mpFreeBalance = mpReleased + mpTiedSales - mpRecorded
     const remainingForMerchandise = Math.max(0, cashCap - mpReleased)
 
     const needMerchandise = itemNeeds.reduce((sum, value) => sum + value, 0)
@@ -236,6 +248,7 @@ export function calculateOtb(input: OtbInput): OtbResult {
 
     output.push({
       month: input.months[monthIndex], cashCap, mpNeed, mpReleased,
+      mpRecorded, mpTiedSales, mpFreeBalance,
       needMerchandise, curveANeedMerchandise, totalNeed,
       releasedMerchandise, releasedTotal,
       buyerBudget: releasedTotal * input.buyerShare,

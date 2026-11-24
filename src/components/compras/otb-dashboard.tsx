@@ -22,6 +22,9 @@ import type { CashForecastResult } from "@/domains/compras/domain/zacarini-cash-
 import { assessOtbGoLive, type OtbGoLiveStatus } from "@/domains/compras/domain/otb-go-live-readiness"
 import { OtbProjectionDraft } from "@/components/compras/otb-projection-draft"
 import { OtbBuyer238Panel } from "@/components/compras/otb-buyer-238-panel"
+import { OtbTiedSalesEditor238 } from "@/components/compras/otb-tied-sales-editor-238"
+import { OtbDeliveryCalendarPanel238 } from "@/components/compras/otb-delivery-calendar-panel-238"
+import type { OtbTiedSales238, OtbDeliveryCalendar238 } from "@/domains/compras/domain/otb-manual-calendar-238"
 import type { OtbAutomaticReference238 } from "@/domains/compras/domain/otb-automatic-reference-238"
 import type { Otb12mDraftHeader } from "@/domains/compras/domain/otb-projection-draft-12m"
 
@@ -52,6 +55,10 @@ type Props = {
   officialScenario?: OtbResult | null
   /** Referência automática de dados reais, mas com pendências explícitas; não aprova pedidos. */
   automaticReference?: OtbAutomaticReference238
+  /** U/AD/AM: entradas aprovadas pelo Master, não orçamento aprovado. */
+  tiedSales?:OtbTiedSales238
+  tiedSalesStart?:string
+  plannedDeliveries?:OtbDeliveryCalendar238
   /** Data-base do servidor, para manter a simulação estável e sem dependência do relógio do cliente. */
   simulationBaseDate?: string
 }
@@ -100,7 +107,7 @@ function Metric({ label, value, sub, icon }: { label: string; value: string; sub
   </div>
 }
 
-export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, indicativeMonths, forecastIssues, forecast, readinessStatus, recentDrafts, draftSourceError, subgroupPreview, seasonalHistory, abcProjection, consignedPosition, officialScenario, automaticReference, simulationBaseDate }: Props) {
+export function OtbDashboard({ email, purchaseSource, historicalSource, stockPosition, indicativeMonths, forecastIssues, forecast, readinessStatus, recentDrafts, draftSourceError, subgroupPreview, seasonalHistory, abcProjection, consignedPosition, officialScenario, automaticReference, simulationBaseDate, tiedSales, tiedSalesStart, plannedDeliveries }: Props) {
   const goLive = assessOtbGoLive(readinessStatus ?? null)
   const [testActive, setTestActive] = useState(false)
   const [testCashCaps, setTestCashCaps] = useState<[string, string, string]>(["120000", "150000", "180000"])
@@ -469,6 +476,12 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-5 py-4 text-xs text-slate-400"><span>{previewPaged.from}–{previewPaged.to} de {previewPaged.total} subgrupos · calculados somente na memória</span><div className="flex items-center gap-3"><button type="button" disabled={previewPaged.page<=1} onClick={()=>setPreviewPage(p=>p-1)} className="rounded-lg border border-cyan-300/20 px-3 py-2 font-bold text-cyan-200 disabled:opacity-35">Anterior</button><span>{previewPaged.page}/{previewPaged.totalPages}</span><button type="button" disabled={previewPaged.page>=previewPaged.totalPages} onClick={()=>setPreviewPage(p=>p+1)} className="rounded-lg border border-cyan-300/20 px-3 py-2 font-bold text-cyan-200 disabled:opacity-35">Próximo</button></div></div>
     </section>}
 
+    {tiedSales&&tiedSalesStart&&<OtbTiedSalesEditor238 start={tiedSalesStart}
+      subgroups={subgroupPreview?.state==="calculado"?
+        subgroupPreview.rows.filter(r=>r.kind==="S").map(r=>r.name):[]}
+      sales={tiedSales}/>}
+    {plannedDeliveries&&<OtbDeliveryCalendarPanel238 calendar={plannedDeliveries}/>}
+
     {!month ? <>
       {automaticReference?.state==="indisponivel" && !testActive && !officialScenario && <p role="alert" className="rounded-xl border border-amber-300/25 bg-amber-400/10 p-4 text-xs leading-6 text-amber-100">
         A cadeia automática de cálculo não foi concluída: {automaticReference.reason} Nenhum limite faltante foi convertido em zero ou aprovado.
@@ -522,7 +535,7 @@ export function OtbDashboard({ email, purchaseSource, historicalSource, stockPos
       </section>}
       <div role="status" className={`flex flex-wrap items-center gap-2 rounded-xl border px-4 py-3 text-xs leading-5 ${(testActive || indicativeActive) ? "border-amber-300/40 bg-amber-400/10 text-amber-100" : "border-cyan-300/25 bg-cyan-400/10 text-cyan-100"}`}>
         <ShieldCheck size={17} className="shrink-0" /> {testActive ? "RESULTADO SIMULADO: valores demonstrativos, sem orçamento aprovado ou autorização de pedido." :
-          indicativeActive ? "PRÉVIA AUTOMÁTICA: CMV, estoque e vencimentos do Supabase com hipóteses explícitas; não é verba aprovada nem permite pedidos." :
+          indicativeActive ? "SITUAÇÃO DO OTB CALCULADA COMO NA PLANILHA (LIBERADO / SÓ CURVA A + PARTE / TRAVADO). A verba é referência operacional, não aprovação bancária nem emissão de pedido." :
           "Cenário homologado no Supabase. Nenhuma autorização de pedido é gerada automaticamente."}
       </div>
 

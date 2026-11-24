@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowLeft, Search, Store } from "lucide-react"
 import { ComprasLogin, ComprasSair } from "@/components/compras/compras-auth"
 import { LoadingState } from "@/components/shared/mascot-loader"
 import { AtendimentoFornecedor, type AttendanceProduct, type PurchaseDraft, type AttendanceDdeMeta } from "@/components/compras/atendimento-fornecedor"
-import { AtendimentoDespesas, type ExpenseCatalogEntry } from "@/components/compras/atendimento-despesas"
+import { AtendimentoDespesas, type ExpenseCatalogEntry, type ExpenseDraft238 } from "@/components/compras/atendimento-despesas"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 import { interpretOtbStockPosition } from "@/domains/compras/domain/otb-position-source"
 
@@ -38,6 +38,8 @@ async function Content({ searchParams }: { searchParams: Promise<Params> }) {
   const expenseCatalog=(expenseCatalogResult.data??[]) as ExpenseCatalogEntry[]
   const draftsResult = await supabase.rpc("fn_compras_listar_cotacoes_rascunho",{p_limite:10})
   const drafts = draftsResult.error ? [] : (draftsResult.data??[]) as PurchaseDraft[]
+  const expenseDraftsResult = await supabase.rpc("fn_compras_listar_despesas_rascunho_238",{p_limite:10})
+  const expenseDrafts = expenseDraftsResult.error ? [] : (expenseDraftsResult.data??[]) as ExpenseDraft238[]
   const parts = new Intl.DateTimeFormat("en-CA", {
     year: "numeric",month: "2-digit",day: "2-digit", timeZone: "America/Campo_Grande",
   }).formatToParts(new Date())
@@ -90,6 +92,6 @@ async function Content({ searchParams }: { searchParams: Promise<Params> }) {
         </div>
         <AtendimentoFornecedor key={busca+"-"+filial} products={products} branch={filial} baseDate={baseDate} drafts={drafts} ddeMetas={metas} ddeObservado={ddeObservado} posicaoConectada={posicao.status==="conectado"} competencia={competencia} userId={user.id} />
         </>}
-    <AtendimentoDespesas branch={filial} catalog={expenseCatalog} unavailable={!!expenseCatalogResult.error} />
+    <AtendimentoDespesas branch={filial} catalog={expenseCatalog} unavailable={!!expenseCatalogResult.error} drafts={expenseDrafts} draftsUnavailable={!!expenseDraftsResult.error} />
   </main>
 }
